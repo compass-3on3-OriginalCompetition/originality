@@ -31,3 +31,10 @@
 ## 注意
 
 - Astro 7 の `astro preview` は既存サーバーがあるとロックで起動をスキップする。E2E では `--ignore-lock` を付けている。止めるときは `npx astro preview stop`
+
+## セキュリティ
+
+- 依存関係を追加・更新したら `npm audit` で脆弱性 0 件を確認する（CI でも moderate 以上で失敗する）
+- 修正版がない推移的依存は `package.json` の `overrides` で修正版に固定する（現在: `minimatch`）。上流が対応したら外す
+- セキュリティヘッダーは `public/_headers`。外部の画像・スクリプト・フォント等を使うときは CSP に許可ドメインを追加する
+- 秘密情報は `.env` に置き、コミットしない
