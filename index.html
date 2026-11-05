@@ -1,5 +1,6 @@
 <title>#コンパス 3on3 順位管理</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -289,6 +290,88 @@ button.bx:hover { border-color: #fff; }
 .issue-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
 
 .dl { font-size: .72rem; color: var(--muted); font-weight: 700; }
+
+/* ---------- phones ---------- */
+.bnav { display: none; }
+.blist { display: none; }
+@media (max-width: 640px) {
+  .bracket-stage { display: none; }
+  .blist { display: grid; gap: 14px; padding: 16px 12px; border: 1px solid var(--line); background: linear-gradient(160deg, rgba(232,39,63,.28), rgba(0,0,0,.6) 45%, rgba(0,0,0,.6) 55%, rgba(31,182,232,.28)); }
+  .blist .champ { padding-bottom: 0; }
+  .blist .champ::after { display: none; }
+  .blist .crown { width: 64px; }
+  .bl { display: grid; gap: 6px; }
+  .bl-t { font-weight: 700; font-size: .8rem; color: var(--muted); letter-spacing: .08em; text-align: center; }
+  .bl-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 6px; }
+  .bl .bx { min-height: 74px; padding: 8px 26px 8px 12px; }
+  .bl .bx-name { font-size: .88rem; }
+  .bl .bx-w { right: 8px; font-size: 1.25rem; }
+  .vs { font-family: var(--display); font-size: .8rem; color: var(--muted); }
+}
+@media (max-width: 600px) {
+  nav.tabs { display: none; }
+  .bnav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--surface); border-top: 1px solid var(--line);
+    padding: 4px max(4px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)); }
+  .bnav a { display: grid; justify-items: center; gap: 2px; padding: 6px 0 4px; color: var(--muted); text-decoration: none; font-size: .68rem; font-weight: 700; border-radius: 10px; }
+  .bnav a svg { width: 22px; height: 22px; }
+  .bnav a[aria-current="page"] { color: var(--accent); background: var(--surface-2); }
+  main { padding-block: 14px calc(84px + env(safe-area-inset-bottom, 0px)); gap: 14px; }
+  .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .top-row { padding-block: 8px; gap: 6px 10px; }
+  .brand { flex-basis: 100%; }
+  .brand h1 { font-size: 1.05rem; }
+  .brand small { display: none; }
+  .mode { font-size: .7rem; }
+  /* standings: cross table shows the short names only, smaller cells */
+  .gband h2 b { font-size: 1.6rem; }
+  table.xt th, table.xt td { height: 46px; }
+  table.xt.cross th.team { min-width: 0; padding: 4px; }
+  table.xt.cross th.team .tn > span:not(.ab) { display: none; }
+  table.xt.cross thead th { min-width: 0; padding: 4px 2px; font-size: .8rem; }
+  table.xt.cross thead th .ab, table.xt th.team .ab { min-width: 30px; height: 24px; font-size: .75rem; }
+  table.xt.cross td.cell { min-width: 0; padding: 2px; }
+  table.xt.cross td.cell .box { min-height: 38px; border-width: 1px; }
+  table.xt.cross td.cell .r { font-size: .58rem; letter-spacing: 0; }
+  table.xt.cross td.cell .sc { font-size: .78rem; }
+  table.xt.cross td.cell .pk { display: none; }
+  table.xt td.rk, table.xt th.rkh { min-width: 0; font-size: .9rem; padding: 0 4px; }
+  table.xt td.rk small { font-size: .55rem; }
+  table.xt.stats thead th { min-width: 0; }
+  table.xt.stats th.team { min-width: 0; width: 34%; padding: 4px 6px; }
+  table.xt.stats th.team .tn { font-size: .72rem; gap: 6px; }
+  table.xt.stats th.team .tn > span:not(.ab) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 21vw; }
+  table.xt.cross td.cell .sc { white-space: nowrap; }
+  table.xt.stats thead th.sh { white-space: normal; font-size: .6rem; padding: 4px 2px; line-height: 1.2; }
+  table.xt.stats td.n { min-width: 0; padding: 0 2px; font-size: .8rem; }
+  table.xt.stats td.n.pk { font-size: .9rem; }
+  .legend { font-size: .7rem; }
+  /* matches */
+  .panel-head, .panel-body { padding-inline: 12px; }
+  .editor { padding: 10px 8px; }
+  .trow { grid-template-columns: 22px minmax(0,1fr) minmax(0,1fr) 44px; gap: 6px; }
+  .tnames { grid-column: 2 / -1; grid-template-columns: minmax(0,1fr) 64px; }
+  .trow select { grid-column: 2 / 4; }
+  .trow .btn { grid-column: 4; }
+  .pl img.nm { max-width: 120px; }
+}
+/* phones held sideways: little height, so the header scrolls away and gets compact */
+@media (max-height: 520px) and (orientation: landscape) {
+  header.top { position: static; }
+  body::before { display: none; }
+  .top-row { padding-block: 6px 0; }
+  .brand h1 { font-size: 1.05rem; }
+  nav.tabs a { padding: 6px 12px 6px; font-size: .82rem; }
+  main { padding-block: 12px 40px; gap: 14px; }
+  table.xt th, table.xt td { height: 46px; }
+  table.xt td.cell .box { min-height: 40px; }
+  table.xt td.cell .pk { display: none; }
+  table.xt thead th, table.xt td.cell { min-width: 0; }
+  table.xt th.team { min-width: 150px; }
+  .bracket-stage { padding: 12px 10px 16px; }
+  .crown { width: 60px; }
+  .bx { min-height: 70px; }
+  .col > .bx { min-height: 72px; }
+}
 </style>
 
 <header class="top">
@@ -306,6 +389,13 @@ button.bx:hover { border-color: #fff; }
     </nav>
   </div>
 </header>
+<nav class="bnav" id="bnav" aria-label="ページ切り替え">
+  <a href="#standings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>順位表</a>
+  <a href="#matches"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14M14 14l6 6M4 14l-1 4 4-1M20 4l-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>対戦</a>
+  <a href="#bracket"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L3 7l5 4 4-6 4 6 5-4-1 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>決勝</a>
+  <a href="#teams"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 20c.5-4 3.5-6 7-6s6.5 2 7 6M16 4.5a3.5 3.5 0 010 7M18 14c2 .8 3.5 2.8 4 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>チーム</a>
+  <a href="#rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7a2 2 0 012 2v14a2 2 0 00-2-2H4zM20 4h-5a2 2 0 00-2 2v14a2 2 0 012-2h5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>ルール</a>
+</nav>
 <main class="wrap" id="app"><div class="empty"><strong>読み込み中…</strong></div></main>
 <div id="toast" class="toast" hidden></div>
 
@@ -525,7 +615,7 @@ document.addEventListener("focusout", () => { if (renderPending) setTimeout(() =
 function render() {
   renderPending = false;
   const s = S(), r = route();
-  document.querySelectorAll("#tabs a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + r ? "page" : "false"));
+  document.querySelectorAll("#tabs a, #bnav a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + r ? "page" : "false"));
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : "#コンパス <b>3on3</b> 大会";
   renderMode();
   const app = $("#app");
@@ -568,9 +658,9 @@ function viewStandings(s) {
       return `<td class="rk ${top ? "top" : ""}">${ORD(r.rank)}${r.tied ? "<small>同率</small>" : r.why ? `<small>${r.why}</small>` : ""}</td>`;
     };
     const teamTh = t => `<th class="team" scope="row"><span class="tn"><span class="ab">${abbr(t)}</span><span>${esc(t.name)}</span></span></th>`;
-    const xt = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th>${teams.map(t => `<th title="${esc(t.name)}"><span class="ab">${abbr(t)}</span></th>`).join("")}<th class="rkh">順位</th></tr></thead><tbody>
+    const xt = `<div class="grid-wrap"><table class="xt cross"><thead><tr><th></th>${teams.map(t => `<th title="${esc(t.name)}"><span class="ab">${abbr(t)}</span></th>`).join("")}<th class="rkh">順位</th></tr></thead><tbody>
       ${teams.map(t => `<tr>${teamTh(t)}${teams.map(o => o.id === t.id ? `<td class="diag"></td>` : crossCell(s, g, t.id, o.id)).join("")}${rkCell(byId[t.id])}</tr>`).join("")}</tbody></table></div>`;
-    const stat = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th><th class="sh">勝利</th><th class="sh">負け</th><th class="sh">引き分け</th><th class="sh">勝率</th><th class="sh">取得ポータルキー</th><th class="sh">残り試合数</th><th class="rkh">順位</th></tr></thead><tbody>
+    const stat = `<div class="grid-wrap"><table class="xt stats"><thead><tr><th></th><th class="sh">勝利</th><th class="sh">負け</th><th class="sh">引き分け</th><th class="sh">勝率</th><th class="sh">取得ポータルキー</th><th class="sh">残り試合数</th><th class="rkh">順位</th></tr></thead><tbody>
       ${teams.map(t => { const r = byId[t.id]; return `<tr>${teamTh(t)}<td class="n">${r.w}</td><td class="n">${r.l}</td><td class="n">${r.d}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n pk">${r.keys}</td><td class="n">${r.left}</td>${rkCell(r)}</tr>`; }).join("")}</tbody></table></div>`;
     const issues = st.issues.map(is => `<div class="issue"><div><strong>${ORD(is.rank)}〜${ORD(is.rank + is.ids.length - 1)}が並んでいます</strong>：${is.ids.map(id => esc(teamName(s, id))).join("、")}<br>
       ${st.complete ? `${is.method}で決めてください。` : `グループ戦終了後も並んだ場合は、${is.method}で決めます。`}</div>
@@ -683,6 +773,11 @@ function viewBracket(s) {
         </div>
       </div>
       <div class="third"><span class="third-t">3位決定戦</span>${pair(b.third, box(b.third, "a", "準決勝1 敗者"), box(b.third, "b", "準決勝2 敗者"))}</div>
+    </div>
+    <div class="blist">
+      <div class="champ">${crown}<div class="champ-name ${champ ? "" : "tbd"}">${champ ? esc(teamName(s, champ)) : "優勝"}</div></div>
+      ${[[b.fin, "決勝", "決勝", "決勝"], [b.sf1, "準決勝1", "準決勝1", "準決勝1"], [b.sf2, "準決勝2", "準決勝2", "準決勝2"], [b.third, "3位決定戦", "準決勝1 敗者", "準決勝2 敗者"]].map(([m, t, la, lb]) =>
+        `<div class="bl"><div class="bl-t">${t}</div><div class="bl-row">${box(m, "a", la)}<span class="vs">VS</span>${box(m, "b", lb)}</div></div>`).join("")}
     </div>
     ${panel}
     <div class="podium">${[["優勝", b.fin.w, "p1"], ["準優勝", b.fin.l, ""], ["3位", b.third.w, ""], ["4位", b.third.l, ""]].map(([p, id, c]) => `<div class="place ${c}"><div class="p">${p}</div><div class="n ${id ? "" : "tbd"}">${id ? esc(teamName(s, id)) : "未定"}</div></div>`).join("")}</div>`;
