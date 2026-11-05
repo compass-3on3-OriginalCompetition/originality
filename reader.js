@@ -648,6 +648,28 @@ function loadImage(file) {
   });
 }
 const DIGIT_SURE = 0.35;
+const MEDAL_SLOTS_ = [15, 85, 154];
+// frame color of a medal (window of 54x58 units like medalEdge): green / gold / purple / silver / red / blue
+function medalColor(img, ox, oy, sc) {
+  const W = img.width, H = img.height, D = img.data; let r = 0, g = 0, b = 0, n = 0;
+  for (let v = 4; v < 54; v += 2) for (let u = 4; u < 50; u += 2) {
+    const du = (u - 27) / 23, dv = (v - 29) / 25, rr = du * du + dv * dv; if (rr < 0.55 || rr > 1) continue; // ring only
+    const x = Math.round(ox + u * sc), y = Math.round(oy + v * sc); if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    const q = (y * W + x) * 4; r += D[q]; g += D[q + 1]; b += D[q + 2]; n++;
+  }
+  if (!n) return '?';
+  r /= n; g /= n; b /= n; const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  return { rgb: [r, g, b].map(Math.round), cls: medalCls(r, g, b) };
+}
+function medalCls(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  if (mx - mn < 28) return 'silver';
+  if (g >= r && g >= b) return 'green';
+  if (r >= b && g >= b && Math.abs(r - g) < 45) return 'gold';
+  if (r >= g && b >= g && Math.abs(r - b) < 60) return 'purple';
+  if (r >= g && r >= b) return 'red';
+  return 'blue';
+}
 async function readFile(file) {
   const L = await loadImage(file);
   try {
@@ -663,6 +685,8 @@ async function readFile(file) {
         name: p.name ? enc.mask(p.name) : null,
         nameURL: cropURL(u.im, p.nameBox, 260),
         hero: nearestHero(p),
+        medals: p.medals ? p.medals.map((ki, j) => { const ox = p.box.x0 + Math.round((MEDAL_SLOTS_[j] - 1) * a.det.sc), oy = p.box.band[0] + Math.round(a.det.sc), sc = a.det.sc;
+          return { k: ki == null ? null : Core.MEDAL_KEYS[ki], c: medalColor(u.img, ox, oy, sc).cls || '?', url: cropURL(u.im, [ox, oy, ox + 54 * sc, oy + 58 * sc], 40) }; }) : null,
         faceURL: cropURL(u.im, faceBox(p.art), 64),
         cards: p.cards ? p.cards.map((f, k) => { const s = cardSuggest(f); return { f: b64(f), top: s ? s.top.map(x => x.n) : [], ratio: s ? s.ratio : 0, url: cropURL(u.im, p.cardBox[k], 44) }; }) : null,
       }));
@@ -771,10 +795,72 @@ function cardDiff(a, b) {
   let t = 0; const A = unb64(a), B = unb64(b); for (let i = 300; i < 312; i++) { const x = A[i] - B[i]; t += x * x; }
   return Math.sqrt(d / p.length) + (Math.sqrt(t / 12) > 70 ? 0.5 : 0); // different band color = different attribute
 }
+
+/* ---- hero screen (name at the top, 強化メダル at the bottom) ---- */
+function heroTitle(img) {
+  const W = img.width, D = img.data, ymax = Math.min(img.height, Math.round(W * 0.2));
+  let y0 = -1, y1 = -1;
+  for (let y = 0; y < ymax; y++) {
+    let n = 0; for (let x = Math.round(W * 0.05); x < W * 0.95; x++) { const q = (y * W + x) * 4; if (darkTxt(D[q], D[q + 1], D[q + 2])) n++; }
+    if (n > 2 && n < W * 0.6) { if (y0 < 0) y0 = y; y1 = y; } else if (y0 >= 0 && y - y1 > 2) { if (y1 - y0 >= W * 0.025) break; y0 = -1; }
+  }
+  if (y0 < 0 || y1 - y0 < W * 0.025) return null;
+  // column groups; the first one is the role icon (a filled hexagon) when it is about as wide as tall and dense
+  const cols = []; for (let x = 0; x < W; x++) { let n = 0; for (let y = y0; y <= y1; y++) { const q = (y * W + x) * 4; if (darkTxt(D[q], D[q + 1], D[q + 2])) n++; } cols.push(n); }
+  const groups = []; let a = -1, last = -99;
+  for (let x = 0; x < W; x++) if (cols[x]) { if (a < 0 || x - last > W * 0.012) { if (a >= 0) groups.push([a, last]); a = x; } last = x; }
+  if (a >= 0) groups.push([a, last]);
+  if (!groups.length) return null;
+  let xs = groups[0][0];
+  const g0 = groups[0], h = y1 - y0 + 1, w0 = g0[1] - g0[0] + 1;
+  if (groups.length > 1 && w0 < h * 1.4) { let dn = 0; for (let x = g0[0]; x <= g0[1]; x++) dn += cols[x]; if (dn / (w0 * h) > 0.4) xs = groups[1][0]; }
+  return maskFrom(img, [xs, y0, groups[groups.length - 1][1] + 1, y1 + 1], darkTxt, 160, 24);
+}
+let nameMasks = null;
+function heroNameMasks() {
+  if (nameMasks) return nameMasks;
+  const c = document.createElement('canvas'); c.width = 1400; c.height = 90; const g = c.getContext('2d', { willReadFrequently: true });
+  nameMasks = Core.HERO_NAMES.map(n => {
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#222';
+    g.font = '700 56px "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", sans-serif'; g.textBaseline = 'middle'; g.fillText(n, 10, 45);
+    return { n, m: maskFrom(g.getImageData(0, 0, c.width, c.height), [0, 0, c.width, c.height], darkTxt, 160, 24) };
+  });
+  return nameMasks;
+}
+function maskSim(a, b) { if (!a || !b) return 1; let inter = 0, uni = 0; for (let i = 0; i < a.m.length; i++) { inter += Math.min(a.m[i], b.m[i]); uni += Math.max(a.m[i], b.m[i]); } return 1 - inter / Math.max(uni, 1e-6) + 0.6 * Math.abs(a.r - b.r) / Math.max(a.r, b.r); }
+function heroMedals(img) {
+  const W = img.width, H = img.height, D = img.data, xs = []; for (let x = Math.round(W * 0.05); x < W * 0.95; x += 4) xs.push(x);
+  let top = -1, bot = -1;
+  for (let y = Math.round(H * 0.55); y < H; y++) {
+    let n = 0; for (const x of xs) { const q = (y * W + x) * 4; if (Math.max(D[q], D[q + 1], D[q + 2]) < 60) n++; }
+    const dark = n > xs.length * 0.6;
+    if (top < 0) { if (dark) { let run = 0; for (let k = 0; k < W * 0.02; k++) { const yy = y + k; let m = 0; for (const x of xs) { const q = (yy * W + x) * 4; if (yy < H && Math.max(D[q], D[q + 1], D[q + 2]) < 60) m++; } if (m > xs.length * 0.6) run++; } if (run >= W * 0.018) top = y; } }
+    else if (dark) { if (y - top > W * 0.26) break; bot = y; }
+  }
+  if (top < 0 || bot - top < W * 0.1) return null;
+  const sc = W * 0.1843 / 70, cy = (top + bot) / 2 - 0.021 * W;
+  return [0.412, 0.596, 0.78].map(fx => { const ox = W * fx - 27 * sc, oy = cy - 29 * sc, e = Core.medalEdge(img, ox, oy, sc), gs = Core.medalGuess(e);
+    return { k: gs[0].s >= 0.8 && (!gs[1] || gs[0].s - gs[1].s >= 0.03) ? gs[0].k : null, s: gs[0].s, c: medalColor(img, ox, oy, sc), box: [ox, oy, ox + 54 * sc, oy + 58 * sc] }; });
+}
+async function readHeroShot(file) {
+  const L = await loadImage(file);
+  try {
+    const im = L.im, c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(im, 0, 0);
+    const img = ctx.getImageData(0, 0, c.width, c.height);
+    try { await document.fonts?.load('700 56px "Zen Kaku Gothic New"'); } catch (e) {}
+    const t = heroTitle(img), medals = heroMedals(img);
+    if (!medals) throw new Error('強化メダルの欄が見つかりませんでした。ヒーローの画面全体（上のキャラクター名から下の強化メダルまで）のスクショを使ってください。');
+    const cands = t ? heroNameMasks().map(x => ({ n: x.n, d: maskSim(t, x.m) })).sort((a, b) => a.d - b.d).slice(0, 5) : [];
+    return { names: cands.map(x => x.n), nameD: cands.map(x => +x.d.toFixed(3)), titleURL: t ? cropURL(im, [t.box[0] - 6, t.box[1] - 6, t.box[2] + 6, t.box[3] + 6], 320) : '',
+      medals: medals.map(m => ({ k: m.k, c: m.c.cls || '?', url: cropURL(im, m.box, 48) })) };
+  } finally { URL.revokeObjectURL(L.url); }
+}
 const CARD_NAMES = [...new Set(CARD_DB.map(c => c[0]))];
 window.CompassReader = {
   readFile,
   readDeckShot,
+  readHeroShot,
   cardDiff,
   CARD_SAME: 0.78,
   CARD_MAYBE: 0.9,
