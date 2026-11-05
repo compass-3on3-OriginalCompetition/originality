@@ -216,6 +216,43 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: .85rem; font-weight: 700; z-index: 20; max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: no-preference) { .toast { animation: rise .2s ease-out; } @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } } }
+
+/* Screenshot reading & members */
+.scan { display: grid; gap: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.muted-s { color: var(--muted); font-size: .78rem; }
+.gcheck { font-size: .8rem; border-radius: 8px; padding: 6px 10px; }
+.gcheck.bad { background: var(--warn-bg); color: var(--ink); border-left: 3px solid var(--bad); }
+.gcheck.ok { color: var(--good); padding-block: 2px; }
+.unit { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; background: var(--surface); min-width: 0; }
+.unit-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.unit-head select, .unit-score select, .pl select { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); min-width: 0; max-width: 100%; }
+.unit-score { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 700; }
+.unit-score b { font-family: var(--mono); font-size: 1.2rem; }
+.plist { display: grid; gap: 6px; }
+.pl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px; border-radius: 8px; background: var(--surface-2); min-width: 0; }
+.pl img.nm { height: 24px; max-width: 150px; border-radius: 4px; }
+.stag { font-size: .7rem; font-weight: 700; padding: 0 6px; border-radius: 4px; color: #0B0D14; }
+.stag.blue { background: var(--blue); } .stag.red { background: var(--red); }
+.hchip { display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 700; padding: 2px 8px 2px 2px; border-radius: 999px; border: 1px solid var(--line); }
+.hchip img { width: 22px; height: 22px; border-radius: 50%; }
+.hchip.ok { border-color: var(--good); } .hchip.ng { border-color: var(--bad); color: var(--bad); }
+.cthumbs { display: flex; gap: 4px; flex-wrap: wrap; }
+.cth { display: grid; justify-items: center; width: 58px; font-size: .58rem; line-height: 1.2; text-align: center; border: 2px solid transparent; border-radius: 6px; padding: 1px; }
+.cth img { width: 40px; height: auto; border-radius: 3px; }
+.cth small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+.cth.ok { border-color: var(--good); } .cth.maybe { border-color: var(--warn); } .cth.ng { border-color: var(--bad); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 4px 12px; font-weight: 700; font-size: .82rem; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.mgrid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .mgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.mcard { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; min-width: 0; background: var(--surface-2); }
+.mcard input, .mcard select { width: 100%; min-width: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }
+.mhead2 { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px; align-items: center; }
+.heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.deck { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px; }
+.deck .dl { grid-column: 1 / -1; }
+.dl { font-size: .72rem; color: var(--muted); font-weight: 700; }
 </style>
 
 <header class="top">
@@ -236,11 +273,14 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 <main class="wrap" id="app"><div class="empty"><strong>読み込み中…</strong></div></main>
 <div id="toast" class="toast" hidden></div>
 
+<script src="reader.js"></script>
+<datalist id="cardlist"></datalist>
 <script>
 (() => {
 "use strict";
 /* ---------- state ---------- */
-const real = { config: null, matches: {}, bracket: {}, loaded: false };
+const real = { config: null, matches: {}, bracket: {}, members: {}, loaded: false };
+let scan = null, regScan = null, memTeam = null, renderPending = false;
 let demo = null, demoMode = false;
 let mode = "loading";           // db | local | nodb
 let role = "viewer";            // admin | contributor | viewer
@@ -402,8 +442,9 @@ function applyLocal(st, path, data) {
   if (col === "t") st.config = data;
   else if (col === "matches") { if (data) st.matches[id] = data; else delete st.matches[id]; }
   else if (col === "bracket") { if (data) st.bracket[id] = data; else delete st.bracket[id]; }
+  else if (col === "members") { st.members = st.members || {}; if (data) st.members[id] = data; else delete st.members[id]; }
 }
-function persistLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ config: real.config, matches: real.matches, bracket: real.bracket })); } catch (e) {} }
+function persistLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ config: real.config, matches: real.matches, bracket: real.bracket, members: real.members })); } catch (e) {} }
 async function write(path, data) {
   if (demoMode) { applyLocal(demo, path, data); render(); return true; }
   if (mode === "local") { applyLocal(real, path, data); persistLocal(); render(); return true; }
@@ -439,7 +480,14 @@ function makeDemo() {
 
 /* ---------- render ---------- */
 const route = () => { const h = location.hash.slice(1); return ["standings", "matches", "bracket", "teams", "rules"].includes(h) ? h : "standings"; };
+function softRender() {
+  const a = document.activeElement;
+  if (a && a.closest && a.closest("#app") && a.matches("input:not([type=file]), textarea")) { renderPending = true; return; }
+  render();
+}
+document.addEventListener("focusout", () => { if (renderPending) setTimeout(() => { if (renderPending) { renderPending = false; softRender(); } }, 250); });
 function render() {
+  renderPending = false;
   const s = S(), r = route();
   document.querySelectorAll("#tabs a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + r ? "page" : "false"));
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : "#コンパス <b>3on3</b> 大会";
@@ -531,7 +579,7 @@ function matchCard(s, g, a, b) {
     <span class="t ${winA ? "win" : ""}">${esc(teamName(s, A))}<span class="host">ルーム作成</span></span>
     <span class="score">${score}</span>
     <span class="t r ${winB ? "win" : ""}">${esc(teamName(s, B))}</span>
-    <span class="mstate">${stateBadge(doc, e.done)}</span></button>
+    <span class="mstate">${stateBadge(doc, e.done)}${(doc?.games || []).some(x => x?.check?.issues?.length) ? ` <span class="pill bad">要確認</span>` : ""}</span></button>
     ${open ? editor(s, "group") : ""}</div>`;
 }
 function scoreSel(i, side, v, dis) {
@@ -562,13 +610,14 @@ function editor(s, kind) {
     <span class="savest" id="savest">${esc(saveStatus)}</span>
     <button class="btn ghost" data-act="close">閉じる</button>
     ${d.exists ? `<button class="btn ghost danger" data-act="clear" data-kind="${kind}" style="margin-left:auto">結果を消去</button>` : ""}</div>`;
-  return `<div class="editor">${head}${rows}${verdict}${btns}</div>`;
+  return `<div class="editor">${head}${rows}${verdict}${ro ? "" : scanPanel(s, kind)}${btns}</div>`;
 }
 function gameRow(i, g, ro) {
   const ff = `<select class="ffsel" data-g="${i}" data-side="ff" aria-label="${i + 1}試合目の不戦敗" ${ro ? "disabled" : ""}>
     <option value="">なし</option><option value="a" ${g.ff === "a" ? "selected" : ""}>左が不戦敗</option><option value="b" ${g.ff === "b" ? "selected" : ""}>右が不戦敗</option></select>`;
   const dis = ro || !!g.ff;
-  return `<div class="grow"><span class="gl">${i + 1}試合目</span>${scoreSel(i, "a", g.ff ? (g.ff === "a" ? 0 : 5) : num(g.a), dis)}<span class="dash">-</span>${scoreSel(i, "b", g.ff ? (g.ff === "b" ? 0 : 5) : num(g.b), dis)}${ff}</div>`;
+  const ck = g.check ? (g.check.issues?.length ? `<div class="gcheck bad">スクショ確認：${g.check.issues.map(esc).join(" ／ ")}</div>` : `<div class="gcheck ok">スクショ確認済み：ヒーロー・デッキに問題なし</div>`) : "";
+  return `<div class="grow"><span class="gl">${i + 1}試合目</span>${scoreSel(i, "a", g.ff ? (g.ff === "a" ? 0 : 5) : num(g.a), dis)}<span class="dash">-</span>${scoreSel(i, "b", g.ff ? (g.ff === "b" ? 0 : 5) : num(g.b), dis)}${ff}</div>${ck}`;
 }
 
 function viewBracket(s) {
@@ -612,7 +661,7 @@ function viewTeams(s) {
         <button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>抽選でグループ分け</button>
         <span class="savest" id="savest" style="margin-left:auto">${esc(saveStatus) || "変更は自動で保存されます"}</span></div>
       <div class="notice">抽選は全チームをランダムに並べ替えて、A・Bに同数ずつ振り分けます。奇数のときは、どちらのグループが1チーム多くなるかも抽選です。${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
-    </div></section>`;
+    </div></section>${membersPanel(s)}`;
 }
 
 function viewRules() {
@@ -637,6 +686,256 @@ function viewRules() {
     <li>シングルロス・マッチロスなどの処分は、該当試合を不戦敗として入力してください</li></ul></div></section></div>`;
 }
 
+/* ---------- members, submitted decks and screenshot reading ---------- */
+const RD = () => window.CompassReader || null;
+const memberId = (team, slot) => team + "_m" + slot;
+const emptyMember = (team, slot) => ({ team, slot, name: "", heroes: ["", ""], decks: [["", "", "", ""], ["", "", "", ""]], nameRefs: [] });
+function membersOf(s, team) {
+  return [0, 1, 2].map(i => { const m = s.members?.[memberId(team, i)]; return m ? { ...emptyMember(team, i), ...JSON.parse(JSON.stringify(m)) } : emptyMember(team, i); });
+}
+const whoOf = m => m.name || `メンバー${m.slot + 1}`;
+const memberLabel = (s, m) => `${teamName(s, m.team)}・${whoOf(m)}`;
+function saveMember(m) {
+  const body = { team: m.team, slot: m.slot, name: (m.name || "").trim(), heroes: m.heroes, decks: m.decks, nameRefs: (m.nameRefs || []).slice(-6), updatedAt: new Date().toISOString() };
+  const st = S(); st.members = st.members || {}; st.members[memberId(m.team, m.slot)] = body;
+  autosave("members/" + memberId(m.team, m.slot), body);
+}
+function learnName(s, mid_, ref) {
+  if (!ref) return;
+  const all = s.members || {};
+  // a name belongs to one member: drop it from anyone else first
+  const R = RD();
+  for (const id in all) {
+    if (id === mid_) continue;
+    const o = all[id], keep = (o.nameRefs || []).filter(r => R.nameDist(r, ref) >= R.NAME_T);
+    if (keep.length !== (o.nameRefs || []).length) saveMember({ ...emptyMember(o.team, o.slot), ...o, nameRefs: keep });
+  }
+  const [team, slotS] = [mid_.slice(0, mid_.lastIndexOf("_m")), mid_.slice(mid_.lastIndexOf("_m") + 2)];
+  const m = membersOf(s, team)[+slotS];
+  m.nameRefs = [...(m.nameRefs || []), ref];
+  saveMember(m);
+}
+function identify(s, ref) {
+  const R = RD(); if (!R || !ref) return null;
+  let best = null, bd = 1;
+  for (const id in (s.members || {})) for (const r of (s.members[id].nameRefs || [])) { const d = R.nameDist(ref, r); if (d < bd) { bd = d; best = id; } }
+  if (bd >= R.NAME_T) return null;
+  const m = s.members[best]; return { ...emptyMember(m.team, m.slot), ...m, id: best };
+}
+function teamIssues(s, team) {
+  const t = (s.config?.teams || []).find(x => x.id === team), share = (t?.share || "").trim();
+  const ms = membersOf(s, team), out = [], heroes = {}, cards = {};
+  const names = new Set(RD()?.cardNames || []), heroNames = new Set(RD()?.heroNames || []);
+  ms.forEach(m => {
+    m.heroes.forEach(h => { if (h) (heroes[h] = heroes[h] || []).push(whoOf(m)); });
+    m.decks.forEach((d, di) => d.forEach(c => { if (c && c !== share) (cards[c] = cards[c] || []).push(`${whoOf(m)}のデッキ${di + 1}`); }));
+    m.decks.forEach((d, di) => { const n = d.filter(Boolean).length; if (n && n < 4) out.push(`${whoOf(m)}のデッキ${di + 1}が${n}枚しかありません`); });
+    if (names.size) m.decks.forEach((d, di) => d.forEach(c => { if (c && !names.has(c)) out.push(`「${c}」はカード一覧にない名前です（${whoOf(m)}のデッキ${di + 1}）`); }));
+    if (heroNames.size) m.heroes.forEach(h => { if (h && !heroNames.has(h)) out.push(`「${h}」はヒーロー一覧にない名前です（${whoOf(m)}）`); });
+  });
+  for (const h in heroes) if (heroes[h].length > 1) out.push(`同じヒーロー「${h}」がチーム内で重複しています（${heroes[h].join("、")}）`);
+  for (const c in cards) if (cards[c].length > 1) out.push(`同じカード「${c}」が複数のデッキに入っています（${cards[c].join("、")}）`);
+  if (share && names.size && !names.has(share)) out.push(`シェアカード「${share}」はカード一覧にない名前です`);
+  return out;
+}
+// one player in a replay vs. the member's submitted heroes / decks
+function checkPlayer(m, p) {
+  const issues = [], notes = [];
+  if (!m) return { issues: ["名前からメンバーを判別できません"], notes, marks: [] };
+  const who = whoOf(m);
+  if (!p.hero) notes.push(`${who}：ヒーローを読み取れませんでした`);
+  else if (!m.heroes.some(Boolean)) notes.push(`${who}：提出ヒーローが未登録です`);
+  else if (!m.heroes.includes(p.hero)) issues.push(`${who}：提出外のヒーロー「${p.hero}」`);
+  let marks = [];
+  if (!p.cards) notes.push(`${who}：カードは、ⓘで詳細を開いたスクショのときだけ確認できます`);
+  else {
+    const decks = m.decks.filter(d => d.some(Boolean));
+    if (!decks.length) notes.push(`${who}：提出デッキが未登録です`);
+    else {
+      let best = null;
+      for (const d of decks) {
+        const mk = p.cards.map(c => d.includes(c.top[0]) ? "ok" : c.top.some(n => d.includes(n)) ? "maybe" : "ng");
+        const sc = mk.filter(x => x === "ok").length * 2 + mk.filter(x => x === "maybe").length;
+        if (!best || sc > best.sc) best = { mk, sc };
+      }
+      marks = best.mk;
+      const ng = p.cards.filter((c, k) => marks[k] === "ng");
+      if (ng.length) issues.push(`${who}：提出デッキにないカードの可能性（${ng.map(c => c.top[0] || "不明").join("、")}）`);
+      else if (marks.includes("maybe")) notes.push(`${who}：カードの読み取りがあいまいです。画像で確認してください`);
+    }
+  }
+  return { issues, notes, marks };
+}
+function evalUnit(s, u, A, B) {
+  const ps = u.players.map(p => ({ p, m: identify(s, p.name) }));
+  let vA = 0, vB = 0; // votes for "blue side is team A" / "blue side is team B"
+  ps.forEach(({ p, m }) => { if (!m) return; const blue = p.side === "blue"; if (m.team === A) blue ? vA++ : vB++; else if (m.team === B) blue ? vB++ : vA++; });
+  const blueIs = u.blueIs || (vA > vB ? "a" : vB > vA ? "b" : null);
+  const ka = blueIs == null ? null : blueIs === "a" ? u.score.b : u.score.r;
+  const kb = blueIs == null ? null : blueIs === "a" ? u.score.r : u.score.b;
+  const checks = ps.map(({ p, m }) => ({ p, m, wrong: !!m && m.team !== A && m.team !== B, ...checkPlayer(m, p) }));
+  const unknown = checks.filter(c => !c.m).length;
+  const issues = checks.filter(c => c.m).flatMap(c => c.issues).concat(unknown ? [`名前からメンバーを判別できない人が${unknown}人います`] : []).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
+  const sideTeam = side => blueIs == null ? null : ((side === "blue") === (blueIs === "a") ? A : B);
+  return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes), sideTeam };
+}
+async function runScan(files, target) {
+  const R = RD(); if (!R) { toast("読み取りの準備ができていません。ページを開き直してください"); return; }
+  const st = { key: target === "match" ? openId : memTeam, busy: true, units: [], errs: [], choice: {} };
+  if (target === "match") scan = st; else regScan = st;
+  render();
+  for (const f of files) {
+    try {
+      const us = await R.readFile(f);
+      if (!us.length) st.errs.push(`${f.name}：6人全員が映っている試合が見つかりませんでした。試合の上から下まで全部が入るようにスクショしてください。`);
+      st.units.push(...us);
+    } catch (e) { st.errs.push(`${f.name}：${e.message || "読み取れませんでした"}`); }
+  }
+  st.busy = false;
+  if (target === "match") {
+    // replay list shows newer games on top: give the bottom one the earliest open slot
+    const n = st.units.length; st.units.forEach((u, i) => { u.slot = n - 1 - i; });
+  }
+  render();
+}
+const sideTag = side => `<span class="stag ${side}">${side === "blue" ? "青" : "赤"}</span>`;
+function cardThumbs(p, marks) {
+  if (!p.cards) return `<span class="muted-s">カード：詳細を開いたスクショで確認できます</span>`;
+  return `<span class="cthumbs">${p.cards.map((c, k) => `<span class="cth ${marks[k] || ""}" title="${esc(c.top.join(" / "))}"><img src="${c.url}" alt=""><small>${esc(c.top[0] || "不明")}</small></span>`).join("")}</span>`;
+}
+function heroChip(name, ok) {
+  const R = RD(), ic = name && R ? R.heroIcon(name) : "";
+  return `<span class="hchip ${ok === false ? "ng" : ok ? "ok" : ""}">${ic ? `<img src="${ic}" alt="">` : ""}${esc(name || "ヒーロー不明")}</span>`;
+}
+function memberOptions(s, teams, sel) {
+  return `<option value="">判別できない</option>` + teams.flatMap(t => membersOf(s, t).map(m => `<option value="${memberId(t, m.slot)}" ${sel === memberId(t, m.slot) ? "selected" : ""}>${esc(memberLabel(s, m))}</option>`)).join("");
+}
+function scanPanel(s, kind) {
+  if (!RD()) return "";
+  const d = draft, A = esc(teamName(s, d.a)), B = esc(teamName(s, d.b));
+  const st = scan && scan.key === openId ? scan : null;
+  const nSlots = kind === "group" ? 3 : Math.max(3, (d.games || []).length + 1);
+  let body = "";
+  if (st?.busy) body = `<div class="muted-s">読み取り中…</div>`;
+  else if (st) {
+    body = st.errs.map(e => `<div class="gcheck bad">${esc(e)}</div>`).join("") + st.units.map((u, ui) => {
+      const ev = evalUnit(s, u, d.a, d.b);
+      const cur = d.games[u.slot], curR = gameRes(cur);
+      const cmp = !curR ? `<span class="pill">未入力</span>` : ev.ka == null || ev.kb == null ? "" : (curR.ka === ev.ka && curR.kb === ev.kb ? `<span class="pill ok">入力済みの結果と一致</span>` : `<span class="pill bad">入力済み ${curR.ka}-${curR.kb} と不一致</span>`);
+      const can = ev.ka != null && ev.kb != null;
+      const same = curR && can && curR.ka === ev.ka && curR.kb === ev.kb;
+      const players = ev.checks.map((c, pi) => `<div class="pl">
+          ${sideTag(c.p.side)}<img class="nm" src="${c.p.nameURL}" alt="ゲーム内の名前">
+          <select data-uassign="${ui}:${pi}" aria-label="この名前のメンバー" ${role !== "admin" ? "disabled" : ""}>${memberOptions(s, [d.a, d.b], c.m?.id || "")}</select>
+          ${heroChip(c.p.hero, c.m && c.p.hero && c.m.heroes.some(Boolean) ? c.m.heroes.includes(c.p.hero) : null)}
+          ${cardThumbs(c.p, c.marks)}</div>`).join("");
+      return `<div class="unit">
+        <div class="unit-head"><b>読み取り ${ui + 1}</b><select data-uslot="${ui}" aria-label="何試合目か">${Array.from({ length: nSlots }, (_, k) => `<option value="${k}" ${u.slot === k ? "selected" : ""}>${k + 1}試合目</option>`).join("")}</select>
+          <span class="muted-s">${esc(u.label)}</span></div>
+        <div class="unit-score">${A} <b>${ev.ka ?? "?"}</b> - <b>${ev.kb ?? "?"}</b> ${B}
+          ${u.score.b == null || u.score.r == null ? `<span class="pill bad">ポータルキーを読めず</span>` : !u.score.sure ? `<span class="pill wait">数字を目で確認</span>` : ""}
+          ${ev.blueIs == null ? `<label class="muted-s">青側のチーム <select data-ublue="${ui}"><option value="">選ぶ</option><option value="a">${A}</option><option value="b">${B}</option></select></label>` : ""}
+          ${cmp}</div>
+        <div class="plist">${players}</div>
+        ${ev.issues.length ? `<div class="gcheck bad">${ev.issues.map(esc).join("<br>")}</div>` : `<div class="gcheck ok">ヒーロー・デッキの問題は見つかりませんでした</div>`}
+        ${ev.notes.length ? `<div class="muted-s">${ev.notes.map(esc).join("<br>")}</div>` : ""}
+        <div class="btns"><button class="btn ${same ? "" : "primary"}" data-act="scan-apply" data-u="${ui}" ${can ? "" : "disabled"}>${same ? "確認結果を保存" : curR ? "読み取り値で上書き" : "この試合に記入"}</button></div>
+      </div>`;
+    }).join("");
+  }
+  return `<div class="scan"><div class="btns"><label class="btn" for="scanf">スクショで読み取り・確認</label><input id="scanf" type="file" accept="image/*" multiple data-scan="match" hidden>
+    <span class="muted-s">リプレイ画面のスクショから、メンバー・ポータルキー・ヒーロー・デッキを読み取ります。デッキの確認は、ⓘで詳細を開いたスクショが必要です。</span></div>${body}</div>`;
+}
+function membersPanel(s) {
+  const R = RD(), teams = s.config?.teams || [];
+  if (!teams.length) return "";
+  if (!memTeam || !teams.some(t => t.id === memTeam)) memTeam = teams[0].id;
+  const td = teamDraft?.teams.find(t => t.id === memTeam) || teams.find(t => t.id === memTeam);
+  const ms = membersOf(s, memTeam), issues = teamIssues(s, memTeam);
+  const heroSel = (m, k) => R ? `<select data-mf="h${k}" data-mid="${memberId(memTeam, m.slot)}" aria-label="${esc(whoOf(m))}のヒーロー${k + 1}"><option value="">ヒーロー${k + 1}を選ぶ</option>${R.heroNames.map(n => `<option ${m.heroes[k] === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>`
+    : `<input data-mf="h${k}" data-mid="${memberId(memTeam, m.slot)}" value="${esc(m.heroes[k])}" placeholder="ヒーロー${k + 1}">`;
+  const cards = (m, di) => `<div class="deck"><span class="dl">デッキ${di + 1}</span>${[0, 1, 2, 3].map(k => `<input list="cardlist" id="c-${memberId(memTeam, m.slot)}-${di}-${k}" data-mf="d${di}_${k}" data-mid="${memberId(memTeam, m.slot)}" value="${esc(m.decks[di][k])}" placeholder="カード${k + 1}" aria-label="${esc(whoOf(m))}のデッキ${di + 1}のカード${k + 1}">`).join("")}</div>`;
+  const mcards = ms.map(m => `<div class="mcard">
+      <div class="mhead2"><span class="dl">メンバー${m.slot + 1}</span><input id="mn-${memberId(memTeam, m.slot)}" data-mf="name" data-mid="${memberId(memTeam, m.slot)}" value="${esc(m.name)}" placeholder="ゲーム内の名前" aria-label="メンバー${m.slot + 1}の名前"></div>
+      <div class="heroes">${heroSel(m, 0)}${heroSel(m, 1)}</div>
+      ${cards(m, 0)}${cards(m, 1)}
+      <div class="muted-s">名前の見本 ${(m.nameRefs || []).length}件 ${(m.nameRefs || []).length ? `<button class="btn ghost" data-act="m-forget" data-mid="${memberId(memTeam, m.slot)}" style="padding:0 8px">見本を消す</button>` : "（スクショで覚えさせます）"}</div>
+    </div>`).join("");
+  const rs = regScan && regScan.key === memTeam ? regScan : null;
+  let reg = "";
+  if (rs?.busy) reg = `<div class="muted-s">読み取り中…</div>`;
+  else if (rs) {
+    reg = rs.errs.map(e => `<div class="gcheck bad">${esc(e)}</div>`).join("") + rs.units.map((u, ui) => `<div class="unit"><div class="unit-head"><b>読み取り ${ui + 1}</b><span class="muted-s">${esc(u.label)}${u.detail ? "" : " ・ 詳細を開いていないためカードは読めません"}</span></div>
+      <div class="plist">${u.players.map((p, pi) => { const k = ui + ":" + pi, c = rs.choice[k] || { m: identify(s, p.name)?.team === memTeam ? identify(s, p.name).id : "", t: "name" };
+        rs.choice[k] = c;
+        return `<div class="pl">${sideTag(p.side)}<img class="nm" src="${p.nameURL}" alt="ゲーム内の名前">
+          <select data-rm="${k}" aria-label="登録するメンバー"><option value="">登録しない</option>${ms.map(m => `<option value="${memberId(memTeam, m.slot)}" ${c.m === memberId(memTeam, m.slot) ? "selected" : ""}>${esc(whoOf(m))}</option>`).join("")}</select>
+          <select data-rt="${k}" aria-label="登録する内容"><option value="name" ${c.t === "name" ? "selected" : ""}>名前だけ覚える</option><option value="0" ${c.t === "0" ? "selected" : ""}>ヒーロー1・デッキ1に登録</option><option value="1" ${c.t === "1" ? "selected" : ""}>ヒーロー2・デッキ2に登録</option></select>
+          ${heroChip(p.hero)}${cardThumbs(p, [])}</div>`; }).join("")}</div></div>`).join("")
+      + (rs.units.length ? `<div class="btns"><button class="btn primary" data-act="reg-apply">選んだ内容を登録</button></div>` : "");
+  }
+  return `<section class="panel"><div class="panel-head"><h2>メンバーと提出デッキ</h2><span class="meta">デッキミスの確認に使います</span></div>
+    <div class="panel-body" style="display:grid;gap:14px">
+      <div class="chips">${teams.map(t => `<button class="chip ${t.id === memTeam ? "on" : ""}" data-act="mteam" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
+      <div class="field"><label for="share-${memTeam}">シェアカード（全デッキに入れてよい1枚）</label><input id="share-${memTeam}" list="cardlist" data-share="${memTeam}" value="${esc(td?.share || "")}" placeholder="カード名"></div>
+      <div class="mgrid">${mcards}</div>
+      ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong><br>${issues.map(esc).join("<br>")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で名前が違うカードは見分けられないので、目で確認してください）</div>`}
+      <div class="scan"><div class="btns"><label class="btn" for="regf">スクショから登録</label><input id="regf" type="file" accept="image/*" multiple data-scan="reg" hidden>
+        <span class="muted-s">このチームが映ったリプレイ画面のスクショを読み込むと、名前を覚えさせたり、使ったヒーローとカードをそのまま提出デッキに登録できます。デッキ編成画面のスクショには、まだ対応していません。</span></div>${reg}</div>
+    </div></section>`;
+}
+document.addEventListener("click", ev => {
+  const el = ev.target.closest("[data-act]"); if (!el) return;
+  const act = el.dataset.act, s = S();
+  if (act === "mteam") { memTeam = el.dataset.id; regScan = null; render(); return; }
+  if (act === "m-forget") {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消去"; return; }
+    const id = el.dataset.mid, m = membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)];
+    m.nameRefs = []; saveMember(m); render(); return;
+  }
+  if (act === "scan-apply" && draft && scan) {
+    const u = scan.units[+el.dataset.u], ev2 = evalUnit(s, u, draft.a, draft.b);
+    if (ev2.ka == null || ev2.kb == null) return;
+    draft.games[u.slot] = { a: ev2.ka, b: ev2.kb, ff: null, check: { issues: ev2.issues, at: new Date().toISOString() } };
+    for (let k = 0; k < u.slot; k++) draft.games[k] = draft.games[k] || { a: null, b: null, ff: null };
+    render(); saveDraft(); toast(`${u.slot + 1}試合目に記入しました`); return;
+  }
+  if (act === "reg-apply" && regScan) {
+    let n = 0;
+    const ms = membersOf(s, memTeam);
+    for (const k in regScan.choice) {
+      const c = regScan.choice[k]; if (!c.m) continue;
+      const [ui, pi] = k.split(":").map(Number), p = regScan.units[ui]?.players[pi]; if (!p) continue;
+      const m = ms[+c.m.slice(c.m.lastIndexOf("_m") + 2)];
+      if (p.name && !(m.nameRefs || []).some(r => RD().nameDist(r, p.name) < 0.05)) m.nameRefs = [...(m.nameRefs || []), p.name];
+      if (c.t !== "name") { const di = +c.t; if (p.hero) m.heroes[di] = p.hero; if (p.cards) m.decks[di] = p.cards.map(x => x.top[0] || ""); }
+      n++;
+    }
+    ms.forEach(m => saveMember(m));
+    regScan = null; render(); toast(n ? `${n}人分を登録しました` : "登録する人が選ばれていません"); return;
+  }
+});
+document.addEventListener("change", ev => {
+  const el = ev.target, s = S();
+  if (el.dataset.scan) { const files = [...el.files]; el.value = ""; if (files.length) runScan(files, el.dataset.scan); return; }
+  if (el.dataset.uslot != null && scan) { scan.units[+el.dataset.uslot].slot = +el.value; render(); return; }
+  if (el.dataset.ublue != null && scan) { scan.units[+el.dataset.ublue].blueIs = el.value || null; render(); return; }
+  if (el.dataset.uassign && scan) {
+    const [ui, pi] = el.dataset.uassign.split(":").map(Number), p = scan.units[ui].players[pi];
+    if (el.value && p.name) learnName(s, el.value, p.name); render(); return;
+  }
+  if (el.dataset.rm && regScan) { (regScan.choice[el.dataset.rm] = regScan.choice[el.dataset.rm] || { t: "name" }).m = el.value; return; }
+  if (el.dataset.rt && regScan) { (regScan.choice[el.dataset.rt] = regScan.choice[el.dataset.rt] || { m: "" }).t = el.value; return; }
+  if (el.dataset.share && teamDraft) { const t = teamDraft.teams.find(x => x.id === el.dataset.share); if (t) { t.share = el.value.trim(); saveTeams(); render(); } return; }
+  if (el.dataset.mf && el.dataset.mid) {
+    const id = el.dataset.mid, m = membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)], f = el.dataset.mf, v = el.value.trim();
+    if (f === "name") m.name = v;
+    else if (f[0] === "h") m.heroes[+f[1]] = v;
+    else { const [di, k] = f.slice(1).split("_").map(Number); m.decks[di][k] = v; }
+    saveMember(m); render(); return;
+  }
+});
+
 /* ---------- autosave ---------- */
 let saveStatus = "";
 const saveQ = {};
@@ -652,7 +951,7 @@ function autosave(path, body) {
   })();
 }
 function saveDraft() {
-  const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null }) : { a: null, b: null, ff: null })
+  const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null, ...(g.check ? { check: g.check } : {}) }) : { a: null, b: null, ff: null })
     .filter((g, i, arr) => arr.slice(i).some(x => x.ff || x.a != null || x.b != null));
   const now = new Date().toISOString();
   const body = !games.length ? null : draft.kind === "group"
@@ -662,7 +961,7 @@ function saveDraft() {
   autosave(draft.kind === "group" ? "matches/" + openId : openId, body);
 }
 function saveTeams() {
-  const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group })).filter(t => t.name);
+  const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group, share: (t.share || "").trim() })).filter(t => t.name);
   const names = teams.map(t => t.name);
   if (new Set(names).size !== names.length) { toast("同じチーム名が重複しているため保存していません"); return; }
   const s = S();
@@ -677,6 +976,7 @@ function openEditor(id, base) {
   openId = id;
   draft = { ...base, games: JSON.parse(JSON.stringify(doc?.games || [])), exists: !!doc };
   if (doc) { draft.a = doc.a || base.a; draft.b = doc.b || base.b; }
+  scan = null;
   render();
 }
 document.addEventListener("click", async ev => {
@@ -686,7 +986,7 @@ document.addEventListener("click", async ev => {
   if (act === "demo-off") { demoMode = false; demo = null; openId = null; teamDraft = null; render(); return; }
   if (act === "open") return openEditor(el.dataset.id, { kind: "group", group: el.dataset.g, a: el.dataset.a, b: el.dataset.b });
   if (act === "open-b") return openEditor("bracket/" + el.dataset.key, { kind: "bo3", key: el.dataset.key, a: el.dataset.a, b: el.dataset.b });
-  if (act === "close") { openId = null; draft = null; saveStatus = ""; render(); return; }
+  if (act === "close") { openId = null; draft = null; scan = null; saveStatus = ""; render(); return; }
   if (act === "clear") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消去"; return; }
     const path = el.dataset.kind === "group" ? "matches/" + openId : openId;
@@ -751,14 +1051,16 @@ document.addEventListener("input", ev => {
   if (el.dataset.ta != null && teamDraft) teamDraft.teams[+el.dataset.ta].abbr = el.value;
   if (el.id === "evn" && teamDraft) teamDraft.eventName = el.value;
 });
-window.addEventListener("hashchange", () => { openId = null; draft = null; teamDraft = null; saveStatus = ""; render(); });
+window.addEventListener("hashchange", () => { openId = null; draft = null; teamDraft = null; scan = null; regScan = null; saveStatus = ""; render(); });
 
 /* ---------- boot ---------- */
 async function boot() {
+  try { const dl = $("#cardlist"); if (window.CompassReader) dl.innerHTML = CompassReader.cardNames.map(n => `<option value="${esc(n)}"></option>`).join(""); } catch (e) {}
   render();
   if (!window.claude?.use) {
     mode = "local"; role = "admin";
     try { const d = JSON.parse(localStorage.getItem(LS_KEY) || "null"); if (d) Object.assign(real, d); } catch (e) {}
+    real.members = real.members || {};
     real.loaded = true; render(); return;
   }
   const [d, u] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
@@ -766,13 +1068,14 @@ async function boot() {
   db = d; mode = "db";
   if (u && await u.canEdit()) role = "admin";
   else { const c = u ? await u.can("data.write") : null; role = c === false ? "viewer" : "contributor"; }
-  let got = 0; const need = 3;
+  let got = 0; const need = 4;
   const timer = setTimeout(() => { if (!real.loaded) { loadNote = "データにまだ接続できません。通信状況を確認してください。"; render(); } }, 10000);
   const ready = snap => { if (!snap.metadata?.fromCache) { got++; } if (got >= need || got > 0) { real.loaded = true; if (got >= need) clearTimeout(timer); } };
   const fail = e => { clearTimeout(timer); real.loaded = true; toast("データの読み込みが止まりました。再読み込みしてください"); render(); };
-  db.doc("t/config").onSnapshot(snap => { real.config = snap.exists ? snap.data() : null; ready(snap); render(); }, fail);
-  db.collection("matches").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.matches = m; ready(snap); render(); }, fail);
-  db.collection("bracket").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.bracket = m; ready(snap); render(); }, fail);
+  db.doc("t/config").onSnapshot(snap => { real.config = snap.exists ? snap.data() : null; ready(snap); softRender(); }, fail);
+  db.collection("matches").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.matches = m; ready(snap); softRender(); }, fail);
+  db.collection("bracket").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.bracket = m; ready(snap); softRender(); }, fail);
+  db.collection("members").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.members = m; ready(snap); softRender(); }, fail);
 }
 boot();
 })();
