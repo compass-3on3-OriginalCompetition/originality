@@ -169,7 +169,7 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 .verdict b { font-family: var(--mono); }
 .savest { font-size: .8rem; color: var(--muted); }
 
-/* Bracket (crown on top, finals, then the two semifinal pairs; a date on each connector) */
+/* Bracket (crown on top, finals, then the two semifinal pairs) */
 .bracket-stage { overflow-x: auto; border: 1px solid var(--line); background: linear-gradient(120deg, rgba(232,39,63,.28), rgba(0,0,0,.6) 45%, rgba(0,0,0,.6) 55%, rgba(31,182,232,.28)); padding: 20px 12px 24px; }
 .tree, .third { min-width: 640px; }
 .champ { display: grid; justify-items: center; gap: 4px; position: relative; padding-bottom: 22px; }
@@ -177,15 +177,13 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 .crown { width: 84px; color: var(--gold); filter: drop-shadow(0 0 10px rgba(242,193,75,.7)); }
 .champ-name { font-family: var(--display); color: var(--gold); font-size: 1.05rem; }
 .champ-name.tbd { color: var(--muted); font-family: var(--body); font-weight: 700; font-size: .85rem; }
-.pair { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-top: 52px; }
+.pair { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-top: 40px; }
 .pair::before { content: ""; position: absolute; top: 0; left: 50%; height: 16px; border-left: 1px solid #9AA0AE; }
-.pair::after { content: ""; position: absolute; top: 16px; left: 25%; right: 25%; height: 36px; border: 1px solid #9AA0AE; border-bottom: 0; }
+.pair::after { content: ""; position: absolute; top: 16px; left: 25%; right: 25%; height: 24px; border: 1px solid #9AA0AE; border-bottom: 0; }
 .pair.top { gap: 40px; }
 .pair.top::before { display: none; }
-.pair.top::after { top: 0; height: 52px; left: calc(25% - 10px); right: calc(25% - 10px); }
-.when { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-weight: 600; font-size: .95rem; letter-spacing: .02em; white-space: nowrap; color: var(--ink); text-shadow: 0 1px 3px #000; z-index: 1; }
-.pair.top > .when { top: 6px; }
-.col { display: grid; gap: 0; align-content: start; }
+.pair.top::after { top: 0; height: 40px; left: calc(25% - 10px); right: calc(25% - 10px); }
+.pair.top > .col { display: grid; gap: 0; align-content: start; }
 .col > .bx { width: 74%; justify-self: center; min-height: 96px; }
 .bx { position: relative; display: grid; place-items: center; align-content: center; gap: 2px; min-height: 92px; padding: 10px 34px; background: #000; color: var(--ink); border: 1px solid #B8BDC8; font: inherit; text-align: center;
   clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
@@ -200,13 +198,11 @@ button.bx:hover { border-color: #fff; }
 .bx.lost { opacity: .55; }
 .bx.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
 .third { margin-top: 26px; display: grid; justify-items: center; }
-.third .pair { width: 60%; min-width: 420px; padding-top: 52px; }
+.third .pair { width: 60%; min-width: 420px; padding-top: 40px; }
 .third .pair::before { display: none; }
-.third .pair::after { top: 0; height: 52px; }
-.third .when { top: 18px; }
-.third-t { font-weight: 700; font-size: .85rem; color: var(--muted); letter-spacing: .08em; }
+.third .pair::after { top: 0; height: 40px; }
+.third .third-t { font-weight: 700; font-size: .85rem; color: var(--muted); letter-spacing: .08em; }
 .bpanel .editor { border-top: 0; }
-.bpanel input[type=datetime-local] { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }
 .podium { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
 @media (max-width: 640px) { .podium { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 .place { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
@@ -505,7 +501,7 @@ function makeDemo() {
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const names = ["夜更かしタンクス", "でらクランク部", "ポータル係", "まったり3人組", "ステージ選択会議", "ガンナー三昧", "カードかぶり禁止委員会", "相談時間10分", "コールド狙い", "ヒーロー非表示", "シェアカード党", "ラグに負けない"];
   const teams = names.map((n, i) => ({ id: "d" + i, name: "【デモ】" + n, abbr: (i < 6 ? "A" : "B") + (i % 6 + 1), group: i < 6 ? "A" : "B" }));
-  const d = { config: { eventName: "#コンパス 3on3 大会（デモ）", teams, tiebreak: {}, schedule: { sf1: "2026-08-28T17:35", sf2: "2026-08-28T19:05", third: "2026-08-30T14:00", final: "2026-08-30T15:35" } }, matches: {}, bracket: {}, loaded: true };
+  const d = { config: { eventName: "#コンパス 3on3 大会（デモ）", teams, tiebreak: {} }, matches: {}, bracket: {}, loaded: true };
   const game = () => { const a = Math.floor(rnd() * 6), b = Math.floor(rnd() * 6); return { a, b, ff: null }; };
   for (const g of GROUPS) {
     schedule(teamsOf(d, g)).forEach((r, ri) => r.pairs.forEach(([a, b], pi) => {
@@ -660,10 +656,9 @@ function gameRow(i, g, ro) {
   return `<div class="grow"><span class="gl">${i + 1}試合目</span>${scoreSel(i, "a", g.ff ? (g.ff === "a" ? 0 : 5) : num(g.a), dis)}<span class="dash">-</span>${scoreSel(i, "b", g.ff ? (g.ff === "b" ? 0 : 5) : num(g.b), dis)}${ff}</div>${ck}`;
 }
 
-const fmtWhen = v => v ? v.replace("T", " ").replace(/-/g, "/") : "日時未定";
 function viewBracket(s) {
   if (!(s.config?.teams || []).length) return noTeams();
-  const b = bracketState(s), sch = s.config?.schedule || {};
+  const b = bracketState(s);
   const box = (m, side, label) => {
     const id = side === "a" ? m.a : m.b, w = side === "a" ? m.e.wa : m.e.wb, won = m.e.winner === side, lost = m.e.winner && !won;
     const seed = side === "a" ? m.seedA : m.seedB, ready = m.a && m.b, open = openId === "bracket/" + m.key;
@@ -671,26 +666,25 @@ function viewBracket(s) {
     return ready ? `<button class="bx ${won ? "won" : ""} ${lost ? "lost" : ""} ${open ? "sel" : ""}" data-act="open-b" data-key="${m.key}" data-a="${m.a}" data-b="${m.b}" aria-label="${esc(m.label)}の結果">${inner}</button>`
       : `<div class="bx ${id ? "" : "tbd"}">${inner}</div>`;
   };
-  const pair = (m, a, bb) => `<div class="pair"><span class="when">${esc(fmtWhen(sch[m.key]))}</span>${a}${bb}</div>`;
+  const pair = (m, a, bb) => `<div class="pair">${a}${bb}</div>`;
   const champ = b.fin.w;
   const crown = `<svg class="crown" viewBox="0 0 120 80" aria-hidden="true"><path d="M10 58 L4 18 L32 40 L60 4 L88 40 L116 18 L110 58 Z" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><path d="M14 66 H106 M18 74 H102" stroke="currentColor" stroke-width="4"/><path d="M60 22 L52 40 H68 Z" fill="currentColor"/></svg>`;
   const sel = openId && openId.startsWith("bracket/") ? [b.sf1, b.sf2, b.third, b.fin].find(m => "bracket/" + m.key === openId) : null;
   const panel = sel && draft ? `<section class="panel bpanel"><div class="panel-head"><h2>${esc(sel.label)}</h2>
-      ${role === "admin" ? `<label class="meta">日時 <input type="datetime-local" data-sched="${sel.key}" value="${esc(sch[sel.key] || "")}"></label>` : `<span class="meta">${esc(fmtWhen(sch[sel.key]))}</span>`}</div>
+</div>
       ${sel.doc && (sel.doc.a !== sel.a || sel.doc.b !== sel.b) ? `<div class="notice warn" style="margin:10px 16px 0">保存時と対戦カードが変わっています。結果を確認してください。</div>` : ""}
-      ${editor(s, "bo3")}</section>` : `<div class="notice">対戦カードを押すと、試合ごとの結果を入力・確認できます${role === "admin" ? "（日時もそこで設定できます）" : ""}。BO3（先に2勝）、引き分けは数えずもう一戦、コールドなし。3位決定戦を先に行い、決勝を最後に行います。</div>`;
-  const schedBtns = role === "admin" && !sel ? "" : "";
+      ${editor(s, "bo3")}</section>` : `<div class="notice">対戦カードを押すと、試合ごとの結果を入力・確認できます。BO3（先に2勝）、引き分けは数えずもう一戦、コールドなし。3位決定戦を先に行い、決勝を最後に行います。</div>`;
   return `<div class="bracket-stage">
       <div class="tree">
         <div class="champ">${crown}<div class="champ-name ${champ ? "" : "tbd"}">${champ ? esc(teamName(s, champ)) : "優勝"}</div></div>
-        <div class="pair top"><span class="when">${esc(fmtWhen(sch.final))}</span>
+        <div class="pair top">
           <div class="col">${box(b.fin, "a", "決勝")}${pair(b.sf1, box(b.sf1, "a", "準決勝1"), box(b.sf1, "b", "準決勝1"))}</div>
           <div class="col">${box(b.fin, "b", "決勝")}${pair(b.sf2, box(b.sf2, "a", "準決勝2"), box(b.sf2, "b", "準決勝2"))}</div>
         </div>
       </div>
       <div class="third"><span class="third-t">3位決定戦</span>${pair(b.third, box(b.third, "a", "準決勝1 敗者"), box(b.third, "b", "準決勝2 敗者"))}</div>
     </div>
-    ${panel}${schedBtns}
+    ${panel}
     <div class="podium">${[["優勝", b.fin.w, "p1"], ["準優勝", b.fin.l, ""], ["3位", b.third.w, ""], ["4位", b.third.l, ""]].map(([p, id, c]) => `<div class="place ${c}"><div class="p">${p}</div><div class="n ${id ? "" : "tbd"}">${id ? esc(teamName(s, id)) : "未定"}</div></div>`).join("")}</div>`;
 }
 function viewTeams(s) {
@@ -1054,7 +1048,6 @@ document.addEventListener("click", ev => {
 });
 document.addEventListener("change", ev => {
   const el = ev.target, s = S();
-  if (el.dataset.sched && role === "admin") { const cfg = JSON.parse(JSON.stringify(s.config || {})); cfg.schedule = { ...(cfg.schedule || {}), [el.dataset.sched]: el.value }; autosave("t/config", cfg); return; }
   if (el.dataset.scan) { const files = [...el.files]; el.value = ""; if (files.length) runScan(files); return; }
   if (el.dataset.uslot != null && scan) { scan.units[+el.dataset.uslot].slot = +el.value; render(); return; }
   if (el.dataset.ublue != null && scan) { scan.units[+el.dataset.ublue].blueIs = el.value || null; render(); return; }
