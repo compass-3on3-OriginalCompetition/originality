@@ -524,7 +524,7 @@ const Core = (() => {
       const feat = det.detail ? heroFeat(img, p, side, sc) : null;
       const art = det.detail ? artBox(p, sc) : [p.x0 + Math.floor(300 * sc), p.y0 + Math.floor(50 * sc), p.x0 + Math.floor(446 * sc), p.y1];
       panels.push({ side, idx, box: p, art, feat, tfeat, name, rank: rankMask(img, p), letter: letterMask(img, p), medals: det.detail ? readMedals(img, p, sc) : null,
-        cards: det.detail ? cardFeats(img, p, sc) : null, cardBox: det.detail ? cardBoxes(p, sc) : null,
+        cards: cardFeats(img, p, sc), cardBox: cardBoxes(p, sc),
         cands: needCands && needCands({ feat, tfeat }) ? iconCands(img, p, sc) : null,
         nameBox: [p.x0 + 116 * sc, p.y0 + 4 * sc, p.x1 - 2, p.y0 + 56 * sc] });
     });
@@ -738,9 +738,11 @@ function boxAvg2(img, x0, y0, x1, y1, nx, ny, out, o) {
   return o;
 }
 // same 10x10 art grid + 4 band samples as the replay card feature (calibrated against the card list)
+const DECK_MAP = [0.03, 0.2, 0.95, 1.04]; // calibrated on real replay list cards vs deck edit screen
 function deckCardFeat(img, c) {
   const w = c.x1 - c.x0, f = new Uint8ClampedArray(Core.CARD_LEN);
-  const o = boxAvg2(img, c.x0 + 0.05 * w, c.y0 + 0.12 * w, c.x1 - 0.05 * w, c.y0 + 1.0 * w, 10, 10, f, 0);
+  const M = DECK_MAP;
+  const o = boxAvg2(img, c.x0 + M[0] * w, c.y0 + M[1] * w, c.x0 + M[2] * w, c.y0 + M[3] * w, 10, 10, f, 0);
   boxAvg2(img, c.x0 + 0.35 * w, c.y0 + 0.02 * w, c.x1 - 0.05 * w, c.y0 + 0.08 * w, 4, 1, f, o);
   return f;
 }
@@ -762,7 +764,7 @@ async function readDeckShot(file) {
     };
   } finally { URL.revokeObjectURL(L.url); }
 }
-// how different two cards look (art grid, normalized like cardSuggest): about 0.3-0.65 same card, 0.85+ different
+// how different two cards look: deck screen vs replay list about 0.45-0.62 for the same card, 0.95+ for different ones
 function cardDiff(a, b) {
   const pick = f => { const v = []; for (let i = 0; i < 100; i++) if (CARD_MASK[i]) v.push(f[i * 3], f[i * 3 + 1], f[i * 3 + 2]); return cardNz(v); };
   const p = pick(unb64(a)), q = pick(unb64(b)); let d = 0; for (let i = 0; i < p.length; i++) { const x = p[i] - q[i]; d += x * x; }
@@ -774,8 +776,8 @@ window.CompassReader = {
   readFile,
   readDeckShot,
   cardDiff,
-  CARD_SAME: 0.75,
-  CARD_MAYBE: 1.0,
+  CARD_SAME: 0.78,
+  CARD_MAYBE: 0.9,
   heroNames: Core.HERO_NAMES.slice(),
   cardNames: CARD_NAMES,
   heroIcon: n => HERO_ICON[n] || '',

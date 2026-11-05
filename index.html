@@ -784,7 +784,7 @@ function checkPlayer(m, p) {
     else if (!m.heroes.includes(p.hero)) issues.push(`${who}：提出外のヒーロー「${p.hero}」`);
   }
   let marks = [], deckNo = null;
-  if (!p.cards) notes.push(`${who}：カードは、ⓘで詳細を開いたスクショのときだけ確認できます`);
+  if (!p.cards) notes.push(`${who}：カードを読み取れませんでした`);
   else {
     const decks = [0, 1].map(di => ({ di, d: deckOf(m, di) })).filter(x => x.d.length);
     if (!decks.length) notes.push(`${who}：提出デッキが未登録です`);
@@ -807,7 +807,8 @@ function evalUnit(s, u, A, B) {
   const ka = blueIs == null ? null : blueIs === "a" ? u.score.b : u.score.r;
   const kb = blueIs == null ? null : blueIs === "a" ? u.score.r : u.score.b;
   const checks = ps.map(({ p, m }) => ({ p, m, wrong: !!m && m.team !== A && m.team !== B, ...checkPlayer(m, p) }));
-  const issues = checks.flatMap(c => c.issues).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
+  const unknown = checks.filter(c => !c.m).length;
+  const issues = checks.filter(c => c.m).flatMap(c => c.issues).concat(unknown ? [`名前からメンバーを判別できない人が${unknown}人います`] : []).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
   const sideTeam = side => blueIs == null ? null : ((side === "blue") === (blueIs === "a") ? A : B);
   return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes), sideTeam };
 }
@@ -848,7 +849,7 @@ async function runScan(files) {
 }
 const sideTag = side => `<span class="stag ${side}">${side === "blue" ? "青" : "赤"}</span>`;
 function cardThumbs(p, marks) {
-  if (!p.cards) return `<span class="muted-s">カード：詳細を開いたスクショで確認できます</span>`;
+  if (!p.cards) return `<span class="muted-s">カードを読み取れませんでした</span>`;
   return `<span class="cthumbs">${p.cards.map((c, k) => `<span class="cth ${marks[k] || ""}"><img src="${c.url}" alt=""></span>`).join("")}</span>`;
 }
 function heroChip(name, ok) {
@@ -892,7 +893,7 @@ function scanPanel(s, kind) {
     }).join("");
   }
   return `<div class="scan"><div class="btns"><label class="btn" for="scanf">スクショで読み取り・確認</label><input id="scanf" type="file" accept="image/*" multiple data-scan="match" hidden>
-    <span class="muted-s">リプレイ画面のスクショから、メンバー・ポータルキー・ヒーロー・デッキを読み取ります。デッキの確認は、ⓘで詳細を開いたスクショが必要です。</span></div>${body}</div>`;
+    <span class="muted-s">リプレイ選択画面のスクショから、ユーザーネームでメンバーを判別し、ポータルキーを記入して、使ったカードが提出デッキと合っているかを確認します（カードの並び順は関係ありません）。1枚に複数の試合が映っていても全部読みます。</span></div>${body}</div>`;
 }
 function deckView(m, di, mid_) {
   const d = deckOf(m, di);
