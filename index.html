@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>#コンパス 3on3 順位管理</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -293,19 +294,30 @@ button.bx:hover { border-color: #fff; }
 
 /* ---------- phones ---------- */
 .bnav { display: none; }
-.blist { display: none; }
+.mtree { display: none; }
 @media (max-width: 640px) {
   .bracket-stage { display: none; }
-  .blist { display: grid; gap: 14px; padding: 16px 12px; border: 1px solid var(--line); background: linear-gradient(160deg, rgba(232,39,63,.28), rgba(0,0,0,.6) 45%, rgba(0,0,0,.6) 55%, rgba(31,182,232,.28)); }
-  .blist .champ { padding-bottom: 0; }
-  .blist .champ::after { display: none; }
-  .blist .crown { width: 64px; }
-  .bl { display: grid; gap: 6px; }
-  .bl-t { font-weight: 700; font-size: .8rem; color: var(--muted); letter-spacing: .08em; text-align: center; }
+  /* phone portrait: the same bracket as a sideways tree (semifinals -> finals -> crown), read left to right */
+  .mtree { display: grid; gap: 18px; padding: 14px 8px 16px; border: 1px solid var(--line); background: linear-gradient(160deg, rgba(232,39,63,.28), rgba(0,0,0,.6) 45%, rgba(0,0,0,.6) 55%, rgba(31,182,232,.28)); }
+  .mt { display: grid; grid-template-columns: minmax(0,1.15fr) 14px minmax(0,1fr) 14px 64px; grid-template-rows: repeat(4, auto); row-gap: 8px; }
+  .mt-s1a { grid-area: 1 / 1; } .mt-s1b { grid-area: 2 / 1; } .mt-s2a { grid-area: 3 / 1; } .mt-s2b { grid-area: 4 / 1; }
+  .mt-f1 { grid-area: 1 / 3 / 3 / 4; align-self: center; } .mt-f2 { grid-area: 3 / 3 / 5 / 4; align-self: center; }
+  .mt-c1 { grid-area: 1 / 2 / 3 / 3; } .mt-c2 { grid-area: 3 / 2 / 5 / 3; } .mt-c3 { grid-area: 1 / 4 / 5 / 5; }
+  .mt-c1, .mt-c2, .mt-c3 { position: relative; }
+  .mt-c1::before, .mt-c2::before, .mt-c3::before { content: ""; position: absolute; left: 0; right: 50%; top: 25%; bottom: 25%; border: 1px solid #9AA0AE; border-left: 0; }
+  .mt-c1::after, .mt-c2::after, .mt-c3::after { content: ""; position: absolute; left: 50%; right: 0; top: 50%; border-top: 1px solid #9AA0AE; }
+  .mt-ch { grid-area: 1 / 5 / 5 / 6; align-self: center; display: grid; justify-items: center; gap: 4px; text-align: center; }
+  .mt-ch .crown { width: 52px; }
+  .mt-ch .champ-name { font-size: .78rem; overflow-wrap: anywhere; }
+  .mt .bx { min-height: 58px; padding: 6px 22px 6px 8px; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+  .mt .bx-name { font-size: .74rem; line-height: 1.25; }
+  .mt .bx-seed { font-size: .58rem; }
+  .mt .bx-w { right: 6px; font-size: 1.05rem; }
+  .mt-third { display: grid; gap: 6px; justify-items: center; }
+  .mt-third .bl-row { width: 100%; }
   .bl-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 6px; }
-  .bl .bx { min-height: 74px; padding: 8px 26px 8px 12px; }
-  .bl .bx-name { font-size: .88rem; }
-  .bl .bx-w { right: 8px; font-size: 1.25rem; }
+  .mt-third .bx { min-height: 58px; padding: 6px 22px 6px 8px; }
+  .mt-third .bx-name { font-size: .78rem; }
   .vs { font-family: var(--display); font-size: .8rem; color: var(--muted); }
 }
 @media (max-width: 600px) {
@@ -372,6 +384,22 @@ button.bx:hover { border-color: #fff; }
   .bx { min-height: 70px; }
   .col > .bx { min-height: 72px; }
 }
+
+/* login / tournament list */
+body.gated nav.tabs, body.gated .bnav { display: none; }
+.gate { max-width: 640px; width: 100%; justify-self: center; }
+.gate h2 { font-family: var(--display); font-weight: 400; margin: 0 0 8px; }
+.gate p { color: var(--muted); max-width: 60ch; }
+.btn.big { padding: 10px 22px; font-size: 1rem; }
+.glist { display: grid; gap: 6px; }
+.trow2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); font: inherit; }
+.trow2:hover { border-color: var(--muted); }
+.tn2 { font-weight: 700; overflow-wrap: anywhere; }
+.gform { display: grid; gap: 6px; }
+.gform label { font-size: .78rem; color: var(--muted); font-weight: 700; }
+.gform input { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); }
+.code-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.code-row code { font-family: var(--mono); font-size: 1rem; background: var(--surface-2); padding: 4px 8px; border-radius: 6px; user-select: all; overflow-wrap: anywhere; }
 </style>
 
 <header class="top">
@@ -400,6 +428,7 @@ button.bx:hover { border-color: #fff; }
 <div id="toast" class="toast" hidden></div>
 
 <script src="reader.js"></script>
+<script src="firebase-config.js"></script>
 <datalist id="cardlist"></datalist>
 <script>
 (() => {
@@ -579,7 +608,7 @@ async function write(path, data) {
     if (data) await db.doc(path).set(data); else await db.doc(path).delete();
     return true;
   } catch (e) {
-    if (e?.code === "invalid_argument" || e?.code === "not_granted") { role = "viewer"; render(); toast("書き込み権限がありません（閲覧のみ）"); }
+    if (e?.code === "invalid_argument" || e?.code === "not_granted" || e?.code === "permission-denied") { role = "viewer"; render(); toast("書き込み権限がありません（閲覧のみ）"); }
     else if (e?.code === "unavailable") toast("通信が不安定です。もう一度保存してください");
     else toast("保存できませんでした: " + (e?.message || e?.code || "不明なエラー"));
     return false;
@@ -619,6 +648,8 @@ function render() {
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : "#コンパス <b>3on3</b> 大会";
   renderMode();
   const app = $("#app");
+  document.body.classList.toggle("gated", FB.on && !demoMode && (!FB.user || !FB.tid));
+  if (FB.on && !demoMode && (!FB.user || !FB.tid)) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = viewGate(); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
   const html = { standings: viewStandings, matches: viewMatches, bracket: viewBracket, teams: viewTeams, rules: viewRules }[r](s);
   app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
@@ -626,7 +657,9 @@ function render() {
 function renderMode() {
   const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "閲覧のみ" };
   const m = mode === "local" ? `<span class="pill">この端末に保存</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
-  $("#mode").innerHTML = `${m}<span class="pill ${role === "admin" ? "on" : ""}">${labels[role]}</span>
+  if (FB.on && (!FB.user || !FB.tid) && !demoMode) { $("#mode").innerHTML = FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""; return; }
+  const fbBtns = FB.on && FB.user ? `<button class="btn ghost" data-act="fb-lobby" style="padding:2px 10px;font-size:.78rem">大会一覧</button>` : "";
+  $("#mode").innerHTML = `${m}${fbBtns}<span class="pill ${role === "admin" ? "on" : ""}">${FB.on && FB.isOwner && role === "admin" ? "主催" : labels[role]}</span>
     <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>`;
 }
 function noTeams() {
@@ -774,10 +807,16 @@ function viewBracket(s) {
       </div>
       <div class="third"><span class="third-t">3位決定戦</span>${pair(b.third, box(b.third, "a", "準決勝1 敗者"), box(b.third, "b", "準決勝2 敗者"))}</div>
     </div>
-    <div class="blist">
-      <div class="champ">${crown}<div class="champ-name ${champ ? "" : "tbd"}">${champ ? esc(teamName(s, champ)) : "優勝"}</div></div>
-      ${[[b.fin, "決勝", "決勝", "決勝"], [b.sf1, "準決勝1", "準決勝1", "準決勝1"], [b.sf2, "準決勝2", "準決勝2", "準決勝2"], [b.third, "3位決定戦", "準決勝1 敗者", "準決勝2 敗者"]].map(([m, t, la, lb]) =>
-        `<div class="bl"><div class="bl-t">${t}</div><div class="bl-row">${box(m, "a", la)}<span class="vs">VS</span>${box(m, "b", lb)}</div></div>`).join("")}
+    <div class="mtree" aria-label="決勝トーナメント">
+      <div class="mt">
+        <div class="mt-s1a">${box(b.sf1, "a", "準決勝1")}</div><div class="mt-s1b">${box(b.sf1, "b", "準決勝1")}</div>
+        <div class="mt-s2a">${box(b.sf2, "a", "準決勝2")}</div><div class="mt-s2b">${box(b.sf2, "b", "準決勝2")}</div>
+        <div class="mt-c1"></div><div class="mt-c2"></div>
+        <div class="mt-f1">${box(b.fin, "a", "決勝")}</div><div class="mt-f2">${box(b.fin, "b", "決勝")}</div>
+        <div class="mt-c3"></div>
+        <div class="mt-ch">${crown}<div class="champ-name ${champ ? "" : "tbd"}">${champ ? esc(teamName(s, champ)) : "優勝"}</div></div>
+      </div>
+      <div class="mt-third"><span class="third-t">3位決定戦</span><div class="bl-row">${box(b.third, "a", "準決勝1 敗者")}<span class="vs">VS</span>${box(b.third, "b", "準決勝2 敗者")}</div></div>
     </div>
     ${panel}
     <div class="podium">${[["優勝", b.fin.w, "p1"], ["準優勝", b.fin.l, ""], ["3位", b.third.w, ""], ["4位", b.third.l, ""]].map(([p, id, c]) => `<div class="place ${c}"><div class="p">${p}</div><div class="n ${id ? "" : "tbd"}">${id ? esc(teamName(s, id)) : "未定"}</div></div>`).join("")}</div>`;
@@ -805,7 +844,7 @@ function viewTeams(s) {
         <button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>抽選でグループ分け</button>
         <span class="savest" id="savest" style="margin-left:auto">${esc(saveStatus) || "変更は自動で保存されます"}</span></div>
       <div class="notice">抽選は全チームをランダムに並べ替えて、A・Bに同数ずつ振り分けます。奇数のときは、どちらのグループが1チーム多くなるかも抽選です。${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
-    </div></section>${membersPanel(s)}`;
+    </div></section>${sharePanel()}${membersPanel(s)}`;
 }
 
 function viewRules() {
@@ -1190,6 +1229,7 @@ function saveTeams() {
   if (new Set(names).size !== names.length) { toast("同じチーム名が重複しているため保存していません"); return; }
   const s = S();
   autosave("t/config", { ...(s.config || {}), eventName: teamDraft.eventName.trim(), teams, tiebreak: s.config?.tiebreak || {} });
+  if (FB.on && FB.isOwner && FB.tid && teamDraft.eventName.trim() && FB.t && teamDraft.eventName.trim() !== FB.t.name) { FB.t.name = teamDraft.eventName.trim(); FB.fs.doc("tournaments/" + FB.tid).update({ name: FB.t.name }).catch(() => {}); }
 }
 
 /* ---------- events ---------- */
@@ -1278,10 +1318,143 @@ document.addEventListener("input", ev => {
 window.addEventListener("hashchange", () => { openId = null; draft = null; teamDraft = null; scan = null; saveStatus = ""; render(); });
 
 /* ---------- boot ---------- */
+let unsubs = [];
+function subscribeAll(dbx, withMembers) {
+  unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = [];
+  let got = 0; const need = withMembers ? 4 : 3;
+  const timer = setTimeout(() => { if (!real.loaded) { loadNote = "データにまだ接続できません。通信状況を確認してください。"; render(); } }, 10000);
+  const ready = snap => { if (!snap.metadata?.fromCache) got++; real.loaded = true; if (got >= need) clearTimeout(timer); };
+  const fail = e => { clearTimeout(timer); real.loaded = true; toast(e?.code === "permission-denied" ? "この大会を見る権限がなくなりました（コードが作り直された可能性があります）" : "データの読み込みが止まりました。再読み込みしてください"); render(); };
+  unsubs.push(dbx.doc("t/config").onSnapshot(snap => { real.config = snap.exists ? snap.data() : null; ready(snap); softRender(); }, fail));
+  unsubs.push(dbx.collection("matches").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.matches = m; ready(snap); softRender(); }, fail));
+  unsubs.push(dbx.collection("bracket").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.bracket = m; ready(snap); softRender(); }, fail));
+  if (withMembers) unsubs.push(dbx.collection("members").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.members = m; ready(snap); softRender(); }, fail));
+}
+
+/* ---------- Google login + per-tournament codes (Firebase; used when firebase-config.js is filled in) ---------- */
+const FB = { on: false, auth: null, fs: null, user: null, tid: null, t: null, isOwner: false, codes: null, lobby: null, busy: "" };
+const FB_VER = "10.14.1";
+const LAST_TID = "compass3on3_tid";
+function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => rej(new Error("読み込めませんでした: " + src)); document.head.appendChild(el); }); }
+function rid(n) { const a = "abcdefghjkmnpqrstuvwxyz23456789", r = crypto.getRandomValues(new Uint8Array(n)); return [...r].map(x => a[x % a.length]).join(""); }
+// Firestore cannot store an array directly inside an array (decks, medals): wrap inner arrays on the way in, unwrap on the way out
+const fsEnc = v => Array.isArray(v) ? v.map(x => Array.isArray(x) ? { __a: fsEnc(x) } : fsEnc(x)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsEnc(x)])) : v;
+const fsDec = v => Array.isArray(v) ? v.map(fsDec) : v && typeof v === "object" ? ("__a" in v && Object.keys(v).length === 1 ? fsDec(v.__a) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsDec(x)]))) : v;
+function fsWrap(tid) {
+  const base = "tournaments/" + tid + "/", map = p => p === "t/config" ? base + "data/config" : base + p;
+  return {
+    doc: p => { const r = FB.fs.doc(map(p)); return { set: d => r.set(fsEnc(d)), delete: () => r.delete(), onSnapshot: (n, e) => r.onSnapshot(x => n({ exists: x.exists, data: () => fsDec(x.data()), metadata: x.metadata }), er => e && e(er)) }; },
+    collection: p => { const r = FB.fs.collection(map(p)); return { onSnapshot: (n, e) => r.onSnapshot(x => n({ docs: x.docs.map(d => ({ id: d.id, data: () => fsDec(d.data()) })), metadata: x.metadata }), er => e && e(er)) }; },
+  };
+}
+function resetData() { unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = []; Object.assign(real, { config: null, matches: {}, bracket: {}, members: {}, loaded: false }); openId = null; draft = null; teamDraft = null; scan = null; }
+async function fbBoot(cfg) {
+  mode = "fb"; FB.on = true; role = "viewer"; loadNote = "ログインを確認しています…"; render();
+  try {
+    for (const m of ["app", "auth", "firestore"]) await loadScript(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-${m}-compat.js`);
+    firebase.initializeApp(cfg); FB.auth = firebase.auth(); FB.fs = firebase.firestore();
+    if (cfg.useEmulator) { FB.auth.useEmulator("http://127.0.0.1:9099"); FB.fs.useEmulator("127.0.0.1", 8085); window.__fb = FB; } // local testing only
+  } catch (e) { loadNote = "ログインの仕組みを読み込めませんでした。通信状況を確認して、開き直してください。"; render(); return; }
+  FB.auth.getRedirectResult().catch(e => toast("ログインできませんでした: " + (e.message || e.code)));
+  FB.auth.onAuthStateChanged(async u => {
+    FB.user = u; resetData(); FB.tid = null;
+    if (!u) { render(); return; }
+    let last = null; try { last = localStorage.getItem(LAST_TID); } catch (e) {}
+    if (last) await fbOpen(last); else await fbLobby();
+  });
+}
+async function fbLobby() {
+  resetData(); FB.tid = null; FB.t = null; FB.codes = null; FB.lobby = null; render();
+  try { localStorage.removeItem(LAST_TID); } catch (e) {}
+  const uid = FB.user.uid, out = { owned: [], joined: [] };
+  try { (await FB.fs.collection("tournaments").where("owner", "==", uid).get()).forEach(d => out.owned.push({ id: d.id, ...d.data() })); } catch (e) {}
+  try { (await FB.fs.collection(`users/${uid}/joined`).get()).forEach(d => { if (!out.owned.some(x => x.id === d.id)) out.joined.push({ id: d.id, ...d.data() }); }); } catch (e) {}
+  out.owned.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  FB.lobby = out; softRender(); // don't wipe what is being typed
+}
+async function fbOpen(tid, quiet) {
+  resetData(); FB.tid = tid; FB.codes = null; loadNote = "大会を開いています…"; render();
+  const uid = FB.user.uid;
+  let t;
+  try { t = await FB.fs.doc("tournaments/" + tid).get(); } catch (e) { t = null; }
+  if (!t || !t.exists) {
+    if (!quiet) toast("この大会を見る権限がありません。コードが作り直された可能性があります。新しいコードで参加し直してください");
+    try { await FB.fs.doc(`users/${uid}/joined/${tid}`).delete(); } catch (e) {}
+    return fbLobby();
+  }
+  FB.t = t.data(); FB.isOwner = FB.t.owner === uid;
+  let admin = FB.isOwner;
+  if (!admin) { try { await FB.fs.collection(`tournaments/${tid}/members`).limit(1).get(); admin = true; } catch (e) {} }
+  role = admin ? "admin" : "viewer";
+  if (FB.isOwner) { try { FB.codes = (await FB.fs.doc("secrets/" + tid).get()).data() || null; } catch (e) {} }
+  try { localStorage.setItem(LAST_TID, tid); } catch (e) {}
+  db = fsWrap(tid); subscribeAll(db, admin);
+}
+async function fbCreate(name) {
+  const uid = FB.user.uid, tid = rid(10);
+  FB.busy = "作成中…"; render();
+  try {
+    await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now() });
+    await FB.fs.doc("secrets/" + tid).set({ viewCode: rid(12), adminCode: rid(12) });
+    await FB.fs.doc(`tournaments/${tid}/data/config`).set({ eventName: name, teams: [], tiebreak: {} });
+    FB.busy = ""; toast("大会を作りました"); await fbOpen(tid);
+  } catch (e) { FB.busy = ""; render(); toast("作れませんでした: " + (e.message || e.code)); }
+}
+async function fbJoin(code) {
+  const m = String(code).trim().replace(/\s+/g, "").match(/^([a-z0-9]{6,20})[.\-]([a-z0-9]{10,40})$/i);
+  if (!m) { toast("コードの形が正しくありません（例：abcd123456.xyz…）"); return; }
+  const [, tid, sec] = m, uid = FB.user.uid;
+  FB.busy = "確認中…"; render();
+  let kind = null;
+  try { await FB.fs.doc(`tournaments/${tid}/admins/${uid}`).set({ code: sec, at: Date.now() }); kind = "運営"; }
+  catch (e) { try { await FB.fs.doc(`tournaments/${tid}/viewers/${uid}`).set({ code: sec, at: Date.now() }); kind = "閲覧"; } catch (e2) {} }
+  FB.busy = "";
+  if (!kind) { render(); toast("コードが正しくないか、作り直されています"); return; }
+  try { const t = await FB.fs.doc("tournaments/" + tid).get(); await FB.fs.doc(`users/${uid}/joined/${tid}`).set({ name: t.data().name || "", kind, at: Date.now() }); } catch (e) {}
+  toast(`${kind}として参加しました`); await fbOpen(tid);
+}
+async function fbReissue(key) {
+  const c = { ...(FB.codes || {}) }; c[key] = rid(12);
+  try { await FB.fs.doc("secrets/" + FB.tid).set(c); FB.codes = c; render(); toast("コードを作り直しました。前のコードで参加していた人は見られなくなりました"); }
+  catch (e) { toast("作り直せませんでした: " + (e.message || e.code)); }
+}
+function viewGate() {
+  if (!FB.auth) return `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`;
+  if (!FB.user) return `<section class="panel gate"><div class="panel-body">
+      <h2>#コンパス 3on3 順位管理</h2>
+      <p>大会の結果入力・順位表・決勝トーナメントを管理します。作った大会は、あなたにしか見えません。ほかの人には、大会ごとに発行するコードを渡して見てもらいます。</p>
+      <button class="btn primary big" data-act="fb-login">Googleでログイン</button></div></section>`;
+  const L = FB.lobby;
+  const row = (t, tag) => `<button class="trow2" data-act="fb-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span></button>`;
+  return `<section class="panel gate"><div class="panel-head"><h2>大会一覧</h2><span class="meta">${esc(FB.user.email || FB.user.displayName || "")}</span></div>
+    <div class="panel-body" style="display:grid;gap:16px">
+      ${FB.busy ? `<div class="notice">${esc(FB.busy)}</div>` : ""}
+      ${!L ? `<div class="muted-s">読み込み中…</div>` : `
+      <div class="glist"><div class="dl">あなたが作った大会</div>${L.owned.length ? L.owned.map(t => row(t, "主催")).join("") : `<span class="muted-s">まだありません</span>`}</div>
+      <div class="glist"><div class="dl">コードで参加した大会</div>${L.joined.length ? L.joined.map(t => row(t, t.kind || "閲覧")).join("") : `<span class="muted-s">まだありません</span>`}</div>`}
+      <div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="fb-create">作成</button></div></div>
+      <div class="gform"><label for="joincode">コードで参加する</label><div class="btns"><input id="joincode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-join">参加</button></div>
+        <span class="muted-s">閲覧コードなら結果を見るだけ、運営コードなら結果の入力と、提出デッキ・メダルの確認もできます。コードはその大会にしか使えません。</span></div>
+      <div class="btns"><button class="btn ghost" data-act="fb-logout">ログアウト</button></div>
+    </div></section>`;
+}
+function sharePanel() {
+  if (!FB.on || !FB.tid) return "";
+  if (!FB.isOwner) return `<div class="notice">この大会には運営コードで参加しています。コードの発行と作り直しは主催者だけができます。</div>`;
+  const c = FB.codes || {}, code = k => c[k] ? `${FB.tid}.${c[k]}` : "—";
+  const line = (k, t, d) => `<div class="code-row"><div><div class="dl">${t}</div><code id="code-${k}">${esc(code(k))}</code><div class="muted-s">${d}</div></div>
+      <div class="btns"><button class="btn sm" data-act="fb-copy" data-k="${k}">コピー</button><button class="btn ghost sm danger" data-act="fb-reissue" data-k="${k}">作り直す</button></div></div>`;
+  return `<section class="panel"><div class="panel-head"><h2>共有コード</h2><span class="meta">この大会だけに使えます</span></div><div class="panel-body" style="display:grid;gap:12px">
+    ${line("viewCode", "閲覧コード", "結果・順位表・決勝トーナメントを見られます。提出デッキ・メダルなど運営用の情報は見られません。")}
+    ${line("adminCode", "運営コード", "結果の入力と、提出内容（ヒーロー・メダル・デッキ）の登録・確認ができます。運営にだけ渡してください。")}
+    <div class="muted-s">コードを作り直すと、前のコードで参加していた人は見られなくなります。サイトのURLとコードを一緒に渡し、Googleでログインしてから「コードで参加する」に入力してもらってください。</div></div></section>`;
+}
 async function boot() {
   try { const dl = $("#cardlist"); if (window.CompassReader) dl.innerHTML = CompassReader.cardNames.map(n => `<option value="${esc(n)}"></option>`).join(""); } catch (e) {}
   render();
   if (!window.claude?.use) {
+    const cfg = window.FIREBASE_CONFIG;
+    if (cfg && cfg.apiKey) return fbBoot(cfg);
     mode = "local"; role = "admin";
     try { const d = JSON.parse(localStorage.getItem(LS_KEY) || "null"); if (d) Object.assign(real, d); } catch (e) {}
     real.members = real.members || {};
@@ -1292,15 +1465,25 @@ async function boot() {
   db = d; mode = "db";
   if (u && await u.canEdit()) role = "admin";
   else { const c = u ? await u.can("data.write") : null; role = c === false ? "viewer" : "contributor"; }
-  let got = 0; const need = 4;
-  const timer = setTimeout(() => { if (!real.loaded) { loadNote = "データにまだ接続できません。通信状況を確認してください。"; render(); } }, 10000);
-  const ready = snap => { if (!snap.metadata?.fromCache) { got++; } if (got >= need || got > 0) { real.loaded = true; if (got >= need) clearTimeout(timer); } };
-  const fail = e => { clearTimeout(timer); real.loaded = true; toast("データの読み込みが止まりました。再読み込みしてください"); render(); };
-  db.doc("t/config").onSnapshot(snap => { real.config = snap.exists ? snap.data() : null; ready(snap); softRender(); }, fail);
-  db.collection("matches").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.matches = m; ready(snap); softRender(); }, fail);
-  db.collection("bracket").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.bracket = m; ready(snap); softRender(); }, fail);
-  db.collection("members").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.members = m; ready(snap); softRender(); }, fail);
+  subscribeAll(db, true);
 }
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act]"); if (!el || !el.dataset.act.startsWith("fb-")) return;
+  const act = el.dataset.act;
+  if (act === "fb-login") {
+    const pr = new firebase.auth.GoogleAuthProvider();
+    try { await FB.auth.signInWithPopup(pr); }
+    catch (e) { if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/cancelled-popup-request"].includes(e.code)) FB.auth.signInWithRedirect(pr); else if (e.code !== "auth/popup-closed-by-user") toast("ログインできませんでした: " + (e.message || e.code)); }
+    return;
+  }
+  if (act === "fb-logout") { try { localStorage.removeItem(LAST_TID); } catch (e) {} FB.auth.signOut(); return; }
+  if (act === "fb-lobby") { fbLobby(); return; }
+  if (act === "fb-open") { fbOpen(el.dataset.id); return; }
+  if (act === "fb-create") { const v = ($("#newt")?.value || "").trim(); if (!v) { toast("大会名を入れてください"); return; } fbCreate(v); return; }
+  if (act === "fb-join") { const v = $("#joincode")?.value || ""; if (!v.trim()) { toast("コードを入れてください"); return; } fbJoin(v); return; }
+  if (act === "fb-copy") { const t = $("#code-" + el.dataset.k)?.textContent || ""; try { await navigator.clipboard.writeText(t); toast("コピーしました"); } catch (e) { const r = document.createRange(); r.selectNodeContents($("#code-" + el.dataset.k)); getSelection().removeAllRanges(); getSelection().addRange(r); toast("選択された文字をコピーしてください"); } return; }
+  if (act === "fb-reissue") { if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと作り直す"; return; } fbReissue(el.dataset.k); return; }
+});
 boot();
 })();
 </script>

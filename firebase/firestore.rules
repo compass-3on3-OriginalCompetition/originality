@@ -1,0 +1,72 @@
+rules_version = '2';
+// #コンパス 3on3 順位管理 — who may read / write what.
+//  - Every tournament is private to its owner (the Google account that created it).
+//  - Other people get in only with that tournament's code:
+//      閲覧コード (view code)  -> can read the tournament's results
+//      運営コード (admin code) -> can also edit results and read operator-only data
+//  - A code only ever opens its own tournament. Reissuing a code shuts out everyone who used the old one.
+//  - Submitted heroes / medals / decks / name samples live under /members and are readable by operators only.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function tPath(tid) { return /databases/$(database)/documents/tournaments/$(tid); }
+    function sPath(tid) { return /databases/$(database)/documents/secrets/$(tid); }
+    function isOwner(tid) { return signedIn() && exists(tPath(tid)) && get(tPath(tid)).data.owner == request.auth.uid; }
+    function joinedWith(tid, coll, field) {
+      let p = /databases/$(database)/documents/tournaments/$(tid)/$(coll)/$(request.auth.uid);
+      return signedIn() && exists(p) && exists(sPath(tid)) && get(p).data.code == get(sPath(tid)).data[field];
+    }
+    function isAdmin(tid) { return isOwner(tid) || joinedWith(tid, 'admins', 'adminCode'); }
+    function isViewer(tid) { return isAdmin(tid) || joinedWith(tid, 'viewers', 'viewCode'); }
+    function isCode(v) { return v is string && v.size() >= 10 && v.size() <= 40; }
+
+    match /tournaments/{tid} {
+      allow get: if isViewer(tid);
+      allow list: if signedIn() && resource.data.owner == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.owner == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt'])
+                    && request.resource.data.name is string && request.resource.data.name.size() <= 60;
+      allow update: if isOwner(tid) && request.resource.data.owner == resource.data.owner
+                    && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt']);
+      allow delete: if isOwner(tid);
+
+      // people who joined with a code; each person writes only their own entry, and only with the right code
+      match /viewers/{uid} {
+        allow get: if signedIn() && (request.auth.uid == uid || isAdmin(tid));
+        allow list: if isAdmin(tid);
+        allow create, update: if signedIn() && request.auth.uid == uid && exists(sPath(tid))
+                              && request.resource.data.keys().hasOnly(['code', 'at'])
+                              && request.resource.data.code == get(sPath(tid)).data.viewCode;
+        allow delete: if isAdmin(tid) || (signedIn() && request.auth.uid == uid);
+      }
+      match /admins/{uid} {
+        allow get: if signedIn() && (request.auth.uid == uid || isAdmin(tid));
+        allow list: if isAdmin(tid);
+        allow create, update: if signedIn() && request.auth.uid == uid && exists(sPath(tid))
+                              && request.resource.data.keys().hasOnly(['code', 'at'])
+                              && request.resource.data.code == get(sPath(tid)).data.adminCode;
+        allow delete: if isOwner(tid) || (signedIn() && request.auth.uid == uid);
+      }
+
+      // shared with everyone in this tournament: settings, group results, final tournament
+      match /data/{doc}    { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
+      match /matches/{doc} { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
+      match /bracket/{doc} { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
+      // operators only: submitted heroes, medals, decks and name samples
+      match /members/{doc} { allow read, write: if isAdmin(tid); }
+    }
+
+    // the two codes of a tournament: only its owner sees or changes them
+    match /secrets/{tid} {
+      allow read: if isOwner(tid);
+      allow create, update: if isOwner(tid) && request.resource.data.keys().hasOnly(['viewCode', 'adminCode'])
+                            && isCode(request.resource.data.viewCode) && isCode(request.resource.data.adminCode);
+      allow delete: if isOwner(tid);
+    }
+
+    // each person's own list of tournaments they joined
+    match /users/{uid}/joined/{tid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+  }
+}
