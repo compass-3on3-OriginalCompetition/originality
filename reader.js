@@ -664,16 +664,118 @@ async function readFile(file) {
         nameURL: cropURL(u.im, p.nameBox, 260),
         hero: nearestHero(p),
         faceURL: cropURL(u.im, faceBox(p.art), 64),
-        cards: p.cards ? p.cards.map((f, k) => { const s = cardSuggest(f); return { top: s ? s.top.map(x => x.n) : [], ratio: s ? s.ratio : 0, url: cropURL(u.im, p.cardBox[k], 44) }; }) : null,
+        cards: p.cards ? p.cards.map((f, k) => { const s = cardSuggest(f); return { f: b64(f), top: s ? s.top.map(x => x.n) : [], ratio: s ? s.ratio : 0, url: cropURL(u.im, p.cardBox[k], 44) }; }) : null,
       }));
       out.push({ label: u.name, detail: !!a.detail, score: { b: a.score.b, r: a.score.r, sure: a.score.db < DIGIT_SURE && a.score.dr < DIGIT_SURE }, players });
     }
     return out;
   } finally { URL.revokeObjectURL(L.url); }
 }
+
+/* ---- deck edit screen (カード強化 / デッキ編集) ---- */
+// text mask like Core's textMask, with our own "is text pixel" rule
+function maskFrom(img, box, pred, W2, H2) {
+  const { width: W, data: D } = img;
+  let [x0, y0, x1, y1] = box.map(Math.round);
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(img.width, x1); y1 = Math.min(img.height, y1);
+  const w = x1 - x0, h = y1 - y0; if (w <= 0 || h <= 0) return null;
+  const m = new Uint8Array(w * h); let mnx = 1e9, mny = 1e9, mxx = -1, mxy = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const q = ((y0 + y) * W + x0 + x) * 4; if (pred(D[q], D[q + 1], D[q + 2])) { m[y * w + x] = 1; if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; } }
+  if (mxx < 0) return null;
+  const bw = mxx - mnx + 1, bh = mxy - mny + 1, nw = Math.max(1, Math.min(W2, Math.round(bw * H2 / bh))), out = new Float32Array(W2 * H2);
+  for (let Y = 0; Y < H2; Y++) for (let X = 0; X < nw; X++) {
+    const sy0 = Y * bh / H2, sy1 = (Y + 1) * bh / H2, sx0 = X * bw / nw, sx1 = (X + 1) * bw / nw; let s = 0, a = 0;
+    for (let y = Math.floor(sy0); y < Math.ceil(sy1); y++) for (let x = Math.floor(sx0); x < Math.ceil(sx1); x++) { const wt = (Math.min(y + 1, sy1) - Math.max(y, sy0)) * (Math.min(x + 1, sx1) - Math.max(x, sx0)); if (wt <= 0) continue; s += m[(mny + y) * w + mnx + x] * wt; a += wt; }
+    out[Y * W2 + X] = a ? s / a : 0;
+  }
+  return { m: out, r: bw / bh, box: [x0 + mnx, y0 + mny, x0 + mxx + 1, y0 + mxy + 1] };
+}
+const darkTxt = (r, g, b) => Math.max(r, g, b) < 100 && Math.max(r, g, b) - Math.min(r, g, b) < 40;
+// username at the top-left of the screen (next to the avatar)
+function deckName(img) {
+  const W = img.width, D = img.data, xa = Math.round(W * 0.1), xb = Math.round(W * 0.355), ymax = Math.min(img.height, Math.round(W * 0.15));
+  let y0 = -1, y1 = -1;
+  for (let y = 0; y < ymax; y++) {
+    let n = 0; for (let x = xa; x < xb; x++) { const q = (y * W + x) * 4; if (darkTxt(D[q], D[q + 1], D[q + 2])) n++; }
+    if (n > 2) { if (y0 < 0) y0 = y; y1 = y; } else if (y0 >= 0) { if (y - y1 > 2) { if (y1 - y0 >= W * 0.015) break; y0 = -1; } }
+  }
+  if (y0 < 0 || y1 - y0 < W * 0.015) return null;
+  return maskFrom(img, [xa, y0, xb, y1 + 1], darkTxt, 96, 24);
+}
+// the 4 deck cards: the first row (from the top) that has 4 colored card bands side by side
+function deckCards(img) {
+  const W = img.width, H = img.height, D = img.data;
+  const rowRuns = y => {
+    const runs = []; let a = -1, last = -9;
+    for (let x = 0; x < W; x++) {
+      const q = (y * W + x) * 4, r = D[q], g = D[q + 1], b = D[q + 2], mx = Math.max(r, g, b);
+      if (mx - Math.min(r, g, b) > 70 && mx > 120) { if (a < 0 || x - last > 5) { if (a >= 0) runs.push([a, last]); a = x; } last = x; }
+    }
+    if (a >= 0) runs.push([a, last]);
+    return runs.filter(([s, e]) => e - s > W * 0.12 && e - s < W * 0.3);
+  };
+  for (let y = 0; y < H; y++) {
+    const rs = rowRuns(y); if (rs.length !== 4) continue;
+    const ws = rs.map(([s, e]) => e - s); if (Math.max(...ws) / Math.min(...ws) > 1.3) continue;
+    // must still look like 4 cards a little lower down
+    let ok = 0; for (let k = 1; k <= 6; k++) { const yy = y + Math.round(k * W * 0.004); if (yy < H && rowRuns(yy).length === 4) ok++; }
+    if (ok < 4) continue;
+    // widest extent of each card over the band rows
+    const ext = rs.map(r => r.slice());
+    for (let k = 1; k <= 12; k++) { const yy = y + Math.round(k * W * 0.003); if (yy >= H) break; const r2 = rowRuns(yy); if (r2.length !== 4) continue; r2.forEach((r, i) => { ext[i][0] = Math.min(ext[i][0], r[0]); ext[i][1] = Math.max(ext[i][1], r[1]); }); }
+    return ext.map(([x0, x1]) => ({ x0, x1, y0: y }));
+  }
+  return null;
+}
+function boxAvg2(img, x0, y0, x1, y1, nx, ny, out, o) {
+  const W = img.width, H = img.height, Dd = img.data;
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const ax = Math.max(0, Math.min(W - 1, Math.floor(x0 + (x1 - x0) * i / nx))), bx = Math.min(W, Math.max(ax + 1, Math.floor(x0 + (x1 - x0) * (i + 1) / nx)));
+    const ay = Math.max(0, Math.min(H - 1, Math.floor(y0 + (y1 - y0) * j / ny))), by = Math.min(H, Math.max(ay + 1, Math.floor(y0 + (y1 - y0) * (j + 1) / ny)));
+    let r = 0, g = 0, b = 0, n = 0; for (let y = ay; y < by; y++) for (let x = ax; x < bx; x++) { const k = (y * W + x) * 4; r += Dd[k]; g += Dd[k + 1]; b += Dd[k + 2]; n++; }
+    out[o++] = r / n; out[o++] = g / n; out[o++] = b / n;
+  }
+  return o;
+}
+// same 10x10 art grid + 4 band samples as the replay card feature (calibrated against the card list)
+function deckCardFeat(img, c) {
+  const w = c.x1 - c.x0, f = new Uint8ClampedArray(Core.CARD_LEN);
+  const o = boxAvg2(img, c.x0 + 0.05 * w, c.y0 + 0.12 * w, c.x1 - 0.05 * w, c.y0 + 1.0 * w, 10, 10, f, 0);
+  boxAvg2(img, c.x0 + 0.35 * w, c.y0 + 0.02 * w, c.x1 - 0.05 * w, c.y0 + 0.08 * w, 4, 1, f, o);
+  return f;
+}
+async function readDeckShot(file) {
+  const L = await loadImage(file);
+  try {
+    const im = L.im, c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(im, 0, 0);
+    const img = ctx.getImageData(0, 0, c.width, c.height);
+    const cards = deckCards(img);
+    if (!cards) throw new Error('デッキのカード4枚が見つかりませんでした。カード強化/デッキ編集の画面か、4枚のカードを切り抜いた画像を使ってください。');
+    // the name is only on the full screen (above the cards)
+    const nm = cards[0].y0 > c.width * 0.3 ? deckName(img) : null;
+    return {
+      name: nm ? { ...enc.mask(nm), src: 'deck' } : null,
+      nameURL: nm ? cropURL(im, [nm.box[0] - 4, nm.box[1] - 4, nm.box[2] + 4, nm.box[3] + 4], 260) : '',
+      cards: cards.map(k => { const f = deckCardFeat(img, k), s = cardSuggest(f), w = k.x1 - k.x0;
+        return { f: b64(f), top: s ? s.top.map(x => x.n) : [], d: s ? s.top[0].d : 9, url: cropURL(im, [k.x0, k.y0, k.x1, k.y0 + 1.2 * w], 56) }; }),
+    };
+  } finally { URL.revokeObjectURL(L.url); }
+}
+// how different two cards look (art grid, normalized like cardSuggest): about 0.3-0.65 same card, 0.85+ different
+function cardDiff(a, b) {
+  const pick = f => { const v = []; for (let i = 0; i < 100; i++) if (CARD_MASK[i]) v.push(f[i * 3], f[i * 3 + 1], f[i * 3 + 2]); return cardNz(v); };
+  const p = pick(unb64(a)), q = pick(unb64(b)); let d = 0; for (let i = 0; i < p.length; i++) { const x = p[i] - q[i]; d += x * x; }
+  let t = 0; const A = unb64(a), B = unb64(b); for (let i = 300; i < 312; i++) { const x = A[i] - B[i]; t += x * x; }
+  return Math.sqrt(d / p.length) + (Math.sqrt(t / 12) > 70 ? 0.5 : 0); // different band color = different attribute
+}
 const CARD_NAMES = [...new Set(CARD_DB.map(c => c[0]))];
 window.CompassReader = {
   readFile,
+  readDeckShot,
+  cardDiff,
+  CARD_SAME: 0.75,
+  CARD_MAYBE: 1.0,
   heroNames: Core.HERO_NAMES.slice(),
   cardNames: CARD_NAMES,
   heroIcon: n => HERO_ICON[n] || '',

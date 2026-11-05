@@ -250,8 +250,19 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 .mcard input, .mcard select { width: 100%; min-width: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }
 .mhead2 { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px; align-items: center; }
 .heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.deck { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px; }
-.deck .dl { grid-column: 1 / -1; }
+.deck { display: grid; gap: 6px; }
+.btn.sm { padding: 2px 10px; font-size: .75rem; }
+.deck-h { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dcards { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 4px; }
+.dcard { display: grid; gap: 2px; justify-items: center; min-width: 0; }
+.dcard img { width: 100%; max-width: 64px; border-radius: 4px; }
+.dcard small { font-size: .58rem; color: var(--muted); width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+.uname { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.uname img { height: 26px; max-width: 100%; border-radius: 4px; background: #E4E6EA; }
+.share { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.share img, .issue-row img { width: 36px; border-radius: 4px; }
+.issue-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+
 .dl { font-size: .72rem; color: var(--muted); font-weight: 700; }
 </style>
 
@@ -280,7 +291,7 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 "use strict";
 /* ---------- state ---------- */
 const real = { config: null, matches: {}, bracket: {}, members: {}, loaded: false };
-let scan = null, regScan = null, memTeam = null, renderPending = false;
+let scan = null, memTeam = null, renderPending = false;
 let demo = null, demoMode = false;
 let mode = "loading";           // db | local | nodb
 let role = "viewer";            // admin | contributor | viewer
@@ -689,14 +700,17 @@ function viewRules() {
 /* ---------- members, submitted decks and screenshot reading ---------- */
 const RD = () => window.CompassReader || null;
 const memberId = (team, slot) => team + "_m" + slot;
-const emptyMember = (team, slot) => ({ team, slot, name: "", heroes: ["", ""], decks: [["", "", "", ""], ["", "", "", ""]], nameRefs: [] });
+const emptyMember = (team, slot) => ({ team, slot, name: "", heroes: ["", ""], decks: [[], []], nameRefs: [], nameImg: "" });
+const asCard = c => typeof c === "string" ? (c ? { n: c } : null) : c;
+const deckOf = (m, di) => (m.decks?.[di] || []).map(asCard).filter(Boolean);
+const cardName = c => c?.n || "名前不明のカード";
 function membersOf(s, team) {
   return [0, 1, 2].map(i => { const m = s.members?.[memberId(team, i)]; return m ? { ...emptyMember(team, i), ...JSON.parse(JSON.stringify(m)) } : emptyMember(team, i); });
 }
 const whoOf = m => m.name || `メンバー${m.slot + 1}`;
 const memberLabel = (s, m) => `${teamName(s, m.team)}・${whoOf(m)}`;
 function saveMember(m) {
-  const body = { team: m.team, slot: m.slot, name: (m.name || "").trim(), heroes: m.heroes, decks: m.decks, nameRefs: (m.nameRefs || []).slice(-6), updatedAt: new Date().toISOString() };
+  const body = { team: m.team, slot: m.slot, name: (m.name || "").trim(), heroes: m.heroes, decks: [deckOf(m, 0), deckOf(m, 1)], nameRefs: (m.nameRefs || []).slice(-6), nameImg: m.nameImg || "", updatedAt: new Date().toISOString() };
   const st = S(); st.members = st.members || {}; st.members[memberId(m.team, m.slot)] = body;
   autosave("members/" + memberId(m.team, m.slot), body);
 }
@@ -717,54 +731,73 @@ function learnName(s, mid_, ref) {
 }
 function identify(s, ref) {
   const R = RD(); if (!R || !ref) return null;
-  let best = null, bd = 1;
-  for (const id in (s.members || {})) for (const r of (s.members[id].nameRefs || [])) { const d = R.nameDist(ref, r); if (d < bd) { bd = d; best = id; } }
-  if (bd >= R.NAME_T) return null;
-  const m = s.members[best]; return { ...emptyMember(m.team, m.slot), ...m, id: best };
+  const per = [];
+  for (const id in (s.members || {})) {
+    let bd = 9;
+    for (const r of (s.members[id].nameRefs || [])) { const d = R.nameDist(ref, r) - (r.src === "deck" ? 0.12 : 0); if (d < bd) bd = d; } // names from the deck screen use a looser threshold
+    per.push({ id, d: bd });
+  }
+  per.sort((x, y) => x.d - y.d);
+  if (!per.length || per[0].d >= R.NAME_T || (per[1] && per[1].d - per[0].d < 0.04)) return null;
+  const m = s.members[per[0].id]; return { ...emptyMember(m.team, m.slot), ...m, id: per[0].id };
 }
 function teamIssues(s, team) {
-  const t = (s.config?.teams || []).find(x => x.id === team), share = (t?.share || "").trim();
-  const ms = membersOf(s, team), out = [], heroes = {}, cards = {};
-  const names = new Set(RD()?.cardNames || []), heroNames = new Set(RD()?.heroNames || []);
+  const R = RD(), t = (s.config?.teams || []).find(x => x.id === team), share = t?.shareF || "";
+  const ms = membersOf(s, team), out = [], all = [];
+  const heroes = {};
   ms.forEach(m => {
     m.heroes.forEach(h => { if (h) (heroes[h] = heroes[h] || []).push(whoOf(m)); });
-    m.decks.forEach((d, di) => d.forEach(c => { if (c && c !== share) (cards[c] = cards[c] || []).push(`${whoOf(m)}のデッキ${di + 1}`); }));
-    m.decks.forEach((d, di) => { const n = d.filter(Boolean).length; if (n && n < 4) out.push(`${whoOf(m)}のデッキ${di + 1}が${n}枚しかありません`); });
-    if (names.size) m.decks.forEach((d, di) => d.forEach(c => { if (c && !names.has(c)) out.push(`「${c}」はカード一覧にない名前です（${whoOf(m)}のデッキ${di + 1}）`); }));
-    if (heroNames.size) m.heroes.forEach(h => { if (h && !heroNames.has(h)) out.push(`「${h}」はヒーロー一覧にない名前です（${whoOf(m)}）`); });
+    [0, 1].forEach(di => { const d = deckOf(m, di); if (d.length && d.length < 4) out.push({ t: `${whoOf(m)}のデッキ${di + 1}が${d.length}枚しかありません` }); d.forEach((c, k) => all.push({ c, where: `${whoOf(m)}のデッキ${di + 1}`, ref: `${memberId(team, m.slot)}:${di}:${k}` })); });
   });
-  for (const h in heroes) if (heroes[h].length > 1) out.push(`同じヒーロー「${h}」がチーム内で重複しています（${heroes[h].join("、")}）`);
-  for (const c in cards) if (cards[c].length > 1) out.push(`同じカード「${c}」が複数のデッキに入っています（${cards[c].join("、")}）`);
-  if (share && names.size && !names.has(share)) out.push(`シェアカード「${share}」はカード一覧にない名前です`);
+  for (const h in heroes) if (heroes[h].length > 1) out.push({ t: `同じヒーロー「${h}」がチーム内で重複しています（${heroes[h].join("、")}）` });
+  const same = (a, b) => a.f && b.f ? R.cardDiff(a.f, b.f) < 0.35 : !!a.n && a.n === b.n;
+  const used = new Set();
+  all.forEach((x, i) => {
+    if (used.has(i)) return;
+    if (share && x.c.f && R.cardDiff(x.c.f, share) < 0.35) return;
+    const grp = [x]; all.forEach((y, j) => { if (j > i && !used.has(j) && same(x.c, y.c)) { grp.push(y); used.add(j); } });
+    if (grp.length > 1) out.push({ t: `同じカード「${cardName(x.c)}」が複数のデッキに入っています（${grp.map(g => g.where).join("、")}）`, img: x.c.img, ref: x.c.f ? x.ref : "" });
+  });
   return out;
 }
 // one player in a replay vs. the member's submitted heroes / decks
+function perms(n) { const out = [], a = [...Array(n).keys()]; const go = k => { if (k === n) { out.push(a.slice()); return; } for (let i = k; i < n; i++) { [a[k], a[i]] = [a[i], a[k]]; go(k + 1); [a[k], a[i]] = [a[i], a[k]]; } }; go(0); return out; }
+const PERM4 = perms(4);
+// replay cards vs one submitted deck: best pairing regardless of order
+function matchDeck(pc, deck) {
+  const R = RD(), n = pc.length;
+  const D = pc.map(c => deck.map(r => c.f && r.f ? R.cardDiff(c.f, r.f) : (r.n && c.top.includes(r.n) ? (c.top[0] === r.n ? 0.5 : 0.9) : 2)));
+  let best = null;
+  for (const pm of (n === 4 && deck.length === 4 ? PERM4 : perms(Math.min(n, deck.length)))) {
+    let sum = 0; for (let i = 0; i < pm.length; i++) sum += D[i][pm[i]];
+    if (!best || sum < best.sum) best = { sum, pm };
+  }
+  const marks = pc.map((c, i) => { const j = best.pm[i]; const d = j == null ? 9 : D[i][j]; return d < R.CARD_SAME ? "ok" : d < R.CARD_MAYBE ? "maybe" : "ng"; });
+  return { marks, sum: best.sum };
+}
 function checkPlayer(m, p) {
   const issues = [], notes = [];
   if (!m) return { issues: ["名前からメンバーを判別できません"], notes, marks: [] };
   const who = whoOf(m);
-  if (!p.hero) notes.push(`${who}：ヒーローを読み取れませんでした`);
-  else if (!m.heroes.some(Boolean)) notes.push(`${who}：提出ヒーローが未登録です`);
-  else if (!m.heroes.includes(p.hero)) issues.push(`${who}：提出外のヒーロー「${p.hero}」`);
-  let marks = [];
+  if (m.heroes.some(Boolean)) {
+    if (!p.hero) notes.push(`${who}：ヒーローを読み取れませんでした`);
+    else if (!m.heroes.includes(p.hero)) issues.push(`${who}：提出外のヒーロー「${p.hero}」`);
+  }
+  let marks = [], deckNo = null;
   if (!p.cards) notes.push(`${who}：カードは、ⓘで詳細を開いたスクショのときだけ確認できます`);
   else {
-    const decks = m.decks.filter(d => d.some(Boolean));
+    const decks = [0, 1].map(di => ({ di, d: deckOf(m, di) })).filter(x => x.d.length);
     if (!decks.length) notes.push(`${who}：提出デッキが未登録です`);
     else {
       let best = null;
-      for (const d of decks) {
-        const mk = p.cards.map(c => d.includes(c.top[0]) ? "ok" : c.top.some(n => d.includes(n)) ? "maybe" : "ng");
-        const sc = mk.filter(x => x === "ok").length * 2 + mk.filter(x => x === "maybe").length;
-        if (!best || sc > best.sc) best = { mk, sc };
-      }
-      marks = best.mk;
-      const ng = p.cards.filter((c, k) => marks[k] === "ng");
-      if (ng.length) issues.push(`${who}：提出デッキにないカードの可能性（${ng.map(c => c.top[0] || "不明").join("、")}）`);
-      else if (marks.includes("maybe")) notes.push(`${who}：カードの読み取りがあいまいです。画像で確認してください`);
+      for (const x of decks) { const r = matchDeck(p.cards, x.d); const sc = r.marks.filter(k => k === "ok").length * 2 + r.marks.filter(k => k === "maybe").length; if (!best || sc > best.sc || (sc === best.sc && r.sum < best.sum)) best = { ...r, sc, di: x.di }; }
+      marks = best.marks;
+      if (marks.every(k => k === "ok")) deckNo = best.di + 1;
+      else if (marks.includes("ng")) issues.push(`${who}：提出したデッキと違います（${marks.filter(k => k === "ng").length}枚が提出デッキにありません）`);
+      else notes.push(`${who}：デッキ${best.di + 1}とほぼ一致。絵が似ているカードがあるので、画像で確認してください`);
     }
   }
-  return { issues, notes, marks };
+  return { issues, notes, marks, deckNo };
 }
 function evalUnit(s, u, A, B) {
   const ps = u.players.map(p => ({ p, m: identify(s, p.name) }));
@@ -774,15 +807,30 @@ function evalUnit(s, u, A, B) {
   const ka = blueIs == null ? null : blueIs === "a" ? u.score.b : u.score.r;
   const kb = blueIs == null ? null : blueIs === "a" ? u.score.r : u.score.b;
   const checks = ps.map(({ p, m }) => ({ p, m, wrong: !!m && m.team !== A && m.team !== B, ...checkPlayer(m, p) }));
-  const unknown = checks.filter(c => !c.m).length;
-  const issues = checks.filter(c => c.m).flatMap(c => c.issues).concat(unknown ? [`名前からメンバーを判別できない人が${unknown}人います`] : []).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
+  const issues = checks.flatMap(c => c.issues).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
   const sideTeam = side => blueIs == null ? null : ((side === "blue") === (blueIs === "a") ? A : B);
   return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes), sideTeam };
 }
-async function runScan(files, target) {
+function memberById(s, id) { return membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)]; }
+async function readDeckFor(ref, file) {
   const R = RD(); if (!R) { toast("読み取りの準備ができていません。ページを開き直してください"); return; }
-  const st = { key: target === "match" ? openId : memTeam, busy: true, units: [], errs: [], choice: {} };
-  if (target === "match") scan = st; else regScan = st;
+  const [mid_, di] = ref.split(":"); toast("読み取り中…");
+  try {
+    const r = await R.readDeckShot(file), s = S(), m = memberById(s, mid_);
+    m.decks[+di] = r.cards.map(c => ({ n: c.d < 0.7 ? c.top[0] : "", f: c.f, img: c.url }));
+    if (r.name) {
+      if (!(m.nameRefs || []).some(x => R.nameDist(x, r.name) < 0.05)) m.nameRefs = [...(m.nameRefs || []), r.name];
+      m.nameImg = r.nameURL;
+    }
+    saveMember(m); render();
+    toast(`デッキ${+di + 1}を登録しました${r.name ? "（ユーザーネームも登録）" : ""}`);
+  } catch (e) { toast(e.message || "読み取れませんでした"); }
+}
+async function runScan(files) {
+  const target = "match";
+  const R = RD(); if (!R) { toast("読み取りの準備ができていません。ページを開き直してください"); return; }
+  const st = { key: openId, busy: true, units: [], errs: [] };
+  scan = st;
   render();
   for (const f of files) {
     try {
@@ -801,7 +849,7 @@ async function runScan(files, target) {
 const sideTag = side => `<span class="stag ${side}">${side === "blue" ? "青" : "赤"}</span>`;
 function cardThumbs(p, marks) {
   if (!p.cards) return `<span class="muted-s">カード：詳細を開いたスクショで確認できます</span>`;
-  return `<span class="cthumbs">${p.cards.map((c, k) => `<span class="cth ${marks[k] || ""}" title="${esc(c.top.join(" / "))}"><img src="${c.url}" alt=""><small>${esc(c.top[0] || "不明")}</small></span>`).join("")}</span>`;
+  return `<span class="cthumbs">${p.cards.map((c, k) => `<span class="cth ${marks[k] || ""}"><img src="${c.url}" alt=""></span>`).join("")}</span>`;
 }
 function heroChip(name, ok) {
   const R = RD(), ic = name && R ? R.heroIcon(name) : "";
@@ -828,7 +876,7 @@ function scanPanel(s, kind) {
           ${sideTag(c.p.side)}<img class="nm" src="${c.p.nameURL}" alt="ゲーム内の名前">
           <select data-uassign="${ui}:${pi}" aria-label="この名前のメンバー" ${role !== "admin" ? "disabled" : ""}>${memberOptions(s, [d.a, d.b], c.m?.id || "")}</select>
           ${heroChip(c.p.hero, c.m && c.p.hero && c.m.heroes.some(Boolean) ? c.m.heroes.includes(c.p.hero) : null)}
-          ${cardThumbs(c.p, c.marks)}</div>`).join("");
+          ${cardThumbs(c.p, c.marks)}${c.deckNo ? `<span class="pill ok">デッキ${c.deckNo}と一致</span>` : ""}</div>`).join("");
       return `<div class="unit">
         <div class="unit-head"><b>読み取り ${ui + 1}</b><select data-uslot="${ui}" aria-label="何試合目か">${Array.from({ length: nSlots }, (_, k) => `<option value="${k}" ${u.slot === k ? "selected" : ""}>${k + 1}試合目</option>`).join("")}</select>
           <span class="muted-s">${esc(u.label)}</span></div>
@@ -846,52 +894,43 @@ function scanPanel(s, kind) {
   return `<div class="scan"><div class="btns"><label class="btn" for="scanf">スクショで読み取り・確認</label><input id="scanf" type="file" accept="image/*" multiple data-scan="match" hidden>
     <span class="muted-s">リプレイ画面のスクショから、メンバー・ポータルキー・ヒーロー・デッキを読み取ります。デッキの確認は、ⓘで詳細を開いたスクショが必要です。</span></div>${body}</div>`;
 }
+function deckView(m, di, mid_) {
+  const d = deckOf(m, di);
+  return `<div class="deck"><div class="deck-h"><span class="dl">デッキ${di + 1}</span>
+      <label class="btn ghost sm" for="ds-${mid_}-${di}">${d.length ? "スクショで登録し直す" : "スクショで登録"}</label><input id="ds-${mid_}-${di}" type="file" accept="image/*" data-deckshot="${mid_}:${di}" hidden>
+      ${d.length ? `<button class="btn ghost sm danger" data-act="deck-clear" data-mid="${mid_}" data-di="${di}">消す</button>` : ""}</div>
+    ${d.length ? `<div class="dcards">${d.map(c => `<span class="dcard">${c.img ? `<img src="${c.img}" alt="">` : ""}<small>${esc(cardName(c))}</small></span>`).join("")}</div>` : `<span class="muted-s">未登録</span>`}</div>`;
+}
 function membersPanel(s) {
   const R = RD(), teams = s.config?.teams || [];
   if (!teams.length) return "";
   if (!memTeam || !teams.some(t => t.id === memTeam)) memTeam = teams[0].id;
-  const td = teamDraft?.teams.find(t => t.id === memTeam) || teams.find(t => t.id === memTeam);
+  const tc = teams.find(t => t.id === memTeam);
   const ms = membersOf(s, memTeam), issues = teamIssues(s, memTeam);
-  const heroSel = (m, k) => R ? `<select data-mf="h${k}" data-mid="${memberId(memTeam, m.slot)}" aria-label="${esc(whoOf(m))}のヒーロー${k + 1}"><option value="">ヒーロー${k + 1}を選ぶ</option>${R.heroNames.map(n => `<option ${m.heroes[k] === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>`
-    : `<input data-mf="h${k}" data-mid="${memberId(memTeam, m.slot)}" value="${esc(m.heroes[k])}" placeholder="ヒーロー${k + 1}">`;
-  const cards = (m, di) => `<div class="deck"><span class="dl">デッキ${di + 1}</span>${[0, 1, 2, 3].map(k => `<input list="cardlist" id="c-${memberId(memTeam, m.slot)}-${di}-${k}" data-mf="d${di}_${k}" data-mid="${memberId(memTeam, m.slot)}" value="${esc(m.decks[di][k])}" placeholder="カード${k + 1}" aria-label="${esc(whoOf(m))}のデッキ${di + 1}のカード${k + 1}">`).join("")}</div>`;
-  const mcards = ms.map(m => `<div class="mcard">
-      <div class="mhead2"><span class="dl">メンバー${m.slot + 1}</span><input id="mn-${memberId(memTeam, m.slot)}" data-mf="name" data-mid="${memberId(memTeam, m.slot)}" value="${esc(m.name)}" placeholder="ゲーム内の名前" aria-label="メンバー${m.slot + 1}の名前"></div>
+  const heroSel = (m, k) => R ? `<select data-mf="h${k}" data-mid="${memberId(memTeam, m.slot)}" aria-label="${esc(whoOf(m))}のヒーロー${k + 1}"><option value="">ヒーロー${k + 1}（任意）</option>${R.heroNames.map(n => `<option ${m.heroes[k] === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : "";
+  const mcards = ms.map(m => { const id = memberId(memTeam, m.slot); return `<div class="mcard">
+      <div class="mhead2"><span class="dl">メンバー${m.slot + 1}</span><input id="mn-${id}" data-mf="name" data-mid="${id}" value="${esc(m.name)}" placeholder="呼び名（任意）" aria-label="メンバー${m.slot + 1}の呼び名"></div>
+      <div class="uname">${m.nameImg ? `<img src="${m.nameImg}" alt="ユーザーネーム">` : `<span class="muted-s">ユーザーネーム：デッキ編成画面の全体スクショで登録されます</span>`}
+        ${(m.nameRefs || []).length ? `<button class="btn ghost sm" data-act="m-forget" data-mid="${id}">名前の見本を消す（${m.nameRefs.length}件）</button>` : ""}</div>
+      ${deckView(m, 0, id)}${deckView(m, 1, id)}
       <div class="heroes">${heroSel(m, 0)}${heroSel(m, 1)}</div>
-      ${cards(m, 0)}${cards(m, 1)}
-      <div class="muted-s">名前の見本 ${(m.nameRefs || []).length}件 ${(m.nameRefs || []).length ? `<button class="btn ghost" data-act="m-forget" data-mid="${memberId(memTeam, m.slot)}" style="padding:0 8px">見本を消す</button>` : "（スクショで覚えさせます）"}</div>
-    </div>`).join("");
-  const rs = regScan && regScan.key === memTeam ? regScan : null;
-  let reg = "";
-  if (rs?.busy) reg = `<div class="muted-s">読み取り中…</div>`;
-  else if (rs) {
-    reg = rs.errs.map(e => `<div class="gcheck bad">${esc(e)}</div>`).join("") + rs.units.map((u, ui) => `<div class="unit"><div class="unit-head"><b>読み取り ${ui + 1}</b><span class="muted-s">${esc(u.label)}${u.detail ? "" : " ・ 詳細を開いていないためカードは読めません"}</span></div>
-      <div class="plist">${u.players.map((p, pi) => { const k = ui + ":" + pi, c = rs.choice[k] || { m: identify(s, p.name)?.team === memTeam ? identify(s, p.name).id : "", t: "name" };
-        rs.choice[k] = c;
-        return `<div class="pl">${sideTag(p.side)}<img class="nm" src="${p.nameURL}" alt="ゲーム内の名前">
-          <select data-rm="${k}" aria-label="登録するメンバー"><option value="">登録しない</option>${ms.map(m => `<option value="${memberId(memTeam, m.slot)}" ${c.m === memberId(memTeam, m.slot) ? "selected" : ""}>${esc(whoOf(m))}</option>`).join("")}</select>
-          <select data-rt="${k}" aria-label="登録する内容"><option value="name" ${c.t === "name" ? "selected" : ""}>名前だけ覚える</option><option value="0" ${c.t === "0" ? "selected" : ""}>ヒーロー1・デッキ1に登録</option><option value="1" ${c.t === "1" ? "selected" : ""}>ヒーロー2・デッキ2に登録</option></select>
-          ${heroChip(p.hero)}${cardThumbs(p, [])}</div>`; }).join("")}</div></div>`).join("")
-      + (rs.units.length ? `<div class="btns"><button class="btn primary" data-act="reg-apply">選んだ内容を登録</button></div>` : "");
-  }
+    </div>`; }).join("");
   return `<section class="panel"><div class="panel-head"><h2>メンバーと提出デッキ</h2><span class="meta">デッキミスの確認に使います</span></div>
     <div class="panel-body" style="display:grid;gap:14px">
       <div class="chips">${teams.map(t => `<button class="chip ${t.id === memTeam ? "on" : ""}" data-act="mteam" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
-      <div class="field"><label for="share-${memTeam}">シェアカード（全デッキに入れてよい1枚）</label><input id="share-${memTeam}" list="cardlist" data-share="${memTeam}" value="${esc(td?.share || "")}" placeholder="カード名"></div>
+      <div class="notice">提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
       <div class="mgrid">${mcards}</div>
-      ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong><br>${issues.map(esc).join("<br>")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で名前が違うカードは見分けられないので、目で確認してください）</div>`}
-      <div class="scan"><div class="btns"><label class="btn" for="regf">スクショから登録</label><input id="regf" type="file" accept="image/*" multiple data-scan="reg" hidden>
-        <span class="muted-s">このチームが映ったリプレイ画面のスクショを読み込むと、名前を覚えさせたり、使ったヒーローとカードをそのまま提出デッキに登録できます。デッキ編成画面のスクショには、まだ対応していません。</span></div>${reg}</div>
+      <div class="share">シェアカード：${tc?.shareImg ? `<img src="${tc.shareImg}" alt=""> <button class="btn ghost sm" data-act="share-clear">解除</button>` : `<span class="muted-s">未指定（重複の警告に出たカードから指定できます）</span>`}</div>
+      ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong>${issues.map(x => `<div class="issue-row">${x.img ? `<img src="${x.img}" alt="">` : ""}<span>${esc(x.t)}</span>${x.ref ? `<button class="btn ghost sm" data-act="set-share" data-ref="${x.ref}">シェアカードにする</button>` : ""}</div>`).join("")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で絵が違うカードは見分けられないので、目で確認してください）</div>`}
     </div></section>`;
 }
 document.addEventListener("click", ev => {
   const el = ev.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act, s = S();
-  if (act === "mteam") { memTeam = el.dataset.id; regScan = null; render(); return; }
+  if (act === "mteam") { memTeam = el.dataset.id; render(); return; }
   if (act === "m-forget") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消去"; return; }
-    const id = el.dataset.mid, m = membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)];
-    m.nameRefs = []; saveMember(m); render(); return;
+    const m = memberById(s, el.dataset.mid); m.nameRefs = []; m.nameImg = ""; saveMember(m); render(); return;
   }
   if (act === "scan-apply" && draft && scan) {
     const u = scan.units[+el.dataset.u], ev2 = evalUnit(s, u, draft.a, draft.b);
@@ -900,38 +939,28 @@ document.addEventListener("click", ev => {
     for (let k = 0; k < u.slot; k++) draft.games[k] = draft.games[k] || { a: null, b: null, ff: null };
     render(); saveDraft(); toast(`${u.slot + 1}試合目に記入しました`); return;
   }
-  if (act === "reg-apply" && regScan) {
-    let n = 0;
-    const ms = membersOf(s, memTeam);
-    for (const k in regScan.choice) {
-      const c = regScan.choice[k]; if (!c.m) continue;
-      const [ui, pi] = k.split(":").map(Number), p = regScan.units[ui]?.players[pi]; if (!p) continue;
-      const m = ms[+c.m.slice(c.m.lastIndexOf("_m") + 2)];
-      if (p.name && !(m.nameRefs || []).some(r => RD().nameDist(r, p.name) < 0.05)) m.nameRefs = [...(m.nameRefs || []), p.name];
-      if (c.t !== "name") { const di = +c.t; if (p.hero) m.heroes[di] = p.hero; if (p.cards) m.decks[di] = p.cards.map(x => x.top[0] || ""); }
-      n++;
-    }
-    ms.forEach(m => saveMember(m));
-    regScan = null; render(); toast(n ? `${n}人分を登録しました` : "登録する人が選ばれていません"); return;
+  if (act === "deck-clear") { const m = memberById(s, el.dataset.mid); m.decks[+el.dataset.di] = []; saveMember(m); render(); return; }
+  if (act === "set-share") {
+    const [mid_, di, k] = el.dataset.ref.split(":"), c = deckOf(memberById(s, mid_), +di)[+k];
+    const t = teamDraft?.teams.find(x => x.id === memTeam); if (!t || !c) return;
+    t.shareF = c.f; t.shareImg = c.img || ""; t.shareN = c.n || ""; saveTeams(); render(); toast("シェアカードに指定しました"); return;
   }
+  if (act === "share-clear") { const t = teamDraft?.teams.find(x => x.id === memTeam); if (!t) return; t.shareF = ""; t.shareImg = ""; t.shareN = ""; saveTeams(); render(); return; }
 });
 document.addEventListener("change", ev => {
   const el = ev.target, s = S();
-  if (el.dataset.scan) { const files = [...el.files]; el.value = ""; if (files.length) runScan(files, el.dataset.scan); return; }
+  if (el.dataset.scan) { const files = [...el.files]; el.value = ""; if (files.length) runScan(files); return; }
   if (el.dataset.uslot != null && scan) { scan.units[+el.dataset.uslot].slot = +el.value; render(); return; }
   if (el.dataset.ublue != null && scan) { scan.units[+el.dataset.ublue].blueIs = el.value || null; render(); return; }
   if (el.dataset.uassign && scan) {
     const [ui, pi] = el.dataset.uassign.split(":").map(Number), p = scan.units[ui].players[pi];
     if (el.value && p.name) learnName(s, el.value, p.name); render(); return;
   }
-  if (el.dataset.rm && regScan) { (regScan.choice[el.dataset.rm] = regScan.choice[el.dataset.rm] || { t: "name" }).m = el.value; return; }
-  if (el.dataset.rt && regScan) { (regScan.choice[el.dataset.rt] = regScan.choice[el.dataset.rt] || { m: "" }).t = el.value; return; }
-  if (el.dataset.share && teamDraft) { const t = teamDraft.teams.find(x => x.id === el.dataset.share); if (t) { t.share = el.value.trim(); saveTeams(); render(); } return; }
+  if (el.dataset.deckshot) { const f = el.files[0]; el.value = ""; if (f) readDeckFor(el.dataset.deckshot, f); return; }
   if (el.dataset.mf && el.dataset.mid) {
-    const id = el.dataset.mid, m = membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)], f = el.dataset.mf, v = el.value.trim();
+    const m = memberById(s, el.dataset.mid), f = el.dataset.mf, v = el.value.trim();
     if (f === "name") m.name = v;
     else if (f[0] === "h") m.heroes[+f[1]] = v;
-    else { const [di, k] = f.slice(1).split("_").map(Number); m.decks[di][k] = v; }
     saveMember(m); render(); return;
   }
 });
@@ -961,7 +990,7 @@ function saveDraft() {
   autosave(draft.kind === "group" ? "matches/" + openId : openId, body);
 }
 function saveTeams() {
-  const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group, share: (t.share || "").trim() })).filter(t => t.name);
+  const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group, shareF: t.shareF || "", shareImg: t.shareImg || "", shareN: t.shareN || "" })).filter(t => t.name);
   const names = teams.map(t => t.name);
   if (new Set(names).size !== names.length) { toast("同じチーム名が重複しているため保存していません"); return; }
   const s = S();
@@ -1051,7 +1080,7 @@ document.addEventListener("input", ev => {
   if (el.dataset.ta != null && teamDraft) teamDraft.teams[+el.dataset.ta].abbr = el.value;
   if (el.id === "evn" && teamDraft) teamDraft.eventName = el.value;
 });
-window.addEventListener("hashchange", () => { openId = null; draft = null; teamDraft = null; scan = null; regScan = null; saveStatus = ""; render(); });
+window.addEventListener("hashchange", () => { openId = null; draft = null; teamDraft = null; scan = null; saveStatus = ""; render(); });
 
 /* ---------- boot ---------- */
 async function boot() {
