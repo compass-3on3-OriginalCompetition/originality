@@ -9,7 +9,7 @@
 ## 2. Google ログインを有効にする
 1. 左メニュー「構築」→「Authentication」→「始める」。
 2. 「ログイン方法」タブ →「Google」→ 有効にする → サポートメールを選んで保存。
-3. 「設定」タブ →「承認済みドメイン」→「ドメインの追加」で `meruunyarancheruna-byte.github.io` を追加。
+3. 「設定」タブ →「承認済みドメイン」→「ドメインの追加」で `compass-3on3-originalcompetition.github.io` を追加。
 
 ## 3. データベースを作り、権限のルールを入れる
 1. 左メニュー「構築」→「Firestore Database」→「データベースを作成」。ロケーションは `asia-northeast1（東京）`、「本番環境モード」で作成。
@@ -23,7 +23,7 @@
 ## 5. GitHub Pages で公開する
 1. GitHub のこのリポジトリ →「Settings」→「Pages」。
 2. 「Build and deployment」の Source を「Deploy from a branch」、Branch をサイトのファイルがあるブランチ（`main` に取り込んだ場合は `main`）、フォルダを `/ (root)` にして保存。
-3. 数分後に `https://meruunyarancheruna-byte.github.io/saishonoyatu/` で開けます。
+3. 数分後に `https://compass-3on3-originalcompetition.github.io/originality/` で開けます。
 
 ## 使い方
 - 開くと Google ログインの画面が出ます。ログインして「新しい大会を作る」と、その大会はあなたにしか見えません。
