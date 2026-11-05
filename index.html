@@ -1077,7 +1077,7 @@ function checkPlayer(m, p) {
       const score = mk => mk.filter(x => x === "ok").length * 3 + mk.filter(x => x === "maybe").length * 2 + mk.filter(x => x === "lvl").length;
       const best = subs.map(x => ({ ...x, mk: matchMedals(p.medals, x.sub) })).sort((a, b) => score(b.mk) - score(a.mk))[0];
       medalMarks = best.mk;
-      const tag = slots.length > 1 ? `（ヒーロー${best.k + 1}として）` : "";
+      const tag = ""; // never say which slot matched: these messages are saved where viewers can read them, and the slot would reveal that the hero was submitted twice
       if (medalMarks.includes("ng")) issues.push(`${who}：提出したメダルと違います${tag}（${p.medals.filter((x, i) => medalMarks[i] === "ng").map(medalLabel).join("、")}）`);
       else if (medalMarks.includes("lvl")) issues.push(`${who}：メダルの強化値が提出内容と違います${tag}（${p.medals.filter((x, i) => medalMarks[i] === "lvl").map(medalLabel).join("、")}）`);
       else if (medalMarks.includes("maybe")) notes.push(`${who}：読み取れないメダルか強化値があります。画像で確認してください`);
