@@ -322,7 +322,7 @@ button.bx:hover { border-color: #fff; }
 }
 @media (max-width: 600px) {
   nav.tabs { display: none; }
-  .bnav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--surface); border-top: 1px solid var(--line);
+  .bnav { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--surface); border-top: 1px solid var(--line);
     padding: 4px max(4px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)); }
   .bnav a { display: grid; justify-items: center; gap: 2px; padding: 6px 0 4px; color: var(--muted); text-decoration: none; font-size: .68rem; font-weight: 700; border-radius: 10px; }
   .bnav a svg { width: 22px; height: 22px; }
@@ -393,13 +393,32 @@ body.gated nav.tabs, body.gated .bnav { display: none; }
 .btn.big { padding: 10px 22px; font-size: 1rem; }
 .glist { display: grid; gap: 6px; }
 .trow2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); font: inherit; }
+.trow2 { padding: 4px 6px 4px 4px; }
 .trow2:hover { border-color: var(--muted); }
+.topen { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: none; border: 0; padding: 8px; text-align: left; color: var(--ink); font: inherit; }
+.hidden-row { padding: 8px 8px 8px 12px; }
+.hidden-row .tn2 { flex: 1 1 auto; color: var(--muted); }
+details.glist summary { cursor: pointer; }
 .tn2 { font-weight: 700; overflow-wrap: anywhere; }
 .gform { display: grid; gap: 6px; }
 .gform label { font-size: .78rem; color: var(--muted); font-weight: 700; }
 .gform input { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); }
 .code-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
 .code-row code { font-family: var(--mono); font-size: 1rem; background: var(--surface-2); padding: 4px 8px; border-radius: 6px; user-select: all; overflow-wrap: anywhere; }
+
+/* member prompt dialog */
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0,0,0,.6); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+.modal-box { width: min(480px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 10px; }
+.modal-box h3 { margin: 0; font-size: 1.05rem; text-wrap: balance; }
+.modal-box p { margin: 0; color: var(--muted); font-size: .9rem; }
+/* guide */
+.guide-top h2 { font-family: var(--display); font-weight: 400; margin: 0 0 4px; }
+.guide-top p { margin: 0 0 8px; color: var(--muted); }
+.guide-list { display: grid; gap: 14px; }
+.guide h3 { margin: 0 0 8px; display: flex; align-items: center; gap: 10px; font-size: 1.02rem; }
+.gnum { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-family: var(--display); font-size: .85rem; flex: 0 0 auto; }
+.guide ol, .guide ul { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: .92rem; max-width: 70ch; }
+.guide ul ul { margin-top: 4px; }
 </style>
 
 <header class="top">
@@ -414,6 +433,7 @@ body.gated nav.tabs, body.gated .bnav { display: none; }
       <a href="#bracket">決勝トーナメント</a>
       <a href="#teams">チーム設定</a>
       <a href="#rules">ルール早見表</a>
+      <a href="#guide">使い方</a>
     </nav>
   </div>
 </header>
@@ -423,6 +443,7 @@ body.gated nav.tabs, body.gated .bnav { display: none; }
   <a href="#bracket"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L3 7l5 4 4-6 4 6 5-4-1 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>決勝</a>
   <a href="#teams"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 20c.5-4 3.5-6 7-6s6.5 2 7 6M16 4.5a3.5 3.5 0 010 7M18 14c2 .8 3.5 2.8 4 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>チーム</a>
   <a href="#rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7a2 2 0 012 2v14a2 2 0 00-2-2H4zM20 4h-5a2 2 0 00-2 2v14a2 2 0 012-2h5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>ルール</a>
+  <a href="#guide"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.5 9.3a2.6 2.6 0 015 .9c0 1.8-2.5 2.2-2.5 3.8M12 17.2v.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>使い方</a>
 </nav>
 <main class="wrap" id="app"><div class="empty"><strong>読み込み中…</strong></div></main>
 <div id="toast" class="toast" hidden></div>
@@ -435,7 +456,7 @@ body.gated nav.tabs, body.gated .bnav { display: none; }
 "use strict";
 /* ---------- state ---------- */
 const real = { config: null, matches: {}, bracket: {}, members: {}, loaded: false };
-let scan = null, memTeam = null, renderPending = false;
+let memPrompt = null, scan = null, memTeam = null, renderPending = false;
 let demo = null, demoMode = false;
 let mode = "loading";           // db | local | nodb
 let role = "viewer";            // admin | contributor | viewer
@@ -634,7 +655,7 @@ function makeDemo() {
 }
 
 /* ---------- render ---------- */
-const route = () => { const h = location.hash.slice(1); return ["standings", "matches", "bracket", "teams", "rules"].includes(h) ? h : "standings"; };
+const route = () => { const h = location.hash.slice(1); return ["standings", "matches", "bracket", "teams", "rules", "guide"].includes(h) ? h : "standings"; };
 function softRender() {
   const a = document.activeElement;
   if (a && a.closest && a.closest("#app") && a.matches("input:not([type=file]), textarea")) { renderPending = true; return; }
@@ -649,9 +670,9 @@ function render() {
   renderMode();
   const app = $("#app");
   document.body.classList.toggle("gated", FB.on && !demoMode && (!FB.user || !FB.tid));
-  if (FB.on && !demoMode && (!FB.user || !FB.tid)) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = viewGate(); return; }
+  if (FB.on && !demoMode && (!FB.user || !FB.tid)) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = r === "guide" ? viewGuide(true) : viewGate(); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
-  const html = { standings: viewStandings, matches: viewMatches, bracket: viewBracket, teams: viewTeams, rules: viewRules }[r](s);
+  const html = { standings: viewStandings, matches: viewMatches, bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => viewGuide(false) }[r](s);
   app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
 }
 function renderMode() {
@@ -844,9 +865,48 @@ function viewTeams(s) {
         <button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>抽選でグループ分け</button>
         <span class="savest" id="savest" style="margin-left:auto">${esc(saveStatus) || "変更は自動で保存されます"}</span></div>
       <div class="notice">抽選は全チームをランダムに並べ替えて、A・Bに同数ずつ振り分けます。奇数のときは、どちらのグループが1チーム多くなるかも抽選です。${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
-    </div></section>${sharePanel()}${membersPanel(s)}`;
+    </div></section>${sharePanel()}${membersPanel(s)}${memPromptView()}`;
 }
 
+function viewGuide(gated) {
+  const sec = (n, t, body) => `<section class="panel guide"><div class="panel-body"><h3><span class="gnum">${n}</span>${t}</h3>${body}</div></section>`;
+  return `<div class="guide-top"><h2>使い方</h2><p>主催・運営・観戦する人、それぞれの使い方です。わからないときは、上から順に読んでください。</p>${gated ? `<a class="btn" href="#">← ログイン画面に戻る</a>` : ""}</div>
+  <div class="guide-list">
+  ${sec(1, "ログインと大会の作成（主催）", `<ol>
+    <li>このサイトを開いて「<b>Googleでログイン</b>」を押します。</li>
+    <li>大会一覧の「新しい大会を作る」に大会名を入れて「<b>作成</b>」を押します。</li>
+    <li>作った大会は、あなたにしか見えません。ほかの人には、手順3のコードを渡して見てもらいます。</li></ol>`)}
+  ${sec(2, "チームとメンバーの登録（主催・運営）", `<ol>
+    <li>「<b>チーム設定</b>」で「チームを追加」を押し、チーム名と略称（表の見出しに使う短い名前）を入れます。</li>
+    <li>チーム名を入れると「<b>メンバーを登録しますか？</b>」と聞かれます。「メンバーを登録する」を押すと、そのチームのメンバー登録に移ります。</li>
+    <li>グループは手で選ぶか、「<b>抽選でグループ分け</b>」で決めます。</li>
+    <li>「メンバーと提出デッキ」で、メンバーごとに次を登録します。
+      <ul><li><b>ヒーロー</b>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル3つ（種類・色・強化値）が入ります。</li>
+      <li><b>デッキ</b>：「カード強化 / デッキ編集」画面のスクショを、デッキ1・2ごとに読み込みます。画面全体のスクショなら、左上のユーザーネームも登録されます。</li></ul></li>
+    <li>チーム内で同じヒーローやカードが重なっていると、警告が出ます。シェアカードは警告から指定できます。</li></ol>`)}
+  ${sec(3, "コードを渡して見てもらう（主催）", `<ul>
+    <li>「チーム設定」の「<b>共有コード</b>」に、コードが2つあります。
+      <ul><li><b>閲覧コード</b>：結果・順位表・決勝トーナメントを見られます。</li><li><b>運営コード</b>：結果の入力と、提出内容の登録・確認もできます。運営にだけ渡してください。</li></ul></li>
+    <li>サイトのURLとコードを一緒に渡します。受け取った人は、Googleでログインして「<b>コードで参加する</b>」にコードを入れます。</li>
+    <li>コードはその大会にしか使えません。知られたくない人に知られたら「<b>作り直す</b>」を押すと、前のコードは使えなくなります。</li></ul>`)}
+  ${sec(4, "結果の入力（主催・運営）", `<ol>
+    <li>「<b>対戦表・結果入力</b>」で対戦を押します。対戦表の左側のチームがルームを作る側です。</li>
+    <li>試合ごとに両チームのポータルキー（0〜5）を選ぶと、その場で自動保存されます。不戦敗は「左/右が不戦敗」を選びます。</li>
+    <li>「<b>スクショで読み取り・確認</b>」から、メダル情報を表示したリプレイ画面のスクショを読み込むと、ユーザーネームでメンバーを判別して、ポータルキーの記入と、ヒーロー・メダル・デッキが提出内容と合っているかの確認ができます。問題がある対戦には「要確認」が付きます。</li>
+    <li>コールド勝ち（2試合でポータルキー差6以上）は自動で判定されます。</li></ol>`)}
+  ${sec(5, "順位表と決勝トーナメント（全員）", `<ul>
+    <li>「<b>順位表</b>」は、取得ポータルキー → 勝率 → 当該チーム同士の対戦結果 → 引き分けの数 の順で自動で並びます。並んだ場合は、主催が順位決定戦・抽選の結果を入れます。</li>
+    <li>「<b>決勝トーナメント</b>」は、各グループの上位2チームが自動で入ります。対戦カードを押すと結果を入力できます（主催・運営）。</li>
+    <li>「Discord用にコピー」で、順位表を文字で貼り付けられます。</li></ul>`)}
+  ${sec(6, "大会一覧の整理", `<ul>
+    <li>大会一覧の「<b>削除</b>」（2回押す）で、<b>この端末の一覧から</b>大会を消せます。大会の情報（結果・チーム・提出内容）は消えません。</li>
+    <li>消した大会は、一覧の下の「この端末から削除した大会」から「<b>取得し直す</b>」で戻せます。</li>
+    <li>上の「大会一覧」ボタンで、いつでも大会を切り替えられます。</li></ul>`)}
+  ${sec(7, "スマホで使う", `<ul>
+    <li>Chromeの「︙」→「<b>ホーム画面に追加</b>」で、アプリのようにアイコンから開けます。</li>
+    <li>スマホでは、画面の下のボタンでページを切り替えます。</li></ul>`)}
+  </div>`;
+}
 function viewRules() {
   return `<div class="rules">
   <section class="panel"><div class="panel-body"><h3>グループ戦（1日目）</h3><ul>
@@ -1127,6 +1187,16 @@ function deckView(m, di, mid_) {
       ${d.length ? `<button class="btn ghost sm danger" data-act="deck-clear" data-mid="${mid_}" data-di="${di}">消す</button>` : ""}</div>
     ${d.length ? `<div class="dcards">${d.map(c => `<span class="dcard">${c.img ? `<img src="${c.img}" alt="">` : ""}<small>${esc(cardName(c))}</small></span>`).join("")}</div>` : `<span class="muted-s">未登録</span>`}</div>`;
 }
+function memPromptView() {
+  if (!memPrompt || !teamDraft) return "";
+  const t = teamDraft.teams.find(x => x.id === memPrompt); if (!t) { memPrompt = null; return ""; }
+  return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mp-t"><div class="modal-box">
+    <h3 id="mp-t">「${esc(t.name)}」のメンバーを登録しますか？</h3>
+    <p>メンバー3人それぞれの、ゲーム内のユーザーネーム・ヒーローとメダル・デッキ2つを、提出されたスクショから登録します。登録しておくと、リプレイのスクショから「誰か」を判別して、デッキやメダルのミスを確認できます。</p>
+    <p class="muted-s">あとで、このページ下の「メンバーと提出デッキ」からも登録できます。</p>
+    <div class="btns"><button class="btn primary" data-act="mem-go" data-id="${esc(t.id)}">メンバーを登録する</button><button class="btn" data-act="mem-later">あとで</button></div>
+  </div></div>`;
+}
 function membersPanel(s) {
   const R = RD(), teams = s.config?.teams || [];
   if (!teams.length) return "";
@@ -1147,7 +1217,7 @@ function membersPanel(s) {
       ${heroView(m, 0)}${heroView(m, 1)}
       ${deckView(m, 0, id)}${deckView(m, 1, id)}
     </div>`; }).join("");
-  return `<section class="panel"><div class="panel-head"><h2>メンバーと提出デッキ</h2><span class="meta">デッキミスの確認に使います</span></div>
+  return `<section class="panel" id="members-panel"><div class="panel-head"><h2>メンバーと提出デッキ</h2><span class="meta">デッキミスの確認に使います</span></div>
     <div class="panel-body" style="display:grid;gap:14px">
       <div class="chips">${teams.map(t => `<button class="chip ${t.id === memTeam ? "on" : ""}" data-act="mteam" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
       <div class="notice"><strong>ヒーロー</strong>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル3つ（種類・枠の色・強化値）を登録します。名前が違うときは選び直してください。同じヒーローに別のメダルをつけて、ヒーロー1・2の両方に登録することもできます。<br><strong>デッキ</strong>：提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
@@ -1159,7 +1229,9 @@ function membersPanel(s) {
 document.addEventListener("click", ev => {
   const el = ev.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act, s = S();
-  if (act === "mteam") { memTeam = el.dataset.id; regScan = null; render(); return; }
+  if (act === "mteam") { memTeam = el.dataset.id; render(); return; }
+  if (act === "mem-go") { memTeam = el.dataset.id; memPrompt = null; render(); setTimeout(() => $("#members-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); return; }
+  if (act === "mem-later") { memPrompt = null; render(); return; }
   if (act === "m-forget") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消去"; return; }
     const m = memberById(s, el.dataset.mid); m.nameRefs = []; m.nameImg = ""; saveMember(m); render(); return;
@@ -1307,7 +1379,12 @@ document.addEventListener("change", ev => {
     render(); saveDraft(); return;
   }
   if (el.dataset.tg != null && teamDraft) { teamDraft.teams[+el.dataset.tg].group = el.value; render(); saveTeams(); return; }
-  if ((el.dataset.tn != null || el.dataset.ta != null || el.id === "evn") && teamDraft) saveTeams();
+  if (el.dataset.tn != null && teamDraft && role === "admin") {
+    // a brand-new team just got its name: offer to register its members right away
+    const t = teamDraft.teams[+el.dataset.tn], st = S();
+    if (t && t.name.trim() && !(st.config?.teams || []).some(x => x.id === t.id) && !Object.values(st.members || {}).some(m => m.team === t.id)) memPrompt = t.id;
+  }
+  if ((el.dataset.tn != null || el.dataset.ta != null || el.id === "evn") && teamDraft) { saveTeams(); if (memPrompt) setTimeout(render, 300); }
 });
 document.addEventListener("input", ev => {
   const el = ev.target;
@@ -1418,24 +1495,33 @@ async function fbReissue(key) {
   try { await FB.fs.doc("secrets/" + FB.tid).set(c); FB.codes = c; render(); toast("コードを作り直しました。前のコードで参加していた人は見られなくなりました"); }
   catch (e) { toast("作り直せませんでした: " + (e.message || e.code)); }
 }
+// tournaments removed from the list on this device only; the tournament data stays and can be brought back
+const HIDE_KEY = "compass3on3_hidden";
+function hiddenSet() { try { return new Set(JSON.parse(localStorage.getItem(HIDE_KEY) || "[]")); } catch (e) { return new Set(); } }
+function saveHidden(h) { try { localStorage.setItem(HIDE_KEY, JSON.stringify([...h])); } catch (e) { toast("この端末では一覧の設定を保存できませんでした"); } }
 function viewGate() {
   if (!FB.auth) return `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`;
   if (!FB.user) return `<section class="panel gate"><div class="panel-body">
       <h2>#コンパス 3on3 順位管理</h2>
       <p>大会の結果入力・順位表・決勝トーナメントを管理します。作った大会は、あなたにしか見えません。ほかの人には、大会ごとに発行するコードを渡して見てもらいます。</p>
-      <button class="btn primary big" data-act="fb-login">Googleでログイン</button></div></section>`;
+      <div class="btns"><button class="btn primary big" data-act="fb-login">Googleでログイン</button><a class="btn" href="#guide">使い方を見る</a></div></div></section>`;
   const L = FB.lobby;
-  const row = (t, tag) => `<button class="trow2" data-act="fb-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span></button>`;
+  const hid = hiddenSet();
+  const row = (t, tag) => `<div class="trow2"><button class="topen" data-act="fb-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span></button>
+      <button class="btn ghost sm" data-act="fb-hide" data-id="${esc(t.id)}" aria-label="${esc(t.name || "")}をこの端末の一覧から削除">削除</button></div>`;
+  const hrow = (t, tag) => `<div class="trow2 hidden-row"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span><button class="btn sm" data-act="fb-unhide" data-id="${esc(t.id)}">取得し直す</button></div>`;
+  const vis = a => a.filter(t => !hid.has(t.id)), gone = L ? [...L.owned.filter(t => hid.has(t.id)).map(t => [t, "主催"]), ...L.joined.filter(t => hid.has(t.id)).map(t => [t, t.kind || "閲覧"])] : [];
   return `<section class="panel gate"><div class="panel-head"><h2>大会一覧</h2><span class="meta">${esc(FB.user.email || FB.user.displayName || "")}</span></div>
     <div class="panel-body" style="display:grid;gap:16px">
       ${FB.busy ? `<div class="notice">${esc(FB.busy)}</div>` : ""}
       ${!L ? `<div class="muted-s">読み込み中…</div>` : `
-      <div class="glist"><div class="dl">あなたが作った大会</div>${L.owned.length ? L.owned.map(t => row(t, "主催")).join("") : `<span class="muted-s">まだありません</span>`}</div>
-      <div class="glist"><div class="dl">コードで参加した大会</div>${L.joined.length ? L.joined.map(t => row(t, t.kind || "閲覧")).join("") : `<span class="muted-s">まだありません</span>`}</div>`}
+      <div class="glist"><div class="dl">あなたが作った大会</div>${vis(L.owned).length ? vis(L.owned).map(t => row(t, "主催")).join("") : `<span class="muted-s">まだありません</span>`}</div>
+      <div class="glist"><div class="dl">コードで参加した大会</div>${vis(L.joined).length ? vis(L.joined).map(t => row(t, t.kind || "閲覧")).join("") : `<span class="muted-s">まだありません</span>`}</div>
+      ${gone.length ? `<details class="glist"><summary class="dl">この端末から削除した大会（${gone.length}）</summary><span class="muted-s">この端末の一覧から消しただけで、大会の情報（結果・チーム・提出内容）は残っています。「取得し直す」で、また一覧に出せます。</span>${gone.map(([t, tag]) => hrow(t, tag)).join("")}<div class="btns"><button class="btn sm" data-act="fb-unhide-all">すべて取得し直す</button></div></details>` : ""}`}
       <div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="fb-create">作成</button></div></div>
       <div class="gform"><label for="joincode">コードで参加する</label><div class="btns"><input id="joincode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-join">参加</button></div>
         <span class="muted-s">閲覧コードなら結果を見るだけ、運営コードなら結果の入力と、提出デッキ・メダルの確認もできます。コードはその大会にしか使えません。</span></div>
-      <div class="btns"><button class="btn ghost" data-act="fb-logout">ログアウト</button></div>
+      <div class="btns"><a class="btn" href="#guide">使い方を見る</a><button class="btn ghost" data-act="fb-logout">ログアウト</button></div>
     </div></section>`;
 }
 function sharePanel() {
@@ -1479,6 +1565,14 @@ document.addEventListener("click", async ev => {
   if (act === "fb-logout") { try { localStorage.removeItem(LAST_TID); } catch (e) {} FB.auth.signOut(); return; }
   if (act === "fb-lobby") { fbLobby(); return; }
   if (act === "fb-open") { fbOpen(el.dataset.id); return; }
+  if (act === "fb-hide") {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと削除"; return; }
+    const h = hiddenSet(); h.add(el.dataset.id); saveHidden(h);
+    try { if (localStorage.getItem(LAST_TID) === el.dataset.id) localStorage.removeItem(LAST_TID); } catch (e) {}
+    render(); toast("この端末の一覧から削除しました（大会の情報は残っています）"); return;
+  }
+  if (act === "fb-unhide") { const h = hiddenSet(); h.delete(el.dataset.id); saveHidden(h); render(); toast("取得し直しました"); return; }
+  if (act === "fb-unhide-all") { saveHidden(new Set()); render(); toast("すべて取得し直しました"); return; }
   if (act === "fb-create") { const v = ($("#newt")?.value || "").trim(); if (!v) { toast("大会名を入れてください"); return; } fbCreate(v); return; }
   if (act === "fb-join") { const v = $("#joincode")?.value || ""; if (!v.trim()) { toast("コードを入れてください"); return; } fbJoin(v); return; }
   if (act === "fb-copy") { const t = $("#code-" + el.dataset.k)?.textContent || ""; try { await navigator.clipboard.writeText(t); toast("コピーしました"); } catch (e) { const r = document.createRange(); r.selectNodeContents($("#code-" + el.dataset.k)); getSelection().removeAllRanges(); getSelection().addRange(r); toast("選択された文字をコピーしてください"); } return; }
