@@ -423,6 +423,17 @@ details.glist summary { cursor: pointer; }
 a.btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; }
 a.btn.primary { color: var(--accent-ink); }
 .local-box { display: grid; gap: 6px; margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); justify-items: start; }
+
+/* what was used in a game (visible to everyone) */
+details.used { margin: 2px 0 8px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: var(--surface); }
+details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.used-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; margin-top: 8px; }
+@media (max-width: 700px) { .used-grid { grid-template-columns: 1fr; } }
+.used-col { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.used-p { display: grid; gap: 4px; padding: 6px; border-radius: 8px; background: var(--surface-2); min-width: 0; }
+.used-p img.nm { height: 22px; max-width: 100%; border-radius: 4px; justify-self: start; }
+.used-row { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.used-row .mdl img { width: 26px; }
 </style>
 
 <header class="top">
@@ -797,12 +808,22 @@ function editor(s, kind) {
     ${d.exists ? `<button class="btn ghost danger" data-act="clear" data-kind="${kind}" style="margin-left:auto">結果を消去</button>` : ""}</div>`;
   return `<div class="editor">${head}${rows}${verdict}${ro ? "" : scanPanel(s, kind)}${btns}</div>`;
 }
+function usedView(g) {
+  const ps = g?.used?.players; if (!ps || !ps.length || !draft) return "";
+  const s = S(), col = t => { const list = ps.filter(p => p.t === t); if (!list.length) return "";
+    return `<div class="used-col"><div class="dl">${esc(teamName(s, t === "a" ? draft.a : draft.b))}</div>${list.map(p => `<div class="used-p">
+      ${p.name ? `<img class="nm" src="${p.name}" alt="ユーザーネーム">` : ""}
+      <div class="used-row">${heroChip(p.hero)}${(p.medals || []).map(x => `<span class="mdl" title="${esc(medalLabel(x))}">${x.img ? `<img src="${x.img}" alt="">` : ""}<small>${esc(medalLabel(x))}</small></span>`).join("")}</div>
+      <div class="cthumbs">${(p.cards || []).map(c => `<span class="cth">${c.img ? `<img src="${c.img}" alt="">` : ""}<small>${esc(c.n || "")}</small></span>`).join("")}</div>
+    </div>`).join("")}</div>`; };
+  return `<details class="used" open><summary>使用したヒーロー・メダル・デッキ</summary><div class="used-grid">${col("a")}${col("b")}</div></details>`;
+}
 function gameRow(i, g, ro) {
   const ff = `<select class="ffsel" data-g="${i}" data-side="ff" aria-label="${i + 1}試合目の不戦敗" ${ro ? "disabled" : ""}>
     <option value="">なし</option><option value="a" ${g.ff === "a" ? "selected" : ""}>左が不戦敗</option><option value="b" ${g.ff === "b" ? "selected" : ""}>右が不戦敗</option></select>`;
   const dis = ro || !!g.ff;
   const ck = g.check ? (g.check.issues?.length ? `<div class="gcheck bad">スクショ確認：${g.check.issues.map(esc).join(" ／ ")}</div>` : `<div class="gcheck ok">スクショ確認済み：ヒーロー・デッキに問題なし</div>`) : "";
-  return `<div class="grow"><span class="gl">${i + 1}試合目</span>${scoreSel(i, "a", g.ff ? (g.ff === "a" ? 0 : 5) : num(g.a), dis)}<span class="dash">-</span>${scoreSel(i, "b", g.ff ? (g.ff === "b" ? 0 : 5) : num(g.b), dis)}${ff}</div>${ck}`;
+  return `<div class="grow"><span class="gl">${i + 1}試合目</span>${scoreSel(i, "a", g.ff ? (g.ff === "a" ? 0 : 5) : num(g.a), dis)}<span class="dash">-</span>${scoreSel(i, "b", g.ff ? (g.ff === "b" ? 0 : 5) : num(g.b), dis)}${ff}</div>${ck}${usedView(g)}`;
 }
 
 function viewBracket(s) {
@@ -903,7 +924,8 @@ function viewGuide(gated) {
   ${sec(5, "順位表と決勝トーナメント（全員）", `<ul>
     <li>「<b>順位表</b>」は、取得ポータルキー → 勝率 → 当該チーム同士の対戦結果 → 引き分けの数 の順で自動で並びます。並んだ場合は、主催が順位決定戦・抽選の結果を入れます。</li>
     <li>「<b>決勝トーナメント</b>」は、各グループの上位2チームが自動で入ります。対戦カードを押すと結果を入力できます（主催・運営）。</li>
-    <li>「Discord用にコピー」で、順位表を文字で貼り付けられます。</li></ul>`)}
+    <li>「Discord用にコピー」で、順位表を文字で貼り付けられます。</li>
+    <li>運営がリプレイのスクショから結果を記入した試合は、「対戦表」で対戦を押すと、<b>6人が使ったヒーロー・メダル・デッキ</b>を誰でも見られます。</li></ul>`)}
   ${sec(6, "大会一覧の整理", `<ul>
     <li>大会一覧の「<b>削除</b>」（2回押す）で、<b>この端末の一覧から</b>大会を消せます。大会の情報（結果・チーム・提出内容）は消えません。</li>
     <li>消した大会は、一覧の下の「この端末から削除した大会」から「<b>取得し直す</b>」で戻せます。</li>
@@ -1253,7 +1275,12 @@ document.addEventListener("click", ev => {
   if (act === "scan-apply" && draft && scan) {
     const u = scan.units[+el.dataset.u], ev2 = evalUnit(s, u, draft.a, draft.b);
     if (ev2.ka == null || ev2.kb == null) return;
-    draft.games[u.slot] = { a: ev2.ka, b: ev2.kb, ff: null, check: { issues: ev2.issues, at: new Date().toISOString() } };
+    // what each of the 6 players used in this game; saved with the result so everyone (viewers too) can see it
+    const R = RD(), side = p => { const t = ev2.sideTeam(p.side); return t === draft.a ? "a" : t === draft.b ? "b" : ""; };
+    const used = u.players.map(p => ({ t: side(p), name: p.nameURL || "", hero: p.hero || "",
+      medals: (p.medals || []).map(x => ({ k: x.k || null, c: x.c || "", lvl: x.lvl || null, img: x.url || "" })),
+      cards: (p.cards || []).map(c => ({ img: c.url || "", n: R ? R.cardName(c.top || [], c.ratio || 0) : "" })) }));
+    draft.games[u.slot] = { a: ev2.ka, b: ev2.kb, ff: null, check: { issues: ev2.issues, at: new Date().toISOString() }, used: { players: used, at: new Date().toISOString() } };
     for (let k = 0; k < u.slot; k++) draft.games[k] = draft.games[k] || { a: null, b: null, ff: null };
     render(); saveDraft(); toast(`${u.slot + 1}試合目に記入しました`); return;
   }
@@ -1300,7 +1327,7 @@ function autosave(path, body) {
   })();
 }
 function saveDraft() {
-  const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null, ...(g.check ? { check: g.check } : {}) }) : { a: null, b: null, ff: null })
+  const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null, ...(g.check ? { check: g.check } : {}), ...(g.used ? { used: g.used } : {}) }) : { a: null, b: null, ff: null })
     .filter((g, i, arr) => arr.slice(i).some(x => x.ff || x.a != null || x.b != null));
   const now = new Date().toISOString();
   const body = !games.length ? null : draft.kind === "group"
