@@ -893,6 +893,7 @@ function viewGuide(gated) {
     <li>「チーム設定」の「<b>共有コード</b>」に、コードが2つあります。
       <ul><li><b>閲覧コード</b>：結果・順位表・決勝トーナメントを見られます。</li><li><b>運営コード</b>：結果の入力と、提出内容の登録・確認もできます。運営にだけ渡してください。</li></ul></li>
     <li>サイトのURLとコードを一緒に渡します。受け取った人は、Googleでログインして「<b>コードで参加する</b>」にコードを入れます。</li>
+    <li>Googleアカウントを使いたくない人は、最初の画面の「<b>ログインせずにコードで参加</b>」にコードを入れれば、その端末で参加できます（運営・観戦どちらも）。別の端末では、もう一度コードを入れます。</li>
     <li>コードはその大会にしか使えません。知られたくない人に知られたら「<b>作り直す</b>」を押すと、前のコードは使えなくなります。</li></ul>`)}
   ${sec(4, "結果の入力（主催・運営）", `<ol>
     <li>「<b>対戦表・結果入力</b>」で対戦を押します。対戦表の左側のチームがルームを作る側です。</li>
@@ -988,7 +989,7 @@ function identify(s, ref) {
   const m = s.members[per[0].id]; return { ...emptyMember(m.team, m.slot), ...m, id: per[0].id };
 }
 function teamIssues(s, team) {
-  const R = RD(), t = (s.config?.teams || []).find(x => x.id === team), share = t?.shareF || "";
+  const R = RD(), share = shareOf(s, team).shareF || "";
   const ms = membersOf(s, team), out = [], all = [];
   const heroes = {};
   ms.forEach(m => {
@@ -1091,6 +1092,9 @@ function evalUnit(s, u, A, B) {
   if (noMedals) issues.unshift("メダル情報が表示されていないスクショです。ルールにより受理できません（ⓘを押してメダル情報を表示したスクショを提出してもらってください）");
   return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes).filter(t => !t.includes("ⓘを押して詳細")), sideTeam, noMedals };
 }
+// a team's share card lives with the operator-only member data (members/share_<team>), never in the shared settings
+function shareOf(s, team) { const d = s.members?.["share_" + team]; if (d) return d; const t = (s.config?.teams || []).find(x => x.id === team); return t?.shareF ? { shareF: t.shareF, shareImg: t.shareImg || "", shareN: t.shareN || "" } : {}; }
+function saveShare(team, v) { const body = { kind: "share", ...v }, st = S(); st.members = st.members || {}; st.members["share_" + team] = body; autosave("members/share_" + team, body); }
 function memberById(s, id) { return membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)]; }
 async function readDeckFor(ref, file) {
   const R = RD(); if (!R) { toast("読み取りの準備ができていません。ページを開き直してください"); return; }
@@ -1232,7 +1236,7 @@ function membersPanel(s) {
       <div class="chips">${teams.map(t => `<button class="chip ${t.id === memTeam ? "on" : ""}" data-act="mteam" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
       <div class="notice"><strong>ヒーロー</strong>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル3つ（種類・枠の色・強化値）を登録します。名前が違うときは選び直してください。同じヒーローに別のメダルをつけて、ヒーロー1・2の両方に登録することもできます。<br><strong>デッキ</strong>：提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
       <div class="mgrid">${mcards}</div>
-      <div class="share">シェアカード：${tc?.shareImg ? `<img src="${tc.shareImg}" alt=""> <button class="btn ghost sm" data-act="share-clear">解除</button>` : `<span class="muted-s">未指定（重複の警告に出たカードから指定できます）</span>`}</div>
+      <div class="share">シェアカード：${shareOf(s, memTeam).shareImg ? `<img src="${shareOf(s, memTeam).shareImg}" alt=""> <button class="btn ghost sm" data-act="share-clear">解除</button>` : `<span class="muted-s">未指定（重複の警告に出たカードから指定できます）</span>`}</div>
       ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong>${issues.map(x => `<div class="issue-row">${x.img ? `<img src="${x.img}" alt="">` : ""}<span>${esc(x.t)}</span>${x.ref ? `<button class="btn ghost sm" data-act="set-share" data-ref="${x.ref}">シェアカードにする</button>` : ""}</div>`).join("")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で絵が違うカードは見分けられないので、目で確認してください）</div>`}
     </div></section>`;
 }
@@ -1257,10 +1261,10 @@ document.addEventListener("click", ev => {
   if (act === "deck-clear") { const m = memberById(s, el.dataset.mid); m.decks[+el.dataset.di] = []; saveMember(m); render(); return; }
   if (act === "set-share") {
     const [mid_, di, k] = el.dataset.ref.split(":"), c = deckOf(memberById(s, mid_), +di)[+k];
-    const t = teamDraft?.teams.find(x => x.id === memTeam); if (!t || !c) return;
-    t.shareF = c.f; t.shareImg = c.img || ""; t.shareN = c.n || ""; saveTeams(); render(); toast("シェアカードに指定しました"); return;
+    if (!c) return;
+    saveShare(memTeam, { shareF: c.f || "", shareImg: c.img || "", shareN: c.n || "" }); render(); toast("シェアカードに指定しました"); return;
   }
-  if (act === "share-clear") { const t = teamDraft?.teams.find(x => x.id === memTeam); if (!t) return; t.shareF = ""; t.shareImg = ""; t.shareN = ""; saveTeams(); render(); return; }
+  if (act === "share-clear") { saveShare(memTeam, { shareF: "", shareImg: "", shareN: "" }); render(); return; }
 });
 document.addEventListener("change", ev => {
   const el = ev.target, s = S();
@@ -1306,7 +1310,9 @@ function saveDraft() {
   autosave(draft.kind === "group" ? "matches/" + openId : openId, body);
 }
 function saveTeams() {
-  const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group, shareF: t.shareF || "", shareImg: t.shareImg || "", shareN: t.shareN || "" })).filter(t => t.name);
+  // the share card is operator-only: older data kept it in the shared settings, so move it to the operators' area first
+  for (const t of teamDraft.teams) if (t.shareF && !S().members?.["share_" + t.id]) saveShare(t.id, { shareF: t.shareF, shareImg: t.shareImg || "", shareN: t.shareN || "" });
+  const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group })).filter(t => t.name);
   const names = teams.map(t => t.name);
   if (new Set(names).size !== names.length) { toast("同じチーム名が重複しているため保存していません"); return; }
   const s = S();
@@ -1448,6 +1454,7 @@ async function fbBoot(cfg) {
     FB.user = u; resetData(); FB.tid = null;
     if (!u) { let pref = null; try { pref = localStorage.getItem(LOCAL_PREF); } catch (e) {} if (pref === "1") return lcLobby(true); render(); return; }
     LOCAL.on = false; LOCAL.id = null; mode = "fb"; try { localStorage.removeItem(LOCAL_PREF); } catch (e) {}
+    if (FB.pendingJoin) { const c = FB.pendingJoin; FB.pendingJoin = null; await fbLobby(); await fbJoin(c); return; }
     let last = null; try { last = localStorage.getItem(LAST_TID); } catch (e) {}
     if (last) await fbOpen(last); else await fbLobby();
   });
@@ -1578,24 +1585,28 @@ function viewGate() {
       <p>大会の結果入力・順位表・決勝トーナメントを管理します。作った大会は、あなたにしか見えません。ほかの人には、大会ごとに発行するコードを渡して見てもらいます。</p>
       <div class="btns"><button class="btn primary big" data-act="fb-login">Googleでログイン</button><a class="btn" href="#guide">使い方を見る</a></div>
       <div class="local-box"><button class="btn" data-act="lc-start">ログインせずに使う（この端末だけ）</button>
-        <span class="muted-s">ログインしなくても、この端末の中だけで大会を管理できます。ほかの端末からは見られず、コードでの共有もできません。</span></div></div></section>`;
+        <span class="muted-s">ログインしなくても、この端末の中だけで大会を管理できます。ほかの端末からは見られず、コードでの共有もできません。</span></div>
+      <div class="local-box gform"><label for="anoncode">運営・観戦の人：ログインせずにコードで参加</label>
+        <div class="btns"><input id="anoncode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-anon-join">参加</button></div>
+        <span class="muted-s">Googleアカウントを使わずに、この端末で参加します。別の端末で見るときは、その端末でもう一度コードを入れてください。</span></div></div></section>`;
   const L = FB.lobby;
   const hid = hiddenSet();
   const row = (t, tag) => `<div class="trow2"><button class="topen" data-act="fb-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span></button>
       <button class="btn ghost sm" data-act="fb-hide" data-id="${esc(t.id)}" aria-label="${esc(t.name || "")}をこの端末の一覧から削除">削除</button></div>`;
   const hrow = (t, tag) => `<div class="trow2 hidden-row"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span><button class="btn sm" data-act="fb-unhide" data-id="${esc(t.id)}">取得し直す</button></div>`;
   const vis = a => a.filter(t => !hid.has(t.id)), gone = L ? [...L.owned.filter(t => hid.has(t.id)).map(t => [t, "主催"]), ...L.joined.filter(t => hid.has(t.id)).map(t => [t, t.kind || "閲覧"])] : [];
-  return `<section class="panel gate"><div class="panel-head"><h2>大会一覧</h2><span class="meta">${esc(FB.user.email || FB.user.displayName || "")}</span></div>
+  return `<section class="panel gate"><div class="panel-head"><h2>大会一覧</h2><span class="meta">${FB.user.isAnonymous ? "ログインなし（この端末）" : esc(FB.user.email || FB.user.displayName || "")}</span></div>
     <div class="panel-body" style="display:grid;gap:16px">
       ${FB.busy ? `<div class="notice">${esc(FB.busy)}</div>` : ""}
       ${!L ? `<div class="muted-s">読み込み中…</div>` : `
       <div class="glist"><div class="dl">あなたが作った大会</div>${vis(L.owned).length ? vis(L.owned).map(t => row(t, "主催")).join("") : `<span class="muted-s">まだありません</span>`}</div>
       <div class="glist"><div class="dl">コードで参加した大会</div>${vis(L.joined).length ? vis(L.joined).map(t => row(t, t.kind || "閲覧")).join("") : `<span class="muted-s">まだありません</span>`}</div>
       ${gone.length ? `<details class="glist"><summary class="dl">この端末から削除した大会（${gone.length}）</summary><span class="muted-s">この端末の一覧から消しただけで、大会の情報（結果・チーム・提出内容）は残っています。「取得し直す」で、また一覧に出せます。</span>${gone.map(([t, tag]) => hrow(t, tag)).join("")}<div class="btns"><button class="btn sm" data-act="fb-unhide-all">すべて取得し直す</button></div></details>` : ""}`}
-      <div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="fb-create">作成</button></div></div>
+      ${FB.user.isAnonymous ? `<div class="muted-s">大会を作るには、Googleでログインしてください（ログインなしで大会を作るときは「ログインせずに使う（この端末だけ）」を使います）。</div>` : `<div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="fb-create">作成</button></div></div>`}
       <div class="gform"><label for="joincode">コードで参加する</label><div class="btns"><input id="joincode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-join">参加</button></div>
         <span class="muted-s">閲覧コードなら結果を見るだけ、運営コードなら結果の入力と、提出デッキ・メダルの確認もできます。コードはその大会にしか使えません。</span></div>
-      <div class="btns"><a class="btn" href="#guide">使い方を見る</a><button class="btn ghost" data-act="fb-logout">ログアウト</button></div>
+      <div class="btns"><a class="btn" href="#guide">使い方を見る</a><button class="btn ghost" data-act="fb-logout">${FB.user.isAnonymous ? "参加をやめる" : "ログアウト"}</button></div>
+      ${FB.user.isAnonymous ? `<span class="muted-s">「参加をやめる」と、この端末の参加情報が消えます。また見るときは、コードを入れ直してください。</span>` : ""}
     </div></section>`;
 }
 function sharePanel() {
@@ -1637,6 +1648,15 @@ document.addEventListener("click", async ev => {
     catch (e) { if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/cancelled-popup-request"].includes(e.code)) FB.auth.signInWithRedirect(pr); else if (e.code !== "auth/popup-closed-by-user") toast("ログインできませんでした: " + (e.message || e.code)); }
     return;
   }
+  if (act === "fb-anon-join") {
+    const v = ($("#anoncode")?.value || "").trim(); if (!v) { toast("コードを入れてください"); return; }
+    // no Google account: join as this device (Firebase anonymous sign-in), then use the code as usual
+    FB.pendingJoin = v;
+    try { await FB.auth.signInAnonymously(); }
+    catch (e) { FB.pendingJoin = null; toast(e.code === "auth/operation-not-allowed" || e.code === "auth/admin-restricted-operation" ? "ログインなしの参加が、まだFirebaseで有効になっていません（主催者に伝えてください）" : "参加できませんでした: " + (e.message || e.code)); }
+    return;
+  }
+  if (act === "fb-logout" && FB.user?.isAnonymous && el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと参加をやめる"; return; }
   if (act === "fb-logout") { try { localStorage.removeItem(LAST_TID); } catch (e) {} FB.auth.signOut(); return; }
   if (act === "fb-lobby") { fbLobby(); return; }
   if (act === "fb-open") { fbOpen(el.dataset.id); return; }
