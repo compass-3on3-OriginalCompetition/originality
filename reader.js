@@ -649,6 +649,51 @@ function loadImage(file) {
 }
 const DIGIT_SURE = 0.35;
 const MEDAL_SLOTS_ = [15, 85, 154];
+const MEDAL_NAME = { boot: '足', clock: 'CT', sword: '剣', mute: 'サイレント耐性', drop: '水属性耐性', spiral: '木属性耐性', red: '火属性耐性', person: 'ヒーロースキルゲージ増加', heart: '体力', orbit: 'スタン耐性', key: '鍵', flask: '毒耐性', shield: '防御' }; // names as in compass-system
+const whiteTxt = (r, g, b) => Math.min(r, g, b) > 185 && Math.max(r, g, b) - Math.min(r, g, b) < 45;
+// "+N" under the medal (white text); window units like medalEdge
+const LV_T = {"1":{"m":[0,0,0,0,0,0,128,128,128,128,128,128,128,128,191,255,255,255,255,255,255,255,255,255,64,64,64,64,96,128,191,191,191,191,191,191,191,191,223,255,255,255,255,255,255,255,255,255,128,128,128,128,191,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,191,191,191,191,191,191,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,64,64,64,64,96,128,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,64,128,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,64,64,64,128,191,191,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0,0,64,128,128,255,255,255,255,255,255,255,255,255,255,255,255],"r":0.29},"2":{"m":[0,70,139,139,185,185,185,185,185,185,232,232,185,185,185,185,185,185,197,209,209,162,93,70,0,70,139,139,185,185,185,185,185,185,232,232,185,185,185,185,185,185,197,209,209,180,122,93,0,70,139,139,185,185,185,185,185,185,232,232,185,185,185,185,185,185,197,209,209,197,168,151,0,35,70,70,70,70,70,70,70,70,116,116,70,70,70,70,93,93,116,174,209,209,209,209,0,0,0,0,0,0,0,0,0,0,46,46,0,0,0,0,23,23,81,174,209,209,209,209,0,0,0,0,0,0,0,0,0,0,46,46,0,0,0,0,23,23,81,174,209,209,209,209,0,0,0,0,0,0,0,0,0,0,46,46,0,12,23,23,23,23,81,174,209,197,185,185,0,0,0,0,0,0,0,0,0,0,46,46,0,12,23,23,23,23,81,174,209,197,174,162,0,0,0,0,0,0,0,0,0,0,46,46,46,58,58,93,93,93,116,174,209,197,128,70,0,0,0,0,0,0,0,0,0,0,58,70,87,162,191,209,209,209,197,185,185,145,64,23,0,0,46,46,46,46,46,64,81,116,145,162,180,226,255,238,220,209,151,139,139,110,23,12,0,0,46,46,46,46,46,81,116,185,232,255,255,255,255,220,185,162,58,46,46,46,0,0,46,46,81,116,128,139,209,232,255,255,255,255,139,139,104,70,46,46,46,46,46,46,46,46,81,99,145,174,180,185,220,220,191,174,168,162,104,104,87,70,46,46,46,46,46,46,46,46,70,104,162,185,168,151,151,128,110,93,81,70,70,70,23,23,0,0,0,0,0,0,0,0,139,162,185,185,116,58,46,23,70,70,70,70,70,58,0,0,0,0,0,0,0,0,0,0,139,162,185,185,116,46,35,23,23,23,70,70,23,12,0,0,0,0,0,0,0,0,0,0,139,162,185,185,116,35,23,23,23,23,70,70,23,12,0,0,0,0,0,0,0,0,0,0,139,162,197,209,156,81,58,58,58,58,93,81,35,35,35,35,35,35,35,35,35,35,17,0,162,174,197,209,174,116,93,93,93,93,128,116,70,70,70,70,70,70,70,70,70,70,35,0,185,185,197,209,174,116,93,93,93,93,128,116,70,70,70,70,70,70,70,70,70,70,35,0,209,209,209,209,209,209,209,209,185,185,232,232,185,185,185,185,185,185,185,185,185,185,151,116,209,209,209,209,209,209,209,209,185,185,232,232,185,185,185,185,185,185,185,185,185,185,151,116,209,209,209,209,209,209,209,209,185,185,232,232,185,185,185,185,185,185,185,185,185,185,151,116],"r":1.019},"3":{"m":[230,243,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,193,131,180,202,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,232,243,250,255,224,193,131,162,193,193,193,193,193,193,193,193,193,193,193,193,193,193,193,193,208,230,246,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,115,205,205,230,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,109,205,205,230,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,230,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,230,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,219,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,208,211,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,115,205,168,109,50,0,0,0,17,56,78,78,78,78,78,78,78,78,78,78,78,78,87,109,157,205,168,109,50,0,0,0,34,112,155,155,155,155,155,155,155,155,155,155,155,155,174,193,199,205,168,109,50,0,0,0,0,53,106,106,106,106,106,106,106,106,106,106,106,128,168,193,199,205,168,109,50,0,0,0,0,26,53,53,53,53,53,53,53,53,53,53,53,64,84,96,151,205,187,126,65,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,143,81,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,215,224,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,222,239,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,230,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,205,205,230,255,16,25,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,120,205,205,230,255,31,50,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,137,205,205,230,255,193,193,193,193,193,193,193,193,193,193,193,193,193,193,193,193,193,193,193,199,230,255,255,255,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,227,243,255,230,205,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,205,155],"r":0.947}}; // '+1' '+2' '+3' digit shapes averaged from real replay screenshots
+function levelOf(mk) {
+  if (!mk) return null;
+  const sc = Object.keys(LV_T).map(k => { const t = LV_T[k]; let i = 0, u = 0; for (let j = 0; j < t.m.length; j++) { const a = mk.m[j], b = t.m[j] / 255; i += Math.min(a, b); u += Math.max(a, b); } return { k: +k, d: 1 - i / Math.max(u, 1e-6) }; }).sort((a, b) => a.d - b.d);
+  return sc[0].d < 0.7 && sc[1].d - sc[0].d >= 0.03 ? sc[0].k : null;
+}
+function levelMask(img, ox, oy, sc) { return levelMask1(img, ox, oy, sc, 215) || levelMask1(img, ox, oy, sc, 185); }
+function levelMask1(img, ox, oy, sc, thr) {
+  // white blobs below-right of the medal; the digit is the rightmost tall blob (the "+" sits left of it)
+  const x0 = Math.max(0, Math.round(ox + 14 * sc)), y0 = Math.max(0, Math.round(oy + 42 * sc)), x1 = Math.min(img.width, Math.round(ox + 82 * sc)), y1 = Math.min(img.height, Math.round(oy + 86 * sc));
+  const w = x1 - x0, h = y1 - y0; if (w <= 2 || h <= 2) return null;
+  const W = img.width, D = img.data, lab = new Int32Array(w * h).fill(-1), on = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const q = ((y0 + y) * W + x0 + x) * 4; on[y * w + x] = Math.min(D[q], D[q + 1], D[q + 2]) > thr && Math.max(D[q], D[q + 1], D[q + 2]) - Math.min(D[q], D[q + 1], D[q + 2]) < 45 ? 1 : 0; }
+  { // close small breaks (a thin middle stroke of a '3' in small screenshots) with a 1px vertical dilation
+    const t = on.slice(); for (let y = 1; y < h - 1; y++) for (let x = 0; x < w; x++) if (!t[y * w + x] && t[(y - 1) * w + x] && t[(y + 1) * w + x]) on[y * w + x] = 1;
+    const t2 = on.slice(); for (let y = 1; y < h; y++) for (let x = 0; x < w; x++) if (!t2[y * w + x] && t2[(y - 1) * w + x]) { /* grow down by one only where a stroke ends just above a stroke */ if (y + 1 < h && t2[(y + 1) * w + x] === 0 && y + 2 < h && t2[(y + 2) * w + x]) { on[y * w + x] = 1; on[(y + 1) * w + x] = 1; } }
+  }
+  const comps = [];
+  for (let i = 0; i < w * h; i++) if (on[i] && lab[i] < 0) {
+    const st = [i], c = { n: 0, mnx: 1e9, mny: 1e9, mxx: -1, mxy: -1, id: comps.length }; lab[i] = c.id;
+    while (st.length) { const k = st.pop(), x = k % w, y = (k - x) / w; c.n++; if (x < c.mnx) c.mnx = x; if (x > c.mxx) c.mxx = x; if (y < c.mny) c.mny = y; if (y > c.mxy) c.mxy = y;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const kk = yy * w + xx; if (on[kk] && lab[kk] < 0) { lab[kk] = c.id; st.push(kk); } } }
+    comps.push(c);
+  }
+  const tall = comps.filter(c => { const ch = c.mxy - c.mny + 1, cw = c.mxx - c.mnx + 1; const r = cw / ch; return ch >= 8 * sc && ch <= 26 * sc && cw <= 20 * sc && cw >= 2 * sc && c.n >= 10 * sc * sc && ((r >= 0.18 && r <= 0.45) || (r >= 0.75 && r <= 1.25)); }); // a '1' is narrow, '2'/'3' about square
+  // drop the '+' (its middle row and middle column are both filled, its corners are empty)
+  const isPlus = c => { const cx = Math.round((c.mnx + c.mxx) / 2), cy = Math.round((c.mny + c.mxy) / 2); let row = 0, col = 0, cor = 0;
+    for (let x = c.mnx; x <= c.mxx; x++) row += lab[cy * w + x] === c.id ? 1 : 0;
+    for (let y = c.mny; y <= c.mxy; y++) col += lab[y * w + cx] === c.id ? 1 : 0;
+    for (const [x, y] of [[c.mnx, c.mny], [c.mxx, c.mny], [c.mnx, c.mxy], [c.mxx, c.mxy]]) cor += lab[y * w + x] === c.id ? 1 : 0;
+    return row >= (c.mxx - c.mnx + 1) * 0.85 && col >= (c.mxy - c.mny + 1) * 0.85 && cor === 0; };
+  const cand = tall.filter(c => !isPlus(c) && c.mxx < w - 1);
+  if (!cand.length) return null;
+  const dg = cand.sort((a, b) => b.mxx - a.mxx)[0];
+  const bw = dg.mxx - dg.mnx + 1, bh = dg.mxy - dg.mny + 1, N = 24, out = new Float32Array(N * N);
+  for (let Y = 0; Y < N; Y++) for (let X = 0; X < N; X++) { // stretch the digit box to N x N
+    let s = 0, a = 0;
+    for (let y = Math.floor(Y * bh / N); y < Math.ceil((Y + 1) * bh / N); y++) for (let x = Math.floor(X * bw / N); x < Math.ceil((X + 1) * bw / N); x++) { const k = (dg.mny + y) * w + dg.mnx + x; s += lab[k] === dg.id ? 1 : 0; a++; }
+    out[Y * N + X] = a ? s / a : 0;
+  }
+  return { m: out, r: bw / bh };
+}
 // frame color of a medal (window of 54x58 units like medalEdge): green / gold / purple / silver / red / blue
 function medalColor(img, ox, oy, sc) {
   const W = img.width, H = img.height, D = img.data; let r = 0, g = 0, b = 0, n = 0;
@@ -686,7 +731,7 @@ async function readFile(file) {
         nameURL: cropURL(u.im, p.nameBox, 260),
         hero: nearestHero(p),
         medals: p.medals ? p.medals.map((ki, j) => { const ox = p.box.x0 + Math.round((MEDAL_SLOTS_[j] - 1) * a.det.sc), oy = p.box.band[0] + Math.round(a.det.sc), sc = a.det.sc;
-          return { k: ki == null ? null : Core.MEDAL_KEYS[ki], c: medalColor(u.img, ox, oy, sc).cls || '?', url: cropURL(u.im, [ox, oy, ox + 54 * sc, oy + 58 * sc], 40) }; }) : null,
+          return { k: ki == null ? null : Core.MEDAL_KEYS[ki], c: medalColor(u.img, ox, oy, sc).cls || '?', url: cropURL(u.im, [ox, oy, ox + 54 * sc, oy + 58 * sc], 40), lvl: levelOf(levelMask(u.img, ox, oy, sc)) }; }) : null,
         faceURL: cropURL(u.im, faceBox(p.art), 64),
         cards: p.cards ? p.cards.map((f, k) => { const s = cardSuggest(f); return { f: b64(f), top: s ? s.top.map(x => x.n) : [], ratio: s ? s.ratio : 0, url: cropURL(u.im, p.cardBox[k], 44) }; }) : null,
       }));
@@ -840,7 +885,7 @@ function heroMedals(img) {
   if (top < 0 || bot - top < W * 0.1) return null;
   const sc = W * 0.1843 / 70, cy = (top + bot) / 2 - 0.021 * W;
   return [0.412, 0.596, 0.78].map(fx => { const ox = W * fx - 27 * sc, oy = cy - 29 * sc, e = Core.medalEdge(img, ox, oy, sc), gs = Core.medalGuess(e);
-    return { k: gs[0].s >= 0.8 && (!gs[1] || gs[0].s - gs[1].s >= 0.03) ? gs[0].k : null, s: gs[0].s, c: medalColor(img, ox, oy, sc), box: [ox, oy, ox + 54 * sc, oy + 58 * sc] }; });
+    return { k: gs[0].s >= 0.8 && (!gs[1] || gs[0].s - gs[1].s >= 0.03) ? gs[0].k : null, s: gs[0].s, c: medalColor(img, ox, oy, sc), lvl: levelOf(levelMask(img, ox, oy, sc)), box: [ox, oy, ox + 54 * sc, oy + 58 * sc] }; });
 }
 async function readHeroShot(file) {
   const L = await loadImage(file);
@@ -853,7 +898,7 @@ async function readHeroShot(file) {
     if (!medals) throw new Error('強化メダルの欄が見つかりませんでした。ヒーローの画面全体（上のキャラクター名から下の強化メダルまで）のスクショを使ってください。');
     const cands = t ? heroNameMasks().map(x => ({ n: x.n, d: maskSim(t, x.m) })).sort((a, b) => a.d - b.d).slice(0, 5) : [];
     return { names: cands.map(x => x.n), nameD: cands.map(x => +x.d.toFixed(3)), titleURL: t ? cropURL(im, [t.box[0] - 6, t.box[1] - 6, t.box[2] + 6, t.box[3] + 6], 320) : '',
-      medals: medals.map(m => ({ k: m.k, c: m.c.cls || '?', url: cropURL(im, m.box, 48) })) };
+      medals: medals.map(m => ({ k: m.k, c: m.c.cls || '?', url: cropURL(im, m.box, 48), lvl: m.lvl })) };
   } finally { URL.revokeObjectURL(L.url); }
 }
 const CARD_NAMES = [...new Set(CARD_DB.map(c => c[0]))];
@@ -861,6 +906,8 @@ window.CompassReader = {
   readFile,
   readDeckShot,
   readHeroShot,
+  medalName: k => MEDAL_NAME[k] || k,
+  cardName: (top, ratio) => ratio >= 1.15 ? top[0] : '',
   cardDiff,
   CARD_SAME: 0.78,
   CARD_MAYBE: 0.9,

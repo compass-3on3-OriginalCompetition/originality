@@ -256,7 +256,7 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 .medals { display: flex; gap: 6px; }
 .mdl { display: grid; justify-items: center; gap: 2px; border: 2px solid transparent; border-radius: 8px; padding: 1px; }
 .mdl img { width: 34px; }
-.mdl small { font-size: .6rem; color: var(--muted); }
+.mdl small { font-size: .6rem; color: var(--muted); text-align: center; max-width: 72px; line-height: 1.2; }
 .mdl.ok { border-color: var(--good); } .mdl.maybe { border-color: var(--warn); } .mdl.ng { border-color: var(--bad); }
 .btn.sm { padding: 2px 10px; font-size: .75rem; }
 .deck-h { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -703,16 +703,15 @@ function viewRules() {
     <li>順位決定戦・抽選の結果は、グループ戦がすべて終わった後に順位表から入力します</li>
     <li>シングルロス・マッチロスなどの処分は、該当試合を不戦敗として入力してください</li></ul></div></section>
   <section class="panel"><div class="panel-body"><h3>ヒーロー・デッキ・メダル</h3><ul>
-    <li>1人につきヒーロー2体・デッキ2つを提出。各ヒーローにつけるメダルもヒーローごとに提出</li><li>チーム内のヒーローはすべて別のキャラクター</li><li>試合ごとにどのヒーロー・デッキを組み合わせてもよいが、メダルは提出したものを使う</li><li>代理出場は、欠けたメンバーのヒーロー・デッキ・メダルを引き継ぐ</li><li>提出外のヒーロー・デッキ・メダルの使用は違反行為</li></ul></div></section></div>`;
+    <li>1人につきヒーロー2体・デッキ2つを提出。各ヒーローにつけるメダルもヒーローごとに提出</li><li>1人の2体を、同じヒーローで別のメダルの組み合わせにしてもよい</li><li>チーム内で、メンバー同士のヒーローはすべて別のキャラクター</li><li>試合ごとにどのヒーロー・デッキを組み合わせてもよいが、メダルは提出したものを使う</li><li>代理出場は、欠けたメンバーのヒーロー・デッキ・メダルを引き継ぐ</li><li>提出外のヒーロー・デッキ・メダルの使用は違反行為</li><li>結果報告のリプレイは、メダル情報を表示させた状態のスクショのみ受理</li></ul></div></section></div>`;
 }
 
 /* ---------- members, submitted decks and screenshot reading ---------- */
 const RD = () => window.CompassReader || null;
 const memberId = (team, slot) => team + "_m" + slot;
 const emptyMember = (team, slot) => ({ team, slot, name: "", heroes: ["", ""], medals: [[], []], decks: [[], []], nameRefs: [], nameImg: "" });
-const MEDAL_JA = { boot: "ブーツ", clock: "時計", sword: "剣", mute: "ミュート", drop: "しずく", spiral: "うずまき", red: "赤", person: "人型", heart: "ハート", orbit: "軌道", key: "鍵", flask: "フラスコ", shield: "盾" }; // icon shapes, named by what they look like
 const COLOR_JA = { green: "緑", gold: "金", purple: "紫", silver: "銀", red: "赤", blue: "青" };
-const medalLabel = x => `${COLOR_JA[x.c] || ""}${x.k ? (MEDAL_JA[x.k] || x.k) : "不明"}`;
+const medalLabel = x => `${COLOR_JA[x.c] || ""}・${x.k ? (RD()?.medalName(x.k) || x.k) : "不明"}${x.lvl ? "+" + x.lvl : "（+?）"}`;
 const asCard = c => typeof c === "string" ? (c ? { n: c } : null) : c;
 const deckOf = (m, di) => (m.decks?.[di] || []).map(asCard).filter(Boolean);
 const cardName = c => c?.n || "名前不明のカード";
@@ -761,7 +760,7 @@ function teamIssues(s, team) {
     m.heroes.forEach(h => { if (h) (heroes[h] = heroes[h] || []).push(whoOf(m)); });
     [0, 1].forEach(di => { const d = deckOf(m, di); if (d.length && d.length < 4) out.push({ t: `${whoOf(m)}のデッキ${di + 1}が${d.length}枚しかありません` }); d.forEach((c, k) => all.push({ c, where: `${whoOf(m)}のデッキ${di + 1}`, ref: `${memberId(team, m.slot)}:${di}:${k}` })); });
   });
-  for (const h in heroes) if (heroes[h].length > 1) out.push({ t: `同じヒーロー「${h}」がチーム内で重複しています（${heroes[h].join("、")}）` });
+  for (const h in heroes) { const who = [...new Set(heroes[h])]; if (who.length > 1) out.push({ t: `同じヒーロー「${h}」を複数のメンバーが提出しています（${who.join("、")}）` }); } // one member may submit the same hero twice with different medals
   const same = (a, b) => a.f && b.f ? R.cardDiff(a.f, b.f) < 0.35 : !!a.n && a.n === b.n;
   const used = new Set();
   all.forEach((x, i) => {
@@ -789,13 +788,17 @@ function matchDeck(pc, deck) {
 }
 // replay medals vs the submitted medals of that hero (order free): same icon and frame color
 function matchMedals(got, sub) {
+  // order free: same icon and frame color; the "+N" must also match when both were read
   const used = new Set();
+  const same = (g, x) => x.k === g.k && x.c === g.c;
   return got.map(g => {
-    if (!g.k) return "maybe";
-    const i = sub.findIndex((x, j) => !used.has(j) && x.k === g.k && x.c === g.c);
+    if (!g.k) { const i = sub.findIndex((x, j) => !used.has(j)); if (i >= 0) used.add(i); return "maybe"; }
+    let i = sub.findIndex((x, j) => !used.has(j) && same(g, x) && g.lvl && x.lvl && g.lvl === x.lvl);
     if (i >= 0) { used.add(i); return "ok"; }
-    const i2 = sub.findIndex((x, j) => !used.has(j) && !x.k);
-    if (i2 >= 0) { used.add(i2); return "maybe"; }
+    i = sub.findIndex((x, j) => !used.has(j) && same(g, x) && (!g.lvl || !x.lvl));
+    if (i >= 0) { used.add(i); return "maybe"; }
+    i = sub.findIndex((x, j) => !used.has(j) && same(g, x));
+    if (i >= 0) { used.add(i); return "lvl"; } // right medal, different "+N"
     return "ng";
   });
 }
@@ -803,18 +806,23 @@ function checkPlayer(m, p) {
   const issues = [], notes = [];
   if (!m) return { issues: ["名前からメンバーを判別できません"], notes, marks: [] };
   const who = whoOf(m);
-  let hk = -1, medalMarks = [];
+  let medalMarks = [], heroOk = false;
+  const slots = [0, 1].filter(k => m.heroes[k] && m.heroes[k] === p.hero);
   if (!m.heroes.some(Boolean)) notes.push(`${who}：提出ヒーローが未登録です`);
   else if (!p.hero) notes.push(`${who}：ヒーローを読み取れませんでした`);
-  else if ((hk = m.heroes.indexOf(p.hero)) < 0) issues.push(`${who}：提出外のヒーロー「${p.hero}」`);
-  if (hk >= 0) {
-    const sub = m.medals?.[hk] || [];
-    if (!p.medals) notes.push(`${who}：メダルは、ⓘを押して詳細を開いたスクショで確認できます`);
-    else if (!sub.length) notes.push(`${who}：${p.hero}のメダルが未登録です`);
+  else if (!slots.length) issues.push(`${who}：提出外のヒーロー「${p.hero}」`);
+  else heroOk = true;
+  if (heroOk && p.medals) {
+    const subs = slots.map(k => ({ k, sub: m.medals?.[k] || [] })).filter(x => x.sub.length);
+    if (!subs.length) notes.push(`${who}：${p.hero}のメダルが未登録です`);
     else {
-      medalMarks = matchMedals(p.medals, sub);
-      if (medalMarks.includes("ng")) issues.push(`${who}：提出したメダルと違います（${p.medals.filter((x, i) => medalMarks[i] === "ng").map(medalLabel).join("、")}）`);
-      else if (medalMarks.includes("maybe")) notes.push(`${who}：読み取れないメダルがあります。画像で確認してください`);
+      const score = mk => mk.filter(x => x === "ok").length * 3 + mk.filter(x => x === "maybe").length * 2 + mk.filter(x => x === "lvl").length;
+      const best = subs.map(x => ({ ...x, mk: matchMedals(p.medals, x.sub) })).sort((a, b) => score(b.mk) - score(a.mk))[0];
+      medalMarks = best.mk;
+      const tag = slots.length > 1 ? `（ヒーロー${best.k + 1}として）` : "";
+      if (medalMarks.includes("ng")) issues.push(`${who}：提出したメダルと違います${tag}（${p.medals.filter((x, i) => medalMarks[i] === "ng").map(medalLabel).join("、")}）`);
+      else if (medalMarks.includes("lvl")) issues.push(`${who}：メダルの強化値が提出内容と違います${tag}（${p.medals.filter((x, i) => medalMarks[i] === "lvl").map(medalLabel).join("、")}）`);
+      else if (medalMarks.includes("maybe")) notes.push(`${who}：読み取れないメダルか強化値があります。画像で確認してください`);
     }
   }
   let marks = [], deckNo = null;
@@ -831,7 +839,7 @@ function checkPlayer(m, p) {
       else notes.push(`${who}：デッキ${best.di + 1}とほぼ一致。絵が似ているカードがあるので、画像で確認してください`);
     }
   }
-  return { issues, notes, marks, deckNo, medalMarks, heroOk: hk >= 0 };
+  return { issues, notes, marks, deckNo, medalMarks, heroOk };
 }
 function evalUnit(s, u, A, B) {
   const ps = u.players.map(p => ({ p, m: identify(s, p.name) }));
@@ -842,9 +850,11 @@ function evalUnit(s, u, A, B) {
   const kb = blueIs == null ? null : blueIs === "a" ? u.score.r : u.score.b;
   const checks = ps.map(({ p, m }) => ({ p, m, wrong: !!m && m.team !== A && m.team !== B, ...checkPlayer(m, p) }));
   const unknown = checks.filter(c => !c.m).length;
+  const noMedals = u.players.every(p => !p.medals);
   const issues = checks.filter(c => c.m).flatMap(c => c.issues).concat(unknown ? [`名前からメンバーを判別できない人が${unknown}人います`] : []).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
   const sideTeam = side => blueIs == null ? null : ((side === "blue") === (blueIs === "a") ? A : B);
-  return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes), sideTeam };
+  if (noMedals) issues.unshift("メダル情報が表示されていないスクショです。ルールにより受理できません（ⓘを押してメダル情報を表示したスクショを提出してもらってください）");
+  return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes).filter(t => !t.includes("ⓘを押して詳細")), sideTeam, noMedals };
 }
 function memberById(s, id) { return membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)]; }
 async function readDeckFor(ref, file) {
@@ -867,7 +877,7 @@ async function readHeroFor(ref, file) {
   try {
     const r = await R.readHeroShot(file), s = S(), m = memberById(s, mid_);
     if (r.names[0]) m.heroes[+k] = r.names[0];
-    m.medals = m.medals || [[], []]; m.medals[+k] = r.medals.map(x => ({ k: x.k, c: x.c, img: x.url }));
+    m.medals = m.medals || [[], []]; m.medals[+k] = r.medals.map(x => ({ k: x.k, c: x.c, lvl: x.lvl, img: x.url }));
     saveMember(m); render();
     toast(`ヒーロー${+k + 1}：${r.names[0] || "名前を読めませんでした（選んでください）"}・メダル${r.medals.filter(x => x.k).length}個を登録しました`);
   } catch (e) { toast(e.message || "読み取れませんでした"); }
@@ -895,11 +905,12 @@ async function runScan(files) {
 const sideTag = side => `<span class="stag ${side}">${side === "blue" ? "青" : "赤"}</span>`;
 function cardThumbs(p, marks) {
   if (!p.cards) return `<span class="muted-s">カード：詳細を開いたスクショで確認できます</span>`;
-  return `<span class="cthumbs">${p.cards.map((c, k) => `<span class="cth ${marks[k] || ""}"><img src="${c.url}" alt=""></span>`).join("")}</span>`;
+  const R = RD();
+  return `<span class="cthumbs">${p.cards.map((c, k) => { const n = R ? R.cardName(c.top || [], c.ratio || 0) : ""; return `<span class="cth ${marks[k] || ""}" title="${esc(n || "名前不明のカード")}"><img src="${c.url}" alt=""><small>${esc(n)}</small></span>`; }).join("")}</span>`;
 }
 function medalThumbs(ms, marks) {
   if (!ms) return "";
-  return `<span class="cthumbs">${ms.map((x, i) => `<span class="mdl ${marks?.[i] || ""}" title="${esc(medalLabel(x))}"><img src="${x.url}" alt="${esc(medalLabel(x))}"></span>`).join("")}</span>`;
+  return `<span class="cthumbs">${ms.map((x, i) => `<span class="mdl ${marks?.[i] === "lvl" ? "ng" : marks?.[i] || ""}" title="${esc(medalLabel(x))}"><img src="${x.url}" alt="${esc(medalLabel(x))}"><small>${x.lvl ? "+" + x.lvl : "+?"}</small></span>`).join("")}</span>`;
 }
 function heroChip(name, ok) {
   const R = RD(), ic = name && R ? R.heroIcon(name) : "";
@@ -920,7 +931,7 @@ function scanPanel(s, kind) {
       const ev = evalUnit(s, u, d.a, d.b);
       const cur = d.games[u.slot], curR = gameRes(cur);
       const cmp = !curR ? `<span class="pill">未入力</span>` : ev.ka == null || ev.kb == null ? "" : (curR.ka === ev.ka && curR.kb === ev.kb ? `<span class="pill ok">入力済みの結果と一致</span>` : `<span class="pill bad">入力済み ${curR.ka}-${curR.kb} と不一致</span>`);
-      const can = ev.ka != null && ev.kb != null;
+      const can = ev.ka != null && ev.kb != null && !ev.noMedals;
       const same = curR && can && curR.ka === ev.ka && curR.kb === ev.kb;
       const players = ev.checks.map((c, pi) => `<div class="pl">
           ${sideTag(c.p.side)}<img class="nm" src="${c.p.nameURL}" alt="ゲーム内の名前">
@@ -974,7 +985,7 @@ function membersPanel(s) {
   return `<section class="panel"><div class="panel-head"><h2>メンバーと提出デッキ</h2><span class="meta">デッキミスの確認に使います</span></div>
     <div class="panel-body" style="display:grid;gap:14px">
       <div class="chips">${teams.map(t => `<button class="chip ${t.id === memTeam ? "on" : ""}" data-act="mteam" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
-      <div class="notice"><strong>ヒーロー</strong>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル3つを登録します。名前が違うときは選び直してください。<br><strong>デッキ</strong>：提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
+      <div class="notice"><strong>ヒーロー</strong>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル3つ（種類・枠の色・強化値）を登録します。名前が違うときは選び直してください。同じヒーローに別のメダルをつけて、ヒーロー1・2の両方に登録することもできます。<br><strong>デッキ</strong>：提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
       <div class="mgrid">${mcards}</div>
       <div class="share">シェアカード：${tc?.shareImg ? `<img src="${tc.shareImg}" alt=""> <button class="btn ghost sm" data-act="share-clear">解除</button>` : `<span class="muted-s">未指定（重複の警告に出たカードから指定できます）</span>`}</div>
       ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong>${issues.map(x => `<div class="issue-row">${x.img ? `<img src="${x.img}" alt="">` : ""}<span>${esc(x.t)}</span>${x.ref ? `<button class="btn ghost sm" data-act="set-share" data-ref="${x.ref}">シェアカードにする</button>` : ""}</div>`).join("")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で絵が違うカードは見分けられないので、目で確認してください）</div>`}
