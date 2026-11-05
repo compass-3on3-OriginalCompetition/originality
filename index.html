@@ -1,0 +1,761 @@
+<title>#コンパス 3on3 順位管理</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: sticky scoreboard header + tab bar, one column of group panels that splits into two (A | B) on wide screens */
+/* Single dark "broadcast" look, red (left) vs blue (right) like an esports results board */
+:root {
+  --bg: #080A11;
+  --surface: #10131C;
+  --surface-2: #161A26;
+  --ink: #EEF1F7;
+  --muted: #8E97AB;
+  --line: #333A4A;
+  --accent: #FF3D5E;
+  --accent-ink: #160307;
+  --red: #E8273F;
+  --blue: #1FB6E8;
+  --gold: #F2C14B;
+  --ga: #FF3D5E;
+  --gb: #1FB6E8;
+  --good: #3CCB8E;
+  --warn: #F2B532;
+  --warn-bg: #2E2410;
+  --bad: #FF6B7D;
+  --display: "Dela Gothic One", "Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg) linear-gradient(100deg, rgba(232,39,63,.16), transparent 32%, transparent 68%, rgba(31,182,232,.16)) fixed; color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.6; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-block: 12px 4px; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1 1 auto; }
+.brand h1 { font-family: var(--display); font-weight: 400; font-size: 1.35rem; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+.brand h1 b { color: var(--accent); font-weight: 400; }
+.brand small { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.mode { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .8rem; }
+.pill { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 10px; font-size: .75rem; font-weight: 700; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.pill.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pill.ok { color: var(--good); border-color: currentColor; background: transparent; }
+.pill.wait { color: var(--warn); border-color: currentColor; background: transparent; }
+.pill.bad { color: var(--bad); border-color: currentColor; background: transparent; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+nav.tabs a { flex: 0 0 auto; padding: 10px 14px 9px; text-decoration: none; color: var(--muted); font-weight: 700; font-size: .9rem; border-bottom: 3px solid transparent; }
+nav.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+main { padding-block: 20px 64px; display: grid; gap: 20px; }
+.notice { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 12px 16px; font-size: .9rem; color: var(--muted); }
+.notice.warn { background: var(--warn-bg); border-color: transparent; color: var(--ink); }
+.notice strong { color: var(--ink); }
+
+.groups { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 980px) { .groups.two { grid-template-columns: 1fr 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.panel-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.15rem; display: flex; align-items: center; gap: 10px; }
+.gtag { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; font-family: var(--display); color: #0B0D14; font-size: 1rem; }
+.gtag.A { background: var(--ga); } .gtag.B { background: var(--gb); }
+.panel-head .meta { margin-left: auto; color: var(--muted); font-size: .8rem; }
+.panel-body { padding: 12px 16px 16px; }
+
+.tbl-wrap { overflow-x: auto; }
+table.std { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table.std th { font-size: .72rem; letter-spacing: .06em; color: var(--muted); font-weight: 700; text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.std th:nth-child(1), table.std th:nth-child(2) { text-align: left; }
+table.std td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+table.std tr:last-child td { border-bottom: 0; }
+table.std td.rk { text-align: left; width: 44px; font-family: var(--display); font-size: 1.05rem; }
+table.std td.tm { text-align: left; white-space: normal; font-weight: 700; min-width: 120px; }
+table.std td.num { font-family: var(--mono); }
+table.std td.pk { font-family: var(--mono); font-weight: 600; font-size: 1.05rem; }
+table.std tr.adv td.rk { color: var(--accent); }
+table.std tr.cut td { border-top: 2px dashed var(--line); }
+.sub { display: block; color: var(--muted); font-size: .72rem; font-weight: 500; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .75rem; color: var(--muted); margin-top: 10px; }
+
+.issue { margin-top: 12px; border-radius: 10px; background: var(--warn-bg); padding: 10px 12px; font-size: .85rem; display: grid; gap: 8px; }
+.issue .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 14px; font-weight: 700; font-size: .85rem; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--bad); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Standings board (cross table + stats) */
+.board { display: grid; gap: 14px; min-width: 0; }
+.gband { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 6px 0; }
+.gband::before, .gband::after { content: ""; height: 3px; border-radius: 2px; }
+.gband::before { background: linear-gradient(90deg, transparent, var(--red)); }
+.gband::after { background: linear-gradient(90deg, var(--blue), transparent); }
+.gband h2 { margin: 0; display: flex; align-items: baseline; gap: 10px; font-weight: 700; font-size: .95rem; letter-spacing: .04em; }
+.gband h2 b { font-family: var(--display); font-weight: 400; font-size: 2rem; line-height: 1; }
+.gband .meta { display: block; text-align: center; font-size: .72rem; color: var(--muted); }
+.grid-wrap { overflow-x: auto; border: 1px solid var(--line); background: rgba(0,0,0,.55); }
+table.xt { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+table.xt th, table.xt td { border: 1px solid var(--line); padding: 0; height: 56px; }
+table.xt thead th { font-family: var(--display); font-weight: 400; font-size: .95rem; padding: 6px 8px; color: var(--ink); white-space: nowrap; min-width: 84px; }
+table.xt thead th .ab { display: inline-grid; place-items: center; min-width: 38px; height: 30px; padding: 0 6px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+table.xt th.rkh { font-family: var(--body); font-weight: 700; font-size: .85rem; min-width: 76px; }
+table.xt th.team { text-align: left; padding: 6px 12px; min-width: 170px; font-family: var(--body); }
+table.xt th.team .tn { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: .92rem; line-height: 1.3; }
+table.xt th.team .ab { flex: 0 0 auto; display: inline-grid; place-items: center; min-width: 34px; height: 28px; padding: 0 5px; border-radius: 6px; font-family: var(--display); font-weight: 400; font-size: .85rem; background: var(--surface-2); border: 1px solid var(--line); }
+table.xt th.team .tn small { display: block; color: var(--muted); font-weight: 500; font-size: .7rem; }
+table.xt td.cell { padding: 4px; text-align: center; min-width: 84px; }
+table.xt td.cell .box { display: grid; place-content: center; height: 100%; min-height: 46px; border: 2px solid #5A6070; background: #0B0D14; line-height: 1.15; }
+table.xt td.cell .r { font-weight: 700; font-size: .8rem; letter-spacing: .06em; }
+table.xt td.cell .sc { font-family: var(--mono); font-weight: 600; font-size: 1rem; }
+table.xt td.cell .pk { font-size: .64rem; color: var(--muted); }
+table.xt td.cell.win .r { color: var(--gold); }
+table.xt td.cell.lose .r, table.xt td.cell.lose .sc { color: #B5BBC8; }
+table.xt td.cell.draw .r { color: var(--blue); }
+table.xt td.cell.live .box { border-style: dashed; }
+table.xt td.cell.live .r { color: var(--warn); }
+table.xt td.cell.none .box { border-color: transparent; background: transparent; color: var(--muted); }
+table.xt td.cell.pend .box { border-color: var(--warn); }
+table.xt td.diag { background: linear-gradient(to top right, transparent calc(50% - 1px), #6B7182 50%, transparent calc(50% + 1px)); }
+table.xt td.rk { text-align: center; font-weight: 700; font-size: 1.25rem; min-width: 76px; white-space: nowrap; }
+table.xt td.rk.top { color: var(--gold); }
+table.xt td.rk small { display: block; font-size: .64rem; color: var(--muted); font-weight: 500; }
+table.xt td.n { text-align: center; font-family: var(--mono); font-size: 1rem; padding: 0 10px; min-width: 84px; }
+table.xt td.n.pk { font-weight: 600; font-size: 1.1rem; color: var(--ink); }
+table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8rem; }
+
+/* Matches */
+.round { margin-top: 14px; }
+.round:first-child { margin-top: 0; }
+.round h3 { margin: 0 0 6px; font-size: .75rem; letter-spacing: .1em; color: var(--muted); font-weight: 700; }
+.mlist { display: grid; gap: 6px; }
+.match { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.match > button.mhead { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto; align-items: center; gap: 10px; background: none; border: 0; padding: 10px 12px; text-align: left; }
+.mhead .t { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.mhead .t.r { text-align: right; }
+.mhead .t.win { color: var(--accent); }
+.mhead .host { display: block; font-size: .68rem; color: var(--muted); font-weight: 500; }
+.score { font-family: var(--mono); font-weight: 600; font-size: 1rem; text-align: center; min-width: 64px; font-variant-numeric: tabular-nums; }
+.score small { display: block; font-size: .68rem; color: var(--muted); font-weight: 500; }
+.mstate { justify-self: end; }
+@media (max-width: 520px) {
+  .match > button.mhead { grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); }
+  .mstate { grid-column: 1 / -1; justify-self: start; }
+}
+
+.editor { border-top: 1px solid var(--line); padding: 12px; display: grid; gap: 10px; }
+.grow { display: grid; grid-template-columns: 64px minmax(0,1fr) 16px minmax(0,1fr) minmax(0,1.3fr); gap: 8px; align-items: center; }
+.grow .gl { font-size: .78rem; font-weight: 700; color: var(--muted); }
+.grow select { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.grow .dash { text-align: center; color: var(--muted); }
+.grow.head { font-size: .7rem; color: var(--muted); font-weight: 700; }
+.grow.head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow .cold { grid-column: 2 / -1; font-size: .82rem; color: var(--good); font-weight: 700; }
+@media (max-width: 520px) {
+  .grow { grid-template-columns: 52px minmax(0,1fr) 12px minmax(0,1fr); }
+  .grow .ffsel { grid-column: 2 / -1; }
+  .grow.head span:last-child { display: none; }
+}
+.verdict { font-size: .85rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.verdict b { font-family: var(--mono); }
+
+/* Bracket */
+.bracket { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .bracket { grid-template-columns: 1fr 1fr; } }
+.bm { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.bm-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bm-head h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1rem; }
+.bm-head .ord { color: var(--muted); font-size: .75rem; }
+.bm-head .pill { margin-left: auto; }
+.side { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.side .nm { font-weight: 700; overflow-wrap: anywhere; }
+.side .seed { font-size: .72rem; color: var(--muted); display: block; font-weight: 500; }
+.side .w { font-family: var(--mono); font-weight: 600; font-size: 1.3rem; }
+.side.win .nm, .side.win .w { color: var(--accent); }
+.side.tbd .nm { color: var(--muted); font-weight: 500; }
+.bm .editor { border-top: 0; }
+.bm > button.open { width: 100%; background: none; border: 0; padding: 8px 14px; color: var(--muted); font-size: .8rem; text-align: left; }
+.podium { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+@media (max-width: 640px) { .podium { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.place { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.place .p { font-family: var(--display); font-size: 1.5rem; line-height: 1.1; }
+.place.p1 .p { color: var(--accent); }
+.place .n { font-weight: 700; overflow-wrap: anywhere; }
+.place .n.tbd { color: var(--muted); font-weight: 500; }
+
+/* Teams */
+.trow { display: grid; grid-template-columns: 28px minmax(0,1fr) 110px 36px; gap: 8px; align-items: center; }
+.tnames { display: grid; grid-template-columns: minmax(0,1fr) 72px; gap: 6px; min-width: 0; }
+.trow input, .trow select { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.trow .ix { color: var(--muted); font-family: var(--mono); font-size: .8rem; text-align: right; }
+.tlist { display: grid; gap: 8px; }
+.field { display: grid; gap: 4px; max-width: 520px; }
+.field label { font-size: .78rem; color: var(--muted); font-weight: 700; }
+.field input { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); }
+.counts { display: flex; gap: 12px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); }
+
+/* Rules */
+.rules { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .rules { grid-template-columns: 1fr 1fr; } }
+.rules h3 { margin: 0 0 6px; font-size: 1rem; }
+.rules ol, .rules ul { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; font-size: .9rem; }
+.rules p { margin: 0; font-size: .9rem; max-width: 65ch; }
+
+.empty { text-align: center; padding: 28px 16px; color: var(--muted); display: grid; gap: 10px; justify-items: center; }
+.empty strong { color: var(--ink); font-size: 1rem; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: .85rem; font-weight: 700; z-index: 20; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise .2s ease-out; } @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div class="brand"><h1 id="evname">#コンパス <b>3on3</b> 大会</h1><small>順位管理</small></div>
+      <div class="mode" id="mode"></div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="ページ切り替え">
+      <a href="#standings">順位表</a>
+      <a href="#matches">対戦表・結果入力</a>
+      <a href="#bracket">決勝トーナメント</a>
+      <a href="#teams">チーム設定</a>
+      <a href="#rules">ルール早見表</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap" id="app"><div class="empty"><strong>読み込み中…</strong></div></main>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(() => {
+"use strict";
+/* ---------- state ---------- */
+const real = { config: null, matches: {}, bracket: {}, loaded: false };
+let demo = null, demoMode = false;
+let mode = "loading";           // db | local | nodb
+let role = "viewer";            // admin | contributor | viewer
+let db = null, loadNote = "";
+let openId = null, draft = null; // match editor
+let teamDraft = null;
+const S = () => demoMode ? demo : real;
+const LS_KEY = "compass3on3_v1";
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = v => (v === "" || v == null || isNaN(+v)) ? null : +v;
+const pct = (w, gp) => gp ? (w / gp * 100).toFixed(1) + "%" : "—";
+const uid = () => "t" + Math.random().toString(36).slice(2, 8);
+const GROUPS = ["A", "B"];
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2600); }
+const teamsOf = (s, g) => (s.config?.teams || []).filter(t => t.group === g);
+const teamName = (s, id) => (s.config?.teams || []).find(t => t.id === id)?.name || "（未定）";
+const mid = (g, a, b) => g + "_" + [a, b].sort().join("_");
+const canWrite = () => role === "admin" || role === "contributor";
+
+/* ---------- rules engine ---------- */
+// circle method: n teams -> n-1 rounds (even) / n rounds (odd, one bye per round)
+function schedule(teams) {
+  const arr = teams.map(t => t.id); if (arr.length < 2) return [];
+  if (arr.length % 2) arr.push(null);
+  const n = arr.length, rounds = [];
+  for (let r = 0; r < n - 1; r++) {
+    const pairs = []; let bye = null;
+    for (let i = 0; i < n / 2; i++) {
+      let a = arr[i], b = arr[n - 1 - i];
+      if (!a || !b) { bye = a || b; continue; }
+      if ((r + i) % 2) [a, b] = [b, a];
+      pairs.push([a, b]);
+    }
+    rounds.push({ pairs, bye });
+    arr.splice(1, 0, arr.pop());
+  }
+  return rounds;
+}
+// one game: ff = team that lost by forfeit ("a"/"b")
+function gameRes(g) {
+  if (!g) return null;
+  if (g.ff === "a") return { ka: 0, kb: 5, r: "b", ff: "a" };
+  if (g.ff === "b") return { ka: 5, kb: 0, r: "a", ff: "b" };
+  const a = num(g.a), b = num(g.b);
+  if (a == null || b == null) return null;
+  return { ka: a, kb: b, r: a > b ? "a" : b > a ? "b" : "d" };
+}
+// group match: up to 3 games, cold win if |PK diff| >= 6 after 2 games
+function evalGroup(m) {
+  const raw = (m?.games || []).map(gameRes), out = [];
+  for (let i = 0; i < 2; i++) { if (!raw[i]) return { games: out, done: false }; out.push(raw[i]); }
+  const sa = out[0].ka + out[1].ka, sb = out[0].kb + out[1].kb;
+  if (Math.abs(sa - sb) >= 6) {
+    out.push(sa > sb ? { ka: 5, kb: 0, r: "a", cold: true } : { ka: 0, kb: 5, r: "b", cold: true });
+    return { games: out, done: true, cold: true };
+  }
+  if (raw[2]) { out.push(raw[2]); return { games: out, done: true }; }
+  return { games: out, done: false };
+}
+function sumMatch(e) {
+  const t = { wa: 0, wb: 0, d: 0, ka: 0, kb: 0 };
+  for (const g of e.games) { t.ka += g.ka; t.kb += g.kb; if (g.r === "a") t.wa++; else if (g.r === "b") t.wb++; else t.d++; }
+  return t;
+}
+// BO3 with draws replayed, no cold rule
+function evalBo3(m) {
+  let wa = 0, wb = 0; const gs = [];
+  for (const g of (m?.games || [])) {
+    const r = gameRes(g); if (!r) break; gs.push(r);
+    if (r.r === "a") wa++; else if (r.r === "b") wb++;
+    if (wa === 2 || wb === 2) break;
+  }
+  return { gs, wa, wb, winner: wa === 2 ? "a" : wb === 2 ? "b" : null };
+}
+
+function standings(s, g) {
+  const teams = teamsOf(s, g), st = {}, h2h = {};
+  teams.forEach(t => { st[t.id] = { id: t.id, name: t.name, keys: 0, against: 0, w: 0, d: 0, l: 0, gp: 0, mp: 0, pending: 0 }; h2h[t.id] = {}; });
+  const rounds = schedule(teams), pairs = rounds.flatMap(r => r.pairs);
+  let done = 0;
+  for (const [x, y] of pairs) {
+    const m = s.matches[mid(g, x, y)]; if (!m || !st[m.a] || !st[m.b]) continue;
+    const e = evalGroup(m); if (!e.games.length) continue;
+    const A = st[m.a], B = st[m.b];
+    for (const q of e.games) {
+      A.keys += q.ka; B.keys += q.kb; A.against += q.kb; B.against += q.ka; A.gp++; B.gp++;
+      if (q.r === "a") { A.w++; B.l++; h2h[m.a][m.b] = (h2h[m.a][m.b] || 0) + 1; }
+      else if (q.r === "b") { B.w++; A.l++; h2h[m.b][m.a] = (h2h[m.b][m.a] || 0) + 1; }
+      else { A.d++; B.d++; }
+    }
+    if (e.done) { A.mp++; B.mp++; done++; }
+    if (m.status !== "confirmed") { A.pending++; B.pending++; }
+  }
+  const rows = Object.values(st);
+  const rate = r => r.gp ? r.w / r.gp : 0;
+  const eqRate = (a, b) => a.w * b.gp === b.w * a.gp || (!a.gp && !b.gp);
+  rows.sort((a, b) => b.keys - a.keys || rate(b) - rate(a) || a.name.localeCompare(b.name, "ja"));
+  // tiers of equal (keys, win rate)
+  const tiers = [];
+  for (const r of rows) {
+    const last = tiers[tiers.length - 1];
+    if (last && last[0].keys === r.keys && eqRate(last[0], r)) last.push(r); else tiers.push([r]);
+  }
+  const tb = s.config?.tiebreak?.[g] || [];
+  const ordered = [], issues = [];
+  let pos = 1;
+  for (const tier of tiers) {
+    if (tier.length === 1) { tier[0].rank = pos; tier[0].why = ""; ordered.push(tier[0]); pos++; continue; }
+    const ids = tier.map(r => r.id);
+    const hs = r => ids.reduce((n, o) => n + (h2h[r.id][o] || 0), 0);
+    tier.forEach(r => r.h = hs(r));
+    tier.sort((a, b) => b.h - a.h);
+    const subs = [];
+    for (const r of tier) { const l = subs[subs.length - 1]; if (l && l[0].h === r.h) l.push(r); else subs.push([r]); }
+    for (const sub of subs) {
+      if (sub.length === 1) { sub[0].rank = pos; sub[0].why = "直接対決"; ordered.push(sub[0]); pos++; continue; }
+      const allIn = sub.every(r => tb.includes(r.id));
+      const decisive = pos <= 2; // only 1st/2nd or 2nd/3rd are decided by playoff / lottery
+      if (allIn && decisive) {
+        sub.sort((a, b) => tb.indexOf(a.id) - tb.indexOf(b.id));
+        sub.forEach(r => { r.rank = pos; r.why = sub.length === 2 ? "順位決定戦" : "運営抽選"; ordered.push(r); pos++; });
+      } else {
+        sub.forEach(r => { r.rank = pos; r.why = "同率"; r.tied = true; ordered.push(r); });
+        if (decisive) issues.push({ rank: pos, ids: sub.map(r => r.id), method: sub.length === 2 ? "順位決定戦（でらクランクストリート・BO1）" : "運営抽選" });
+        pos += sub.length;
+      }
+    }
+  }
+  return { rows: ordered, total: pairs.length, done, complete: pairs.length > 0 && done === pairs.length, issues, rounds };
+}
+function qualifier(s, g, place) {
+  const st = standings(s, g);
+  const hit = st.rows.filter(r => r.rank === place);
+  return hit.length === 1 && !hit[0].tied ? hit[0].id : null;
+}
+function bracketState(s) {
+  const A1 = qualifier(s, "A", 1), A2 = qualifier(s, "A", 2), B1 = qualifier(s, "B", 1), B2 = qualifier(s, "B", 2);
+  const mk = (key, a, b, label, seedA, seedB) => {
+    const doc = s.bracket[key]; const e = evalBo3(doc);
+    const w = e.winner === "a" ? a : e.winner === "b" ? b : null, l = e.winner === "a" ? b : e.winner === "b" ? a : null;
+    return { key, a, b, label, seedA, seedB, doc, e, w, l };
+  };
+  const sf1 = mk("sf1", A1, B2, "準決勝 1", "Aグループ1位", "Bグループ2位");
+  const sf2 = mk("sf2", B1, A2, "準決勝 2", "Bグループ1位", "Aグループ2位");
+  const third = mk("third", sf1.l, sf2.l, "3位決定戦", "準決勝1 敗者", "準決勝2 敗者");
+  const fin = mk("final", sf1.w, sf2.w, "決勝", "準決勝1 勝者", "準決勝2 勝者");
+  return { sf1, sf2, third, fin };
+}
+
+/* ---------- storage ---------- */
+function applyLocal(st, path, data) {
+  const [col, id] = path.split("/");
+  if (col === "t") st.config = data;
+  else if (col === "matches") { if (data) st.matches[id] = data; else delete st.matches[id]; }
+  else if (col === "bracket") { if (data) st.bracket[id] = data; else delete st.bracket[id]; }
+}
+function persistLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ config: real.config, matches: real.matches, bracket: real.bracket })); } catch (e) {} }
+async function write(path, data) {
+  if (demoMode) { applyLocal(demo, path, data); render(); return true; }
+  if (mode === "local") { applyLocal(real, path, data); persistLocal(); render(); return true; }
+  if (!db) { toast("データに接続できていません"); return false; }
+  try {
+    if (data) await db.doc(path).set(data); else await db.doc(path).delete();
+    return true;
+  } catch (e) {
+    if (e?.code === "invalid_argument" || e?.code === "not_granted") { role = "viewer"; render(); toast("書き込み権限がありません（閲覧のみ）"); }
+    else if (e?.code === "unavailable") toast("通信が不安定です。もう一度保存してください");
+    else toast("保存できませんでした: " + (e?.message || e?.code || "不明なエラー"));
+    return false;
+  }
+}
+
+/* ---------- demo data (in-memory only, never saved) ---------- */
+function makeDemo() {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const names = ["夜更かしタンクス", "でらクランク部", "ポータル係", "まったり3人組", "ステージ選択会議", "ガンナー三昧", "カードかぶり禁止委員会", "相談時間10分", "コールド狙い", "ヒーロー非表示", "シェアカード党", "ラグに負けない"];
+  const teams = names.map((n, i) => ({ id: "d" + i, name: "【デモ】" + n, abbr: (i < 6 ? "A" : "B") + (i % 6 + 1), group: i < 6 ? "A" : "B" }));
+  const d = { config: { eventName: "#コンパス 3on3 大会（デモ）", teams, tiebreak: {} }, matches: {}, bracket: {}, loaded: true };
+  const game = () => { const a = Math.floor(rnd() * 6), b = Math.floor(rnd() * 6); return { a, b, ff: null }; };
+  for (const g of GROUPS) {
+    schedule(teamsOf(d, g)).forEach((r, ri) => r.pairs.forEach(([a, b], pi) => {
+      if (g === "B" && ri === 4 && pi > 0) return; // leave some unplayed
+      d.matches[mid(g, a, b)] = { group: g, a, b, games: [game(), game(), game()], status: g === "B" && ri === 3 ? "pending" : "confirmed" };
+    }));
+  }
+  const st = bracketState(d);
+  d.bracket.sf1 = { a: st.sf1.a, b: st.sf1.b, games: [{ a: 3, b: 2 }, { a: 1, b: 1 }, { a: 4, b: 2 }], status: "confirmed" };
+  return d;
+}
+
+/* ---------- render ---------- */
+const route = () => { const h = location.hash.slice(1); return ["standings", "matches", "bracket", "teams", "rules"].includes(h) ? h : "standings"; };
+function render() {
+  const s = S(), r = route();
+  document.querySelectorAll("#tabs a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + r ? "page" : "false"));
+  $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : "#コンパス <b>3on3</b> 大会";
+  renderMode();
+  const app = $("#app");
+  if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
+  const html = { standings: viewStandings, matches: viewMatches, bracket: viewBracket, teams: viewTeams, rules: viewRules }[r](s);
+  app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
+}
+function renderMode() {
+  const labels = { admin: "運営（編集可）", contributor: "結果報告可", viewer: "閲覧のみ" };
+  const m = mode === "local" ? `<span class="pill">この端末に保存</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
+  $("#mode").innerHTML = `${m}<span class="pill ${role === "admin" ? "on" : ""}">${labels[role]}</span>
+    <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>`;
+}
+function noTeams() {
+  return `<div class="panel"><div class="empty"><strong>まだチームが登録されていません</strong>
+    <span>「チーム設定」でチーム名を登録し、グループA・Bに振り分けると、対戦表と順位表が自動で作られます。</span>
+    <div class="btns"><a class="btn primary" href="#teams">チーム設定へ</a><button class="btn" data-act="demo-on">デモで動きを見る</button></div></div></div>`;
+}
+function gtitle(g) { return `<h2><span class="gtag ${g}">${g}</span>グループ${g}</h2>`; }
+
+const ORD = n => n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th");
+const abbr = t => esc(t?.abbr || [...(t?.name || "?").replace(/^【デモ】/, "")].slice(0, 2).join(""));
+function crossCell(s, g, me, op) {
+  const m = s.matches[mid(g, me, op)];
+  if (!m) return `<td class="cell none"><div class="box">—</div></td>`;
+  const e = evalGroup(m), t = sumMatch(e);
+  if (!e.games.length) return `<td class="cell none"><div class="box">—</div></td>`;
+  const meA = m.a === me;
+  const mw = meA ? t.wa : t.wb, ow = meA ? t.wb : t.wa, mk = meA ? t.ka : t.kb, ok = meA ? t.kb : t.ka;
+  const res = !e.done ? ["live", "途中"] : mw > ow ? ["win", "WIN"] : mw < ow ? ["lose", "LOSE"] : ["draw", "DRAW"];
+  const pend = m.status !== "confirmed" ? " pend" : "";
+  return `<td class="cell ${res[0]}${pend}"><div class="box" title="${pend ? "承認待ち" : ""}"><span class="r">${res[1]}</span><span class="sc">${mw} - ${ow}</span><span class="pk">PK ${mk}-${ok}${e.cold ? " ・C" : ""}</span></div></td>`;
+}
+function viewStandings(s) {
+  if (!(s.config?.teams || []).length) return noTeams();
+  const boards = GROUPS.filter(g => teamsOf(s, g).length).map(g => {
+    const teams = teamsOf(s, g), st = standings(s, g);
+    const byId = Object.fromEntries(st.rows.map(r => [r.id, r]));
+    const rkCell = r => {
+      const top = r.rank <= 2 && !r.tied;
+      return `<td class="rk ${top ? "top" : ""}">${ORD(r.rank)}${r.tied ? "<small>同率</small>" : r.why ? `<small>${r.why}</small>` : ""}</td>`;
+    };
+    const teamTh = t => `<th class="team" scope="row"><span class="tn"><span class="ab">${abbr(t)}</span><span>${esc(t.name)}${byId[t.id].pending ? "<small>承認待ちを含む</small>" : ""}</span></span></th>`;
+    const xt = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th>${teams.map(t => `<th title="${esc(t.name)}"><span class="ab">${abbr(t)}</span></th>`).join("")}<th class="rkh">順位</th></tr></thead><tbody>
+      ${teams.map(t => `<tr>${teamTh(t)}${teams.map(o => o.id === t.id ? `<td class="diag"></td>` : crossCell(s, g, t.id, o.id)).join("")}${rkCell(byId[t.id])}</tr>`).join("")}</tbody></table></div>`;
+    const stat = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th><th class="sh">PK合計</th><th class="sh">勝率</th><th class="sh">勝利数</th><th class="sh">引分</th><th class="sh">敗北</th><th class="sh">被PK</th><th class="sh">対戦</th><th class="rkh">順位</th></tr></thead><tbody>
+      ${teams.map(t => { const r = byId[t.id]; return `<tr>${teamTh(t)}<td class="n pk">${r.keys}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n">${r.w}</td><td class="n">${r.d}</td><td class="n">${r.l}</td><td class="n">${r.against}</td><td class="n">${r.mp}/${teams.length - 1}</td>${rkCell(r)}</tr>`; }).join("")}</tbody></table></div>`;
+    const issues = st.issues.map(is => `<div class="issue"><div><strong>${ORD(is.rank)}〜${ORD(is.rank + is.ids.length - 1)}が並んでいます</strong>：${is.ids.map(id => esc(teamName(s, id))).join("、")}<br>
+      ${st.complete ? `${is.method}で決めてください。` : `グループ戦終了後も並んだ場合は、${is.method}で決めます。`}</div>
+      ${role === "admin" && st.complete ? tieForm(s, g, is) : ""}</div>`).join("");
+    return `<section class="board"><div class="gband"><h2>Group <b>${g}</b></h2></div>
+      <span class="meta" style="text-align:center;color:var(--muted);font-size:.75rem;margin-top:-10px">${st.done}/${st.total} 対戦終了${st.complete ? " ・ 確定" : ""}</span>
+      ${xt}${stat}${issues}${(s.config?.tiebreak?.[g] || []).length && role === "admin" ? `<div class="btns"><button class="btn ghost" data-act="tb-clear" data-g="${g}">順位決定の入力を取り消す</button></div>` : ""}</section>`;
+  }).join("");
+  return `${boards}
+    <div class="legend"><span>表の見方：行のチームから見た対戦結果。上段＝勝敗、中段＝試合の勝ち数、下段＝PK（ポータルキー）。C＝コールド勝ち、点線枠＝対戦途中、黄色枠＝承認待ち</span>
+    <span>順位の決め方：① PK合計 → ② 勝率（勝利数 ÷ 試合数、引き分け含む） → ③ 当該チーム同士の対戦結果 → ④ 順位決定戦／運営抽選。金色＝決勝トーナメント進出</span></div>
+    <div class="btns"><button class="btn" data-act="copy">Discord用にコピー</button></div>`;
+}
+function tieForm(s, g, is) {
+  const opts = is.ids.map(id => `<option value="${id}">${esc(teamName(s, id))}</option>`).join("");
+  const sels = is.ids.map((_, i) => `<label>${is.rank + i}位 <select data-tb="${g}" data-i="${i}">${opts.replace(`value="${is.ids[i]}"`, `value="${is.ids[i]}" selected`)}</select></label>`).join(" ");
+  return `<div class="row">${sels}<button class="btn primary" data-act="tb-save" data-g="${g}" data-ids="${is.ids.join(",")}">結果を反映</button></div>`;
+}
+
+function viewMatches(s) {
+  if (!(s.config?.teams || []).length) return noTeams();
+  const intro = `<div class="notice">対戦表の<strong>左側のチーム</strong>がカスタムバトルを作成します。試合後、勝者の代表がDiscordで報告し、相手チームの承認で確定です。${role === "admin" ? "対戦をタップして結果を入力・確定できます。" : canWrite() ? "対戦をタップすると結果を報告できます（運営の確定待ちになります）。" : "結果の入力は運営が行います。"}</div>`;
+  const panels = GROUPS.filter(g => teamsOf(s, g).length).map(g => {
+    const st = standings(s, g);
+    const rounds = st.rounds.map((r, i) => `<div class="round"><h3>ROUND ${i + 1}${r.bye ? ` ・ 休み：${esc(teamName(s, r.bye))}` : ""}</h3><div class="mlist">${r.pairs.map(([a, b]) => matchCard(s, g, a, b)).join("")}</div></div>`).join("");
+    return `<section class="panel"><div class="panel-head">${gtitle(g)}<span class="meta">${st.done}/${st.total} 対戦終了</span></div><div class="panel-body">${rounds || "<div class='empty'>2チーム以上で対戦表が作られます</div>"}</div></section>`;
+  }).join("");
+  return intro + `<div class="groups two">${panels}</div>`;
+}
+function stateBadge(doc, done) {
+  if (!doc) return `<span class="pill">未入力</span>`;
+  if (doc.status === "confirmed") return done ? `<span class="pill ok">確定</span>` : `<span class="pill wait">途中</span>`;
+  return `<span class="pill wait">承認待ち</span>`;
+}
+function matchCard(s, g, a, b) {
+  const id = mid(g, a, b), doc = s.matches[id];
+  const A = doc?.a || a, B = doc?.b || b;
+  const e = evalGroup(doc), t = sumMatch(e);
+  const score = e.games.length ? `${t.wa}-${t.wb}<small>PK ${t.ka}-${t.kb}${e.cold ? " ・コールド" : ""}</small>` : `<span style="color:var(--muted)">vs</span>`;
+  const winA = e.done && t.wa > t.wb, winB = e.done && t.wb > t.wa;
+  const open = openId === id;
+  return `<div class="match"><button class="mhead" data-act="open" data-id="${id}" data-g="${g}" data-a="${A}" data-b="${B}" aria-expanded="${open}">
+    <span class="t ${winA ? "win" : ""}">${esc(teamName(s, A))}<span class="host">ルーム作成</span></span>
+    <span class="score">${score}</span>
+    <span class="t r ${winB ? "win" : ""}">${esc(teamName(s, B))}</span>
+    <span class="mstate">${stateBadge(doc, e.done)}</span></button>
+    ${open ? editor(s, "group") : ""}</div>`;
+}
+function scoreSel(i, side, v, dis) {
+  const o = ['<option value="">—</option>'].concat([0, 1, 2, 3, 4, 5].map(n => `<option value="${n}" ${v === n ? "selected" : ""}>${n}</option>`)).join("");
+  return `<select data-g="${i}" data-side="${side}" aria-label="${i + 1}試合目 ${side === "a" ? "左" : "右"}チームのPK" ${dis ? "disabled" : ""}>${o}</select>`;
+}
+function editor(s, kind) {
+  const d = draft, A = esc(teamName(s, d.a)), B = esc(teamName(s, d.b));
+  const ro = !canWrite();
+  let rows = "", verdict = "";
+  if (kind === "group") {
+    const e = evalGroup({ games: d.games });
+    for (let i = 0; i < 3; i++) {
+      const g = d.games[i] || {};
+      if (i === 2 && e.cold) { rows += `<div class="grow"><span class="gl">3試合目</span><span class="cold">コールド勝ち：${e.games[2].r === "a" ? A : B} の 5-0 として扱います</span></div>`; continue; }
+      rows += gameRow(i, g, ro);
+    }
+    const t = sumMatch(e);
+    verdict = e.games.length ? `<div class="verdict">試合 <b>${t.wa}-${t.wb}</b>${t.d ? `（引き分け${t.d}）` : ""} ・ PK <b>${t.ka}-${t.kb}</b>${e.done ? (t.wa === t.wb ? " ・ 対戦終了（勝敗同数）" : ` ・ ${t.wa > t.wb ? A : B} の勝ち`) : " ・ 対戦途中"}${e.cold ? " ・ コールド成立" : ""}</div>` : "";
+  } else {
+    const e = evalBo3({ games: d.games });
+    const n = Math.min(9, e.winner ? e.gs.length : Math.max(2, e.gs.length + 1));
+    for (let i = 0; i < n; i++) rows += gameRow(i, d.games[i] || {}, ro);
+    verdict = e.gs.length ? `<div class="verdict">勝ち数 <b>${e.wa}-${e.wb}</b>${e.gs.some(x => x.r === "d") ? "（引き分けは数えず再試合）" : ""}${e.winner ? ` ・ ${e.winner === "a" ? A : B} の勝ち抜け` : ""}</div>` : "";
+  }
+  const head = `<div class="grow head"><span></span><span>${A}</span><span></span><span>${B}</span><span>不戦敗</span></div>`;
+  const btns = ro ? "" : `<div class="btns">
+    <button class="btn primary" data-act="save" data-kind="${kind}">${role === "admin" ? "確定して保存" : "報告する（承認待ち）"}</button>
+    ${role === "admin" && d.exists && d.status !== "confirmed" ? `<button class="btn" data-act="confirm" data-kind="${kind}">そのまま確定</button>` : ""}
+    <button class="btn ghost" data-act="close">閉じる</button>
+    ${role === "admin" && d.exists ? `<button class="btn ghost danger" data-act="clear" data-kind="${kind}" style="margin-left:auto">結果を消去</button>` : ""}</div>`;
+  return `<div class="editor">${head}${rows}${verdict}${btns}</div>`;
+}
+function gameRow(i, g, ro) {
+  const ff = `<select class="ffsel" data-g="${i}" data-side="ff" aria-label="${i + 1}試合目の不戦敗" ${ro ? "disabled" : ""}>
+    <option value="">なし</option><option value="a" ${g.ff === "a" ? "selected" : ""}>左が不戦敗</option><option value="b" ${g.ff === "b" ? "selected" : ""}>右が不戦敗</option></select>`;
+  const dis = ro || !!g.ff;
+  return `<div class="grow"><span class="gl">${i + 1}試合目</span>${scoreSel(i, "a", g.ff ? (g.ff === "a" ? 0 : 5) : num(g.a), dis)}<span class="dash">-</span>${scoreSel(i, "b", g.ff ? (g.ff === "b" ? 0 : 5) : num(g.b), dis)}${ff}</div>`;
+}
+
+function viewBracket(s) {
+  if (!(s.config?.teams || []).length) return noTeams();
+  const b = bracketState(s);
+  const place = (p, id, cls) => `<div class="place ${cls}"><div class="p">${p}</div><div class="n ${id ? "" : "tbd"}">${id ? esc(teamName(s, id)) : "未定"}</div></div>`;
+  return `<div class="notice">BO3（先に2勝で勝ち抜け）。引き分けは勝ち数に数えず、もう一戦行います。コールド勝ちルールはありません。<strong>3位決定戦を先に行い、決勝を最後に行います。</strong></div>
+    <div class="podium">${place("優勝", b.fin.w, "p1")}${place("準優勝", b.fin.l, "")}${place("3位", b.third.w, "")}${place("4位", b.third.l, "")}</div>
+    <div class="bracket">${bmCard(s, b.sf1, "1")}${bmCard(s, b.sf2, "1")}${bmCard(s, b.third, "2")}${bmCard(s, b.fin, "3")}</div>`;
+}
+function bmCard(s, m, ord) {
+  const ready = m.a && m.b, doc = m.doc, open = openId === "bracket/" + m.key;
+  const side = (id, seed, w, me) => `<div class="side ${!id ? "tbd" : ""} ${m.e.winner === me ? "win" : ""}"><span class="nm">${id ? esc(teamName(s, id)) : "未定"}<span class="seed">${seed}</span></span><span class="w">${doc ? w : ""}</span></div>`;
+  const stale = doc && ready && (doc.a !== m.a || doc.b !== m.b) ? `<div class="notice warn" style="margin:8px 14px">保存時と対戦カードが変わっています。結果を確認してください。</div>` : "";
+  const badge = !doc ? `<span class="pill">${ready ? "未入力" : "相手待ち"}</span>` : m.e.winner ? (doc.status === "confirmed" ? `<span class="pill ok">確定</span>` : `<span class="pill wait">承認待ち</span>`) : `<span class="pill wait">途中</span>`;
+  return `<div class="bm"><div class="bm-head"><h3>${m.label}</h3><span class="ord">第${ord}試合枠</span>${badge}</div>
+    ${side(m.a, m.seedA, m.e.wa, "a")}${side(m.b, m.seedB, m.e.wb, "b")}${stale}
+    ${ready ? (open ? editor(s, "bo3") : `<button class="open" data-act="open-b" data-key="${m.key}" data-a="${m.a}" data-b="${m.b}">${canWrite() ? "結果を入力・確認 ›" : "試合ごとの結果を見る ›"}</button>`) : ""}</div>`;
+}
+
+function viewTeams(s) {
+  if (role !== "admin") {
+    const list = GROUPS.map(g => `<section class="panel"><div class="panel-head">${gtitle(g)}</div><div class="panel-body">${teamsOf(s, g).map(t => `<div>${esc(t.name)}</div>`).join("") || "<span style='color:var(--muted)'>未登録</span>"}</div></section>`).join("");
+    return `<div class="notice">チームの登録とグループ分けは運営が行います。</div><div class="groups two">${list}</div>`;
+  }
+  if (!teamDraft) teamDraft = { eventName: s.config?.eventName || "", teams: (s.config?.teams || []).map(t => ({ ...t })) };
+  const d = teamDraft, n = d.teams.length;
+  const ca = d.teams.filter(t => t.group === "A").length, cb = d.teams.filter(t => t.group === "B").length;
+  const hasResults = Object.keys(s.matches).length > 0;
+  const rows = d.teams.map((t, i) => `<div class="trow"><span class="ix">${i + 1}</span>
+    <span class="tnames"><input id="tn-${t.id}" data-tn="${i}" value="${esc(t.name)}" placeholder="チーム名" maxlength="40" aria-label="チーム${i + 1}の名前"><input id="ta-${t.id}" data-ta="${i}" value="${esc(t.abbr || "")}" placeholder="略称" maxlength="4" aria-label="チーム${i + 1}の略称（表の見出し）"></span>
+    <select id="tg-${t.id}" data-tg="${i}" aria-label="チーム${i + 1}のグループ"><option value="">未定</option><option value="A" ${t.group === "A" ? "selected" : ""}>グループA</option><option value="B" ${t.group === "B" ? "selected" : ""}>グループB</option></select>
+    <button class="btn ghost danger" data-act="t-del" data-i="${i}" aria-label="削除" style="padding:6px 0">×</button></div>`).join("");
+  return `<section class="panel"><div class="panel-head"><h2>チーム設定</h2><span class="meta">最大12チーム（36人）</span></div>
+    <div class="panel-body" style="display:grid;gap:14px">
+      <div class="field"><label for="evn">大会名</label><input id="evn" value="${esc(d.eventName)}" placeholder="#コンパス 3on3 大会" maxlength="60"></div>
+      <div class="tlist">${rows || "<span style='color:var(--muted)'>「チームを追加」から登録してください。</span>"}</div>
+      <div class="counts"><span>登録 ${n} チーム</span><span>A：${ca}</span><span>B：${cb}</span>${Math.abs(ca - cb) > 1 ? `<span style="color:var(--bad)">グループの人数差が2以上あります</span>` : ""}</div>
+      <div class="btns">
+        <button class="btn" data-act="t-add" ${n >= 12 ? "disabled" : ""}>チームを追加</button>
+        <button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>抽選でグループ分け</button>
+        <button class="btn primary" data-act="t-save" style="margin-left:auto">保存</button></div>
+      <div class="notice">抽選は全チームをランダムに並べ替えて、A・Bに同数ずつ振り分けます。奇数のときは、どちらのグループが1チーム多くなるかも抽選です。${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
+    </div></section>`;
+}
+
+function viewRules() {
+  return `<div class="rules">
+  <section class="panel"><div class="panel-body"><h3>グループ戦（1日目）</h3><ul>
+    <li>6チームずつA・Bの2グループで総当たり（1チーム5対戦）。12チーム未満なら同数ずつ、奇数なら多い側を抽選</li>
+    <li>1対戦は原則3試合。1試合目はでらクランクストリート</li>
+    <li>2試合終了時点でPK合計の差が6以上なら<strong>コールド勝ち</strong>：3試合目は行わず5-0扱い（PK合計・勝率に含める）</li>
+    <li>引き分けはやり直さない。勝ちにも負けにも数えないが、試合数には含める</li>
+    <li>不戦敗はその試合を0-5、相手を5-0として扱う</li>
+    <li>各グループ上位2チームが決勝トーナメントへ</li></ul></div></section>
+  <section class="panel"><div class="panel-body"><h3>順位の決め方</h3><ol>
+    <li>取得ポータルキー（PK）の合計</li><li>勝率（勝利数 ÷ 試合数。引き分けを含む）</li><li>当該チーム同士の対戦結果</li><li>順位決定戦（でらクランクストリート・BO1、引き分けは決着まで再戦）。3チーム以上なら運営抽選</li></ol>
+    <p style="margin-top:8px">順位決定戦・抽選は1位と2位、2位と3位を決めるときだけ。それ以外は同順位です。</p></div></section>
+  <section class="panel"><div class="panel-body"><h3>決勝トーナメント（2日目）</h3><ul>
+    <li>準決勝：A1位 vs B2位、B1位 vs A2位</li><li>準決勝の敗者で3位決定戦、勝者で決勝。3位決定戦が先</li>
+    <li>すべてBO3（先に2勝）。コールドなし。引き分けはもう一戦</li><li>2日目に来ないチームは不戦敗</li></ul></div></section>
+  <section class="panel"><div class="panel-body"><h3>このサイトでの入力</h3><ul>
+    <li>各試合の両チームのPK（0〜5）を入力。不戦敗は「左/右が不戦敗」を選ぶと0-5で記録</li>
+    <li>コールドは自動で判定され、3試合目が5-0として計算されます</li>
+    <li>順位決定戦・抽選の結果は、グループ戦がすべて終わった後に順位表から入力します</li>
+    <li>シングルロス・マッチロスなどの処分は、該当試合を不戦敗として入力してください</li></ul></div></section></div>`;
+}
+
+/* ---------- events ---------- */
+function openEditor(id, base) {
+  if (openId === id) { openId = null; draft = null; render(); return; }
+  const doc = S().matches[id] || S().bracket[id.replace("bracket/", "")];
+  openId = id;
+  draft = { ...base, games: JSON.parse(JSON.stringify(doc?.games || [])), status: doc?.status, exists: !!doc };
+  if (doc) { draft.a = doc.a || base.a; draft.b = doc.b || base.b; }
+  render();
+}
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act]"); if (!el) return;
+  const act = el.dataset.act, s = S();
+  if (act === "demo-on") { demo = makeDemo(); demoMode = true; openId = null; teamDraft = null; render(); return; }
+  if (act === "demo-off") { demoMode = false; demo = null; openId = null; teamDraft = null; render(); return; }
+  if (act === "open") return openEditor(el.dataset.id, { kind: "group", group: el.dataset.g, a: el.dataset.a, b: el.dataset.b });
+  if (act === "open-b") return openEditor("bracket/" + el.dataset.key, { kind: "bo3", key: el.dataset.key, a: el.dataset.a, b: el.dataset.b });
+  if (act === "close") { openId = null; draft = null; render(); return; }
+  if (act === "save" || act === "confirm") {
+    const kind = el.dataset.kind;
+    const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null }) : { a: null, b: null, ff: null })
+      .filter((g, i, arr) => arr.slice(i).some(x => x.ff || (x.a != null && x.b != null)));
+    const status = role === "admin" ? "confirmed" : "pending";
+    const body = kind === "group"
+      ? { group: draft.group, a: draft.a, b: draft.b, games, status, updatedAt: new Date().toISOString() }
+      : { key: draft.key, a: draft.a, b: draft.b, games, status, updatedAt: new Date().toISOString() };
+    const path = kind === "group" ? "matches/" + openId : openId;
+    if (await write(path, body)) { toast(status === "confirmed" ? "結果を確定しました" : "報告しました。運営の確定を待っています"); openId = null; draft = null; render(); }
+    return;
+  }
+  if (act === "clear") {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消去"; return; }
+    const path = el.dataset.kind === "group" ? "matches/" + openId : openId;
+    if (await write(path, null)) { toast("結果を消去しました"); openId = null; draft = null; render(); }
+    return;
+  }
+  if (act === "copy") {
+    const lines = [`【${s.config?.eventName || "#コンパス 3on3 大会"} グループ戦 順位】`];
+    for (const g of GROUPS) {
+      const st = standings(s, g); if (!st.rows.length) continue;
+      lines.push("", `■ グループ${g}（${st.done}/${st.total} 対戦終了）`);
+      st.rows.forEach(r => lines.push(`${r.rank}位${r.tied ? "(同率)" : ""} ${r.name}　PK ${r.keys} / 勝率 ${pct(r.w, r.gp)}（${r.w}勝${r.d}分${r.l}敗）`));
+    }
+    const text = lines.join("\n");
+    try { await navigator.clipboard.writeText(text); toast("コピーしました"); }
+    catch (e) { const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "width:100%;height:200px;margin-top:8px"; el.after(ta); ta.select(); toast("選択された文字をコピーしてください"); }
+    return;
+  }
+  if (act === "tb-save") {
+    const g = el.dataset.g, ids = el.dataset.ids.split(",");
+    const picks = [...document.querySelectorAll(`select[data-tb="${g}"]`)].map(x => x.value);
+    if (new Set(picks).size !== ids.length) { toast("同じチームが2回選ばれています"); return; }
+    const cfg = JSON.parse(JSON.stringify(s.config)); cfg.tiebreak = cfg.tiebreak || {};
+    const prev = (cfg.tiebreak[g] || []).filter(id => !ids.includes(id));
+    cfg.tiebreak[g] = prev.concat(picks);
+    if (await write("t/config", cfg)) toast("順位を反映しました");
+    return;
+  }
+  if (act === "tb-clear") {
+    const cfg = JSON.parse(JSON.stringify(s.config)); cfg.tiebreak = cfg.tiebreak || {}; cfg.tiebreak[el.dataset.g] = [];
+    if (await write("t/config", cfg)) toast("取り消しました");
+    return;
+  }
+  if (act === "t-add") { teamDraft.teams.push({ id: uid(), name: "", group: "" }); render(); $(`#tn-${teamDraft.teams.at(-1).id}`)?.focus(); return; }
+  if (act === "t-del") { teamDraft.teams.splice(+el.dataset.i, 1); render(); return; }
+  if (act === "t-draw") {
+    const ts = teamDraft.teams, idx = ts.map((_, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    const big = Math.random() < .5 ? "A" : "B", nA = ts.length % 2 ? (big === "A" ? Math.ceil(ts.length / 2) : Math.floor(ts.length / 2)) : ts.length / 2;
+    idx.forEach((ti, k) => ts[ti].group = k < nA ? "A" : "B");
+    render(); toast("抽選しました。内容を確認して保存してください"); return;
+  }
+  if (act === "t-save") {
+    const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group })).filter(t => t.name);
+    const names = teams.map(t => t.name);
+    if (new Set(names).size !== names.length) { toast("同じチーム名が重複しています"); return; }
+    const cfg = { ...(s.config || {}), eventName: teamDraft.eventName.trim(), teams, tiebreak: s.config?.tiebreak || {} };
+    if (await write("t/config", cfg)) { teamDraft = null; toast("チーム設定を保存しました"); render(); }
+    return;
+  }
+});
+document.addEventListener("change", ev => {
+  const el = ev.target;
+  if (el.matches(".editor select[data-side]") && draft) {
+    const i = +el.dataset.g; draft.games[i] = draft.games[i] || { a: null, b: null, ff: null };
+    const g = draft.games[i];
+    if (el.dataset.side === "ff") { g.ff = el.value || null; if (g.ff) { g.a = g.ff === "a" ? 0 : 5; g.b = g.ff === "b" ? 0 : 5; } }
+    else g[el.dataset.side] = num(el.value);
+    render(); return;
+  }
+  if (el.dataset.tg != null && teamDraft) { teamDraft.teams[+el.dataset.tg].group = el.value; render(); }
+});
+document.addEventListener("input", ev => {
+  const el = ev.target;
+  if (el.dataset.tn != null && teamDraft) teamDraft.teams[+el.dataset.tn].name = el.value;
+  if (el.dataset.ta != null && teamDraft) teamDraft.teams[+el.dataset.ta].abbr = el.value;
+  if (el.id === "evn" && teamDraft) teamDraft.eventName = el.value;
+});
+window.addEventListener("hashchange", () => { openId = null; draft = null; render(); });
+
+/* ---------- boot ---------- */
+async function boot() {
+  render();
+  if (!window.claude?.use) {
+    mode = "local"; role = "admin";
+    try { const d = JSON.parse(localStorage.getItem(LS_KEY) || "null"); if (d) Object.assign(real, d); } catch (e) {}
+    real.loaded = true; render(); return;
+  }
+  const [d, u] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+  if (!d) { mode = "nodb"; role = "viewer"; real.loaded = true; loadNote = ""; render(); toast("データに接続できません。サインインしているか確認してください"); return; }
+  db = d; mode = "db";
+  if (u && await u.canEdit()) role = "admin";
+  else { const c = u ? await u.can("data.write") : null; role = c === false ? "viewer" : "contributor"; }
+  let got = 0; const need = 3;
+  const timer = setTimeout(() => { if (!real.loaded) { loadNote = "データにまだ接続できません。通信状況を確認してください。"; render(); } }, 10000);
+  const ready = snap => { if (!snap.metadata?.fromCache) { got++; } if (got >= need || got > 0) { real.loaded = true; if (got >= need) clearTimeout(timer); } };
+  const fail = e => { clearTimeout(timer); real.loaded = true; toast("データの読み込みが止まりました。再読み込みしてください"); render(); };
+  db.doc("t/config").onSnapshot(snap => { real.config = snap.exists ? snap.data() : null; ready(snap); render(); }, fail);
+  db.collection("matches").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.matches = m; ready(snap); render(); }, fail);
+  db.collection("bracket").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.bracket = m; ready(snap); render(); }, fail);
+}
+boot();
+})();
+</script>
