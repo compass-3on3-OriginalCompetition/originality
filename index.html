@@ -419,6 +419,10 @@ details.glist summary { cursor: pointer; }
 .gnum { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-family: var(--display); font-size: .85rem; flex: 0 0 auto; }
 .guide ol, .guide ul { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: .92rem; max-width: 70ch; }
 .guide ul ul { margin-top: 4px; }
+
+a.btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; }
+a.btn.primary { color: var(--accent-ink); }
+.local-box { display: grid; gap: 6px; margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); justify-items: start; }
 </style>
 
 <header class="top">
@@ -464,7 +468,7 @@ let db = null, loadNote = "";
 let openId = null, draft = null; // match editor
 let teamDraft = null;
 const S = () => demoMode ? demo : real;
-const LS_KEY = "compass3on3_v1";
+let LS_KEY = "compass3on3_v1"; // the open device-only tournament is saved under its own key (see LOCAL below)
 
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -669,17 +673,18 @@ function render() {
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : "#コンパス <b>3on3</b> 大会";
   renderMode();
   const app = $("#app");
-  document.body.classList.toggle("gated", FB.on && !demoMode && (!FB.user || !FB.tid));
-  if (FB.on && !demoMode && (!FB.user || !FB.tid)) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = r === "guide" ? viewGuide(true) : viewGate(); return; }
+  const gated = FB.on && !demoMode && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id);
+  document.body.classList.toggle("gated", gated);
+  if (gated) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = r === "guide" ? viewGuide(true) : viewGate(); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
   const html = { standings: viewStandings, matches: viewMatches, bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => viewGuide(false) }[r](s);
   app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
 }
 function renderMode() {
   const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "閲覧のみ" };
-  const m = mode === "local" ? `<span class="pill">この端末に保存</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
-  if (FB.on && (!FB.user || !FB.tid) && !demoMode) { $("#mode").innerHTML = FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""; return; }
-  const fbBtns = FB.on && FB.user ? `<button class="btn ghost" data-act="fb-lobby" style="padding:2px 10px;font-size:.78rem">大会一覧</button>` : "";
+  const m = mode === "local" ? `<span class="pill">${LOCAL.on ? "この端末だけ" : "この端末に保存"}</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
+  if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""; return; }
+  const fbBtns = FB.on && (FB.user || LOCAL.on) ? `<button class="btn ghost" data-act="${LOCAL.on ? "lc-lobby" : "fb-lobby"}" style="padding:2px 10px;font-size:.78rem">大会一覧</button>` : "";
   $("#mode").innerHTML = `${m}${fbBtns}<span class="pill ${role === "admin" ? "on" : ""}">${FB.on && FB.isOwner && role === "admin" ? "主催" : labels[role]}</span>
     <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>`;
 }
@@ -902,7 +907,12 @@ function viewGuide(gated) {
     <li>大会一覧の「<b>削除</b>」（2回押す）で、<b>この端末の一覧から</b>大会を消せます。大会の情報（結果・チーム・提出内容）は消えません。</li>
     <li>消した大会は、一覧の下の「この端末から削除した大会」から「<b>取得し直す</b>」で戻せます。</li>
     <li>上の「大会一覧」ボタンで、いつでも大会を切り替えられます。</li></ul>`)}
-  ${sec(7, "スマホで使う", `<ul>
+  ${sec(7, "ログインせずに使う（この端末だけ）", `<ul>
+    <li>最初の画面の「<b>ログインせずに使う（この端末だけ）</b>」から、Googleにログインしなくても大会を作って管理できます。</li>
+    <li>大会はその端末のブラウザの中だけに保存されます。ほかの端末からは見られず、コードでの共有もできません。</li>
+    <li>この端末だけの大会を「削除」すると、ほかに保存先がないので<b>元に戻せません</b>。また、ブラウザのデータを消すと大会も消えます。</li>
+    <li>ほかの人と見たいときや、別の端末でも使いたいときは、Googleでログインして大会を作ってください。</li></ul>`)}
+  ${sec(8, "スマホで使う", `<ul>
     <li>Chromeの「︙」→「<b>ホーム画面に追加</b>」で、アプリのようにアイコンから開けます。</li>
     <li>スマホでは、画面の下のボタンでページを切り替えます。</li></ul>`)}
   </div>`;
@@ -1301,6 +1311,7 @@ function saveTeams() {
   if (new Set(names).size !== names.length) { toast("同じチーム名が重複しているため保存していません"); return; }
   const s = S();
   autosave("t/config", { ...(s.config || {}), eventName: teamDraft.eventName.trim(), teams, tiebreak: s.config?.tiebreak || {} });
+  if (LOCAL.on && LOCAL.id && teamDraft.eventName.trim()) lcRename(LOCAL.id, teamDraft.eventName.trim());
   if (FB.on && FB.isOwner && FB.tid && teamDraft.eventName.trim() && FB.t && teamDraft.eventName.trim() !== FB.t.name) { FB.t.name = teamDraft.eventName.trim(); FB.fs.doc("tournaments/" + FB.tid).update({ name: FB.t.name }).catch(() => {}); }
 }
 
@@ -1435,7 +1446,8 @@ async function fbBoot(cfg) {
   FB.auth.getRedirectResult().catch(e => toast("ログインできませんでした: " + (e.message || e.code)));
   FB.auth.onAuthStateChanged(async u => {
     FB.user = u; resetData(); FB.tid = null;
-    if (!u) { render(); return; }
+    if (!u) { let pref = null; try { pref = localStorage.getItem(LOCAL_PREF); } catch (e) {} if (pref === "1") return lcLobby(true); render(); return; }
+    LOCAL.on = false; LOCAL.id = null; mode = "fb"; try { localStorage.removeItem(LOCAL_PREF); } catch (e) {}
     let last = null; try { last = localStorage.getItem(LAST_TID); } catch (e) {}
     if (last) await fbOpen(last); else await fbLobby();
   });
@@ -1495,16 +1507,78 @@ async function fbReissue(key) {
   try { await FB.fs.doc("secrets/" + FB.tid).set(c); FB.codes = c; render(); toast("コードを作り直しました。前のコードで参加していた人は見られなくなりました"); }
   catch (e) { toast("作り直せませんでした: " + (e.message || e.code)); }
 }
+/* ---------- device-only tournaments (no login) ---------- */
+const LOCAL = { on: false, id: null };
+const LOCAL_INDEX = "compass3on3_local_index", LOCAL_PREF = "compass3on3_local_pref", LOCAL_LAST = "compass3on3_local_last";
+const lcKey = id => "compass3on3_local_" + id;
+function lcIndex() { try { return JSON.parse(localStorage.getItem(LOCAL_INDEX) || "[]"); } catch (e) { return []; } }
+function lcSaveIndex(a) { try { localStorage.setItem(LOCAL_INDEX, JSON.stringify(a)); return true; } catch (e) { toast("この端末に保存できませんでした（ブラウザの設定で保存が止められている可能性があります）"); return false; } }
+function lcRename(id, name) { const a = lcIndex(), t = a.find(x => x.id === id); if (t && t.name !== name) { t.name = name; lcSaveIndex(a); } }
+function lcMigrate() { // data saved before tournaments had their own key becomes one device-only tournament
+  try { const old = localStorage.getItem("compass3on3_v1"); if (!old || lcIndex().length) return; const d = JSON.parse(old), id = "l" + rid(8);
+    localStorage.setItem(lcKey(id), old); lcSaveIndex([{ id, name: d?.config?.eventName || "この端末の大会", createdAt: Date.now() }]); } catch (e) {}
+}
+function lcLobby(resume) {
+  resetData(); LOCAL.on = true; LOCAL.id = null; mode = "local"; role = "admin"; lcMigrate();
+  try { localStorage.setItem(LOCAL_PREF, "1"); } catch (e) {}
+  let last = null; if (resume) { try { last = localStorage.getItem(LOCAL_LAST); } catch (e) {} }
+  if (last && lcIndex().some(x => x.id === last)) return lcOpen(last);
+  try { localStorage.removeItem(LOCAL_LAST); } catch (e) {}
+  render();
+}
+function lcOpen(id) {
+  resetData(); LOCAL.on = true; LOCAL.id = id; mode = "local"; role = "admin"; LS_KEY = lcKey(id);
+  try { const d = JSON.parse(localStorage.getItem(LS_KEY) || "null"); if (d) Object.assign(real, d); } catch (e) {}
+  real.members = real.members || {}; real.matches = real.matches || {}; real.bracket = real.bracket || {}; real.loaded = true;
+  try { localStorage.setItem(LOCAL_LAST, id); } catch (e) {}
+  render();
+}
+function lcCreate(name) {
+  const id = "l" + rid(8), a = lcIndex(); a.unshift({ id, name, createdAt: Date.now() });
+  if (!lcSaveIndex(a)) return;
+  try { localStorage.setItem(lcKey(id), JSON.stringify({ config: { eventName: name, teams: [], tiebreak: {} }, matches: {}, bracket: {}, members: {} })); } catch (e) {}
+  toast("この端末に大会を作りました"); lcOpen(id);
+}
+function viewLocalLobby() {
+  const a = lcIndex();
+  return `<section class="panel gate"><div class="panel-head"><h2>大会一覧</h2><span class="meta">ログインなし・この端末だけ</span></div>
+    <div class="panel-body" style="display:grid;gap:16px">
+      <div class="notice">この端末の中だけに保存しています。ほかの端末からは見られません。ブラウザのデータを消すと、大会も消えます。</div>
+      <div class="glist"><div class="dl">この端末の大会</div>${a.length ? a.map(t => `<div class="trow2"><button class="topen" data-act="lc-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">この端末</span></button>
+        <button class="btn ghost sm danger" data-act="lc-del" data-id="${esc(t.id)}" aria-label="${esc(t.name || "")}を削除">削除</button></div>`).join("") : `<span class="muted-s">まだありません</span>`}</div>
+      <div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="lc-create">作成</button></div></div>
+      <div class="btns"><button class="btn primary" data-act="fb-login">Googleでログインする</button><a class="btn" href="#guide">使い方を見る</a></div>
+      <span class="muted-s">Googleでログインすると、別の端末でも同じ大会を見られて、コードで共有もできます（この端末だけの大会は、ログイン後の一覧には出ません）。</span>
+    </div></section>`;
+}
+document.addEventListener("click", ev => {
+  const el = ev.target.closest("[data-act]"); if (!el || !el.dataset.act.startsWith("lc-")) return;
+  const act = el.dataset.act;
+  if (act === "lc-start") { lcLobby(false); return; }
+  if (act === "lc-lobby") { lcLobby(false); return; }
+  if (act === "lc-open") { lcOpen(el.dataset.id); return; }
+  if (act === "lc-create") { const v = ($("#newt")?.value || "").trim(); if (!v) { toast("大会名を入れてください"); return; } lcCreate(v); return; }
+  if (act === "lc-del") {
+    // device-only data has no copy anywhere else, so this really deletes it
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "元に戻せません。もう一度押すと削除"; return; }
+    const id = el.dataset.id; lcSaveIndex(lcIndex().filter(x => x.id !== id));
+    try { localStorage.removeItem(lcKey(id)); if (localStorage.getItem(LOCAL_LAST) === id) localStorage.removeItem(LOCAL_LAST); } catch (e) {}
+    render(); toast("削除しました"); return;
+  }
+});
 // tournaments removed from the list on this device only; the tournament data stays and can be brought back
 const HIDE_KEY = "compass3on3_hidden";
 function hiddenSet() { try { return new Set(JSON.parse(localStorage.getItem(HIDE_KEY) || "[]")); } catch (e) { return new Set(); } }
 function saveHidden(h) { try { localStorage.setItem(HIDE_KEY, JSON.stringify([...h])); } catch (e) { toast("この端末では一覧の設定を保存できませんでした"); } }
 function viewGate() {
   if (!FB.auth) return `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`;
+  if (LOCAL.on && !FB.user) return viewLocalLobby();
   if (!FB.user) return `<section class="panel gate"><div class="panel-body">
       <h2>#コンパス 3on3 順位管理</h2>
       <p>大会の結果入力・順位表・決勝トーナメントを管理します。作った大会は、あなたにしか見えません。ほかの人には、大会ごとに発行するコードを渡して見てもらいます。</p>
-      <div class="btns"><button class="btn primary big" data-act="fb-login">Googleでログイン</button><a class="btn" href="#guide">使い方を見る</a></div></div></section>`;
+      <div class="btns"><button class="btn primary big" data-act="fb-login">Googleでログイン</button><a class="btn" href="#guide">使い方を見る</a></div>
+      <div class="local-box"><button class="btn" data-act="lc-start">ログインせずに使う（この端末だけ）</button>
+        <span class="muted-s">ログインしなくても、この端末の中だけで大会を管理できます。ほかの端末からは見られず、コードでの共有もできません。</span></div></div></section>`;
   const L = FB.lobby;
   const hid = hiddenSet();
   const row = (t, tag) => `<div class="trow2"><button class="topen" data-act="fb-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span></button>
@@ -1525,6 +1599,7 @@ function viewGate() {
     </div></section>`;
 }
 function sharePanel() {
+  if (LOCAL.on && LOCAL.id) return `<div class="notice">この大会は<strong>この端末だけ</strong>に保存されています。ほかの人に見てもらうには、Googleでログインして大会を作ってください（コードで共有できます）。</div>`;
   if (!FB.on || !FB.tid) return "";
   if (!FB.isOwner) return `<div class="notice">この大会には運営コードで参加しています。コードの発行と作り直しは主催者だけができます。</div>`;
   const c = FB.codes || {}, code = k => c[k] ? `${FB.tid}.${c[k]}` : "—";
