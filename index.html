@@ -167,6 +167,7 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 }
 .verdict { font-size: .85rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .verdict b { font-family: var(--mono); }
+.savest { font-size: .8rem; color: var(--muted); }
 
 /* Bracket */
 .bracket { display: grid; gap: 16px; grid-template-columns: 1fr; }
@@ -193,7 +194,7 @@ table.xt thead th.sh { font-family: var(--body); font-weight: 700; font-size: .8
 .place .n.tbd { color: var(--muted); font-weight: 500; }
 
 /* Teams */
-.trow { display: grid; grid-template-columns: 28px minmax(0,1fr) 110px 36px; gap: 8px; align-items: center; }
+.trow { display: grid; grid-template-columns: 28px minmax(0,1fr) 110px 52px; gap: 8px; align-items: center; }
 .tnames { display: grid; grid-template-columns: minmax(0,1fr) 72px; gap: 6px; min-width: 0; }
 .trow input, .trow select { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
 .trow .ix { color: var(--muted); font-family: var(--mono); font-size: .8rem; text-align: right; }
@@ -320,12 +321,15 @@ function evalBo3(m) {
 
 function standings(s, g) {
   const teams = teamsOf(s, g), st = {}, h2h = {};
-  teams.forEach(t => { st[t.id] = { id: t.id, name: t.name, keys: 0, against: 0, w: 0, d: 0, l: 0, gp: 0, mp: 0, pending: 0 }; h2h[t.id] = {}; });
+  teams.forEach(t => { st[t.id] = { id: t.id, name: t.name, keys: 0, against: 0, w: 0, d: 0, l: 0, gp: 0, mp: 0, left: 0 }; h2h[t.id] = {}; });
   const rounds = schedule(teams), pairs = rounds.flatMap(r => r.pairs);
   let done = 0;
   for (const [x, y] of pairs) {
-    const m = s.matches[mid(g, x, y)]; if (!m || !st[m.a] || !st[m.b]) continue;
-    const e = evalGroup(m); if (!e.games.length) continue;
+    const m = s.matches[mid(g, x, y)];
+    const e0 = m && st[m.a] && st[m.b] ? evalGroup(m) : { games: [], done: false };
+    const rem = e0.done ? 0 : 3 - e0.games.length; st[x].left += rem; st[y].left += rem;
+    if (!m || !st[m.a] || !st[m.b]) continue;
+    const e = e0; if (!e.games.length) continue;
     const A = st[m.a], B = st[m.b];
     for (const q of e.games) {
       A.keys += q.ka; B.keys += q.kb; A.against += q.kb; B.against += q.ka; A.gp++; B.gp++;
@@ -334,7 +338,6 @@ function standings(s, g) {
       else { A.d++; B.d++; }
     }
     if (e.done) { A.mp++; B.mp++; done++; }
-    if (m.status !== "confirmed") { A.pending++; B.pending++; }
   }
   const rows = Object.values(st);
   const rate = r => r.gp ? r.w / r.gp : 0;
@@ -426,11 +429,11 @@ function makeDemo() {
   for (const g of GROUPS) {
     schedule(teamsOf(d, g)).forEach((r, ri) => r.pairs.forEach(([a, b], pi) => {
       if (g === "B" && ri === 4 && pi > 0) return; // leave some unplayed
-      d.matches[mid(g, a, b)] = { group: g, a, b, games: [game(), game(), game()], status: g === "B" && ri === 3 ? "pending" : "confirmed" };
+      d.matches[mid(g, a, b)] = { group: g, a, b, games: [game(), game(), game()] };
     }));
   }
   const st = bracketState(d);
-  d.bracket.sf1 = { a: st.sf1.a, b: st.sf1.b, games: [{ a: 3, b: 2 }, { a: 1, b: 1 }, { a: 4, b: 2 }], status: "confirmed" };
+  d.bracket.sf1 = { a: st.sf1.a, b: st.sf1.b, games: [{ a: 3, b: 2 }, { a: 1, b: 1 }, { a: 4, b: 2 }] };
   return d;
 }
 
@@ -447,7 +450,7 @@ function render() {
   app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
 }
 function renderMode() {
-  const labels = { admin: "運営（編集可）", contributor: "結果報告可", viewer: "閲覧のみ" };
+  const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "閲覧のみ" };
   const m = mode === "local" ? `<span class="pill">この端末に保存</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
   $("#mode").innerHTML = `${m}<span class="pill ${role === "admin" ? "on" : ""}">${labels[role]}</span>
     <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>`;
@@ -469,8 +472,7 @@ function crossCell(s, g, me, op) {
   const meA = m.a === me;
   const mw = meA ? t.wa : t.wb, ow = meA ? t.wb : t.wa, mk = meA ? t.ka : t.kb, ok = meA ? t.kb : t.ka;
   const res = !e.done ? ["live", "途中"] : mw > ow ? ["win", "WIN"] : mw < ow ? ["lose", "LOSE"] : ["draw", "DRAW"];
-  const pend = m.status !== "confirmed" ? " pend" : "";
-  return `<td class="cell ${res[0]}${pend}"><div class="box" title="${pend ? "承認待ち" : ""}"><span class="r">${res[1]}</span><span class="sc">${mw} - ${ow}</span><span class="pk">ポータルキー ${mk}-${ok}${e.cold ? " ・C" : ""}</span></div></td>`;
+  return `<td class="cell ${res[0]}"><div class="box"><span class="r">${res[1]}</span><span class="sc">${mw} - ${ow}</span><span class="pk">ポータルキー ${mk}-${ok}${e.cold ? " ・C" : ""}</span></div></td>`;
 }
 function viewStandings(s) {
   if (!(s.config?.teams || []).length) return noTeams();
@@ -481,20 +483,20 @@ function viewStandings(s) {
       const top = r.rank <= 2 && !r.tied;
       return `<td class="rk ${top ? "top" : ""}">${ORD(r.rank)}${r.tied ? "<small>同率</small>" : r.why ? `<small>${r.why}</small>` : ""}</td>`;
     };
-    const teamTh = t => `<th class="team" scope="row"><span class="tn"><span class="ab">${abbr(t)}</span><span>${esc(t.name)}${byId[t.id].pending ? "<small>承認待ちを含む</small>" : ""}</span></span></th>`;
+    const teamTh = t => `<th class="team" scope="row"><span class="tn"><span class="ab">${abbr(t)}</span><span>${esc(t.name)}</span></span></th>`;
     const xt = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th>${teams.map(t => `<th title="${esc(t.name)}"><span class="ab">${abbr(t)}</span></th>`).join("")}<th class="rkh">順位</th></tr></thead><tbody>
       ${teams.map(t => `<tr>${teamTh(t)}${teams.map(o => o.id === t.id ? `<td class="diag"></td>` : crossCell(s, g, t.id, o.id)).join("")}${rkCell(byId[t.id])}</tr>`).join("")}</tbody></table></div>`;
     const stat = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th><th class="sh">勝利</th><th class="sh">負け</th><th class="sh">引き分け</th><th class="sh">勝率</th><th class="sh">取得ポータルキー</th><th class="sh">残り試合数</th><th class="rkh">順位</th></tr></thead><tbody>
-      ${teams.map(t => { const r = byId[t.id]; return `<tr>${teamTh(t)}<td class="n">${r.w}</td><td class="n">${r.l}</td><td class="n">${r.d}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n pk">${r.keys}</td><td class="n">${teams.length - 1 - r.mp}</td>${rkCell(r)}</tr>`; }).join("")}</tbody></table></div>`;
+      ${teams.map(t => { const r = byId[t.id]; return `<tr>${teamTh(t)}<td class="n">${r.w}</td><td class="n">${r.l}</td><td class="n">${r.d}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n pk">${r.keys}</td><td class="n">${r.left}</td>${rkCell(r)}</tr>`; }).join("")}</tbody></table></div>`;
     const issues = st.issues.map(is => `<div class="issue"><div><strong>${ORD(is.rank)}〜${ORD(is.rank + is.ids.length - 1)}が並んでいます</strong>：${is.ids.map(id => esc(teamName(s, id))).join("、")}<br>
       ${st.complete ? `${is.method}で決めてください。` : `グループ戦終了後も並んだ場合は、${is.method}で決めます。`}</div>
       ${role === "admin" && st.complete ? tieForm(s, g, is) : ""}</div>`).join("");
     return `<section class="board"><div class="gband"><h2>Group <b>${g}</b></h2></div>
-      <span class="meta" style="text-align:center;color:var(--muted);font-size:.75rem;margin-top:-10px">${st.done}/${st.total} 対戦終了${st.complete ? " ・ 確定" : ""}</span>
+      <span class="meta" style="text-align:center;color:var(--muted);font-size:.75rem;margin-top:-10px">${st.done}/${st.total} 対戦終了${st.complete ? " ・ グループ戦終了" : ""}</span>
       ${xt}${stat}${issues}${(s.config?.tiebreak?.[g] || []).length && role === "admin" ? `<div class="btns"><button class="btn ghost" data-act="tb-clear" data-g="${g}">順位決定の入力を取り消す</button></div>` : ""}</section>`;
   }).join("");
   return `${boards}
-    <div class="legend"><span>表の見方：行のチームから見た対戦結果。上段＝勝敗、中段＝試合の勝ち数、下段＝取得ポータルキー。C＝コールド勝ち、点線枠＝対戦途中、黄色枠＝承認待ち</span>
+    <div class="legend"><span>表の見方：行のチームから見た対戦結果。上段＝勝敗、中段＝試合の勝ち数、下段＝取得ポータルキー。C＝コールド勝ち、点線枠＝対戦途中</span>
     <span>順位の決め方：① 取得ポータルキーの合計 → ② 勝率（勝利数 ÷ 試合数、引き分け含む） → ③ 当該チーム同士の対戦結果 → ④ 引き分けの数が多いチーム → ⑤ 順位決定戦／運営抽選。金色＝決勝トーナメント進出</span></div>
     <div class="btns"><button class="btn" data-act="copy">Discord用にコピー</button></div>`;
 }
@@ -506,7 +508,7 @@ function tieForm(s, g, is) {
 
 function viewMatches(s) {
   if (!(s.config?.teams || []).length) return noTeams();
-  const intro = `<div class="notice">対戦表の<strong>左側のチーム</strong>がカスタムバトルを作成します。試合後、勝者の代表がDiscordで報告し、相手チームの承認で確定です。${role === "admin" ? "対戦をタップして結果を入力・確定できます。" : canWrite() ? "対戦をタップすると結果を報告できます（運営の確定待ちになります）。" : "結果の入力は運営が行います。"}</div>`;
+  const intro = `<div class="notice">対戦表の<strong>左側のチーム</strong>がカスタムバトルを作成します。${canWrite() ? "対戦をタップしてポータルキーを選ぶと、その場で自動保存されます。" : "結果の入力は運営が行います。"}</div>`;
   const panels = GROUPS.filter(g => teamsOf(s, g).length).map(g => {
     const st = standings(s, g);
     const rounds = st.rounds.map((r, i) => `<div class="round"><h3>ROUND ${i + 1}${r.bye ? ` ・ 休み：${esc(teamName(s, r.bye))}` : ""}</h3><div class="mlist">${r.pairs.map(([a, b]) => matchCard(s, g, a, b)).join("")}</div></div>`).join("");
@@ -515,9 +517,8 @@ function viewMatches(s) {
   return intro + `<div class="groups two">${panels}</div>`;
 }
 function stateBadge(doc, done) {
-  if (!doc) return `<span class="pill">未入力</span>`;
-  if (doc.status === "confirmed") return done ? `<span class="pill ok">確定</span>` : `<span class="pill wait">途中</span>`;
-  return `<span class="pill wait">承認待ち</span>`;
+  if (!doc || !evalGroup(doc).games.length) return `<span class="pill">未入力</span>`;
+  return done ? `<span class="pill ok">終了</span>` : `<span class="pill wait">途中</span>`;
 }
 function matchCard(s, g, a, b) {
   const id = mid(g, a, b), doc = s.matches[id];
@@ -558,10 +559,9 @@ function editor(s, kind) {
   }
   const head = `<div class="grow head"><span></span><span>${A}</span><span></span><span>${B}</span><span>不戦敗</span></div>`;
   const btns = ro ? "" : `<div class="btns">
-    <button class="btn primary" data-act="save" data-kind="${kind}">${role === "admin" ? "確定して保存" : "報告する（承認待ち）"}</button>
-    ${role === "admin" && d.exists && d.status !== "confirmed" ? `<button class="btn" data-act="confirm" data-kind="${kind}">そのまま確定</button>` : ""}
+    <span class="savest" id="savest">${esc(saveStatus)}</span>
     <button class="btn ghost" data-act="close">閉じる</button>
-    ${role === "admin" && d.exists ? `<button class="btn ghost danger" data-act="clear" data-kind="${kind}" style="margin-left:auto">結果を消去</button>` : ""}</div>`;
+    ${d.exists ? `<button class="btn ghost danger" data-act="clear" data-kind="${kind}" style="margin-left:auto">結果を消去</button>` : ""}</div>`;
   return `<div class="editor">${head}${rows}${verdict}${btns}</div>`;
 }
 function gameRow(i, g, ro) {
@@ -583,7 +583,7 @@ function bmCard(s, m, ord) {
   const ready = m.a && m.b, doc = m.doc, open = openId === "bracket/" + m.key;
   const side = (id, seed, w, me) => `<div class="side ${!id ? "tbd" : ""} ${m.e.winner === me ? "win" : ""}"><span class="nm">${id ? esc(teamName(s, id)) : "未定"}<span class="seed">${seed}</span></span><span class="w">${doc ? w : ""}</span></div>`;
   const stale = doc && ready && (doc.a !== m.a || doc.b !== m.b) ? `<div class="notice warn" style="margin:8px 14px">保存時と対戦カードが変わっています。結果を確認してください。</div>` : "";
-  const badge = !doc ? `<span class="pill">${ready ? "未入力" : "相手待ち"}</span>` : m.e.winner ? (doc.status === "confirmed" ? `<span class="pill ok">確定</span>` : `<span class="pill wait">承認待ち</span>`) : `<span class="pill wait">途中</span>`;
+  const badge = !doc ? `<span class="pill">${ready ? "未入力" : "相手待ち"}</span>` : m.e.winner ? `<span class="pill ok">終了</span>` : `<span class="pill wait">途中</span>`;
   return `<div class="bm"><div class="bm-head"><h3>${m.label}</h3><span class="ord">第${ord}試合枠</span>${badge}</div>
     ${side(m.a, m.seedA, m.e.wa, "a")}${side(m.b, m.seedB, m.e.wb, "b")}${stale}
     ${ready ? (open ? editor(s, "bo3") : `<button class="open" data-act="open-b" data-key="${m.key}" data-a="${m.a}" data-b="${m.b}">${canWrite() ? "結果を入力・確認 ›" : "試合ごとの結果を見る ›"}</button>`) : ""}</div>`;
@@ -610,7 +610,7 @@ function viewTeams(s) {
       <div class="btns">
         <button class="btn" data-act="t-add" ${n >= 12 ? "disabled" : ""}>チームを追加</button>
         <button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>抽選でグループ分け</button>
-        <button class="btn primary" data-act="t-save" style="margin-left:auto">保存</button></div>
+        <span class="savest" id="savest" style="margin-left:auto">${esc(saveStatus) || "変更は自動で保存されます"}</span></div>
       <div class="notice">抽選は全チームをランダムに並べ替えて、A・Bに同数ずつ振り分けます。奇数のときは、どちらのグループが1チーム多くなるかも抽選です。${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
     </div></section>`;
 }
@@ -637,12 +637,45 @@ function viewRules() {
     <li>シングルロス・マッチロスなどの処分は、該当試合を不戦敗として入力してください</li></ul></div></section></div>`;
 }
 
+/* ---------- autosave ---------- */
+let saveStatus = "";
+const saveQ = {};
+function paintSave() { const el = $("#savest"); if (el) el.textContent = saveStatus; }
+function autosave(path, body) {
+  const q = saveQ[path] || (saveQ[path] = { busy: false, has: false, next: null });
+  q.next = body; q.has = true; saveStatus = "保存中…"; paintSave();
+  if (q.busy) return;
+  (async () => {
+    q.busy = true;
+    while (q.has) { const b = q.next; q.has = false; const ok = await write(path, b); saveStatus = ok ? "自動保存しました" : "保存できませんでした"; }
+    q.busy = false; paintSave();
+  })();
+}
+function saveDraft() {
+  const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null }) : { a: null, b: null, ff: null })
+    .filter((g, i, arr) => arr.slice(i).some(x => x.ff || x.a != null || x.b != null));
+  const now = new Date().toISOString();
+  const body = !games.length ? null : draft.kind === "group"
+    ? { group: draft.group, a: draft.a, b: draft.b, games, updatedAt: now }
+    : { key: draft.key, a: draft.a, b: draft.b, games, updatedAt: now };
+  draft.exists = !!body;
+  autosave(draft.kind === "group" ? "matches/" + openId : openId, body);
+}
+function saveTeams() {
+  const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group })).filter(t => t.name);
+  const names = teams.map(t => t.name);
+  if (new Set(names).size !== names.length) { toast("同じチーム名が重複しているため保存していません"); return; }
+  const s = S();
+  autosave("t/config", { ...(s.config || {}), eventName: teamDraft.eventName.trim(), teams, tiebreak: s.config?.tiebreak || {} });
+}
+
 /* ---------- events ---------- */
 function openEditor(id, base) {
+  saveStatus = "";
   if (openId === id) { openId = null; draft = null; render(); return; }
   const doc = S().matches[id] || S().bracket[id.replace("bracket/", "")];
   openId = id;
-  draft = { ...base, games: JSON.parse(JSON.stringify(doc?.games || [])), status: doc?.status, exists: !!doc };
+  draft = { ...base, games: JSON.parse(JSON.stringify(doc?.games || [])), exists: !!doc };
   if (doc) { draft.a = doc.a || base.a; draft.b = doc.b || base.b; }
   render();
 }
@@ -653,23 +686,11 @@ document.addEventListener("click", async ev => {
   if (act === "demo-off") { demoMode = false; demo = null; openId = null; teamDraft = null; render(); return; }
   if (act === "open") return openEditor(el.dataset.id, { kind: "group", group: el.dataset.g, a: el.dataset.a, b: el.dataset.b });
   if (act === "open-b") return openEditor("bracket/" + el.dataset.key, { kind: "bo3", key: el.dataset.key, a: el.dataset.a, b: el.dataset.b });
-  if (act === "close") { openId = null; draft = null; render(); return; }
-  if (act === "save" || act === "confirm") {
-    const kind = el.dataset.kind;
-    const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null }) : { a: null, b: null, ff: null })
-      .filter((g, i, arr) => arr.slice(i).some(x => x.ff || (x.a != null && x.b != null)));
-    const status = role === "admin" ? "confirmed" : "pending";
-    const body = kind === "group"
-      ? { group: draft.group, a: draft.a, b: draft.b, games, status, updatedAt: new Date().toISOString() }
-      : { key: draft.key, a: draft.a, b: draft.b, games, status, updatedAt: new Date().toISOString() };
-    const path = kind === "group" ? "matches/" + openId : openId;
-    if (await write(path, body)) { toast(status === "confirmed" ? "結果を確定しました" : "報告しました。運営の確定を待っています"); openId = null; draft = null; render(); }
-    return;
-  }
+  if (act === "close") { openId = null; draft = null; saveStatus = ""; render(); return; }
   if (act === "clear") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消去"; return; }
     const path = el.dataset.kind === "group" ? "matches/" + openId : openId;
-    if (await write(path, null)) { toast("結果を消去しました"); openId = null; draft = null; render(); }
+    if (await write(path, null)) { toast("結果を消去しました"); openId = null; draft = null; saveStatus = ""; render(); }
     return;
   }
   if (act === "copy") {
@@ -700,21 +721,16 @@ document.addEventListener("click", async ev => {
     return;
   }
   if (act === "t-add") { teamDraft.teams.push({ id: uid(), name: "", group: "" }); render(); $(`#tn-${teamDraft.teams.at(-1).id}`)?.focus(); return; }
-  if (act === "t-del") { teamDraft.teams.splice(+el.dataset.i, 1); render(); return; }
+  if (act === "t-del") {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "削除?"; return; }
+    teamDraft.teams.splice(+el.dataset.i, 1); render(); saveTeams(); return;
+  }
   if (act === "t-draw") {
     const ts = teamDraft.teams, idx = ts.map((_, i) => i);
     for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
     const big = Math.random() < .5 ? "A" : "B", nA = ts.length % 2 ? (big === "A" ? Math.ceil(ts.length / 2) : Math.floor(ts.length / 2)) : ts.length / 2;
     idx.forEach((ti, k) => ts[ti].group = k < nA ? "A" : "B");
-    render(); toast("抽選しました。内容を確認して保存してください"); return;
-  }
-  if (act === "t-save") {
-    const teams = teamDraft.teams.map(t => ({ id: t.id, name: t.name.trim(), abbr: (t.abbr || "").trim(), group: t.group })).filter(t => t.name);
-    const names = teams.map(t => t.name);
-    if (new Set(names).size !== names.length) { toast("同じチーム名が重複しています"); return; }
-    const cfg = { ...(s.config || {}), eventName: teamDraft.eventName.trim(), teams, tiebreak: s.config?.tiebreak || {} };
-    if (await write("t/config", cfg)) { teamDraft = null; toast("チーム設定を保存しました"); render(); }
-    return;
+    render(); saveTeams(); toast("抽選しました（自動保存）"); return;
   }
 });
 document.addEventListener("change", ev => {
@@ -724,9 +740,10 @@ document.addEventListener("change", ev => {
     const g = draft.games[i];
     if (el.dataset.side === "ff") { g.ff = el.value || null; if (g.ff) { g.a = g.ff === "a" ? 0 : 5; g.b = g.ff === "b" ? 0 : 5; } }
     else g[el.dataset.side] = num(el.value);
-    render(); return;
+    render(); saveDraft(); return;
   }
-  if (el.dataset.tg != null && teamDraft) { teamDraft.teams[+el.dataset.tg].group = el.value; render(); }
+  if (el.dataset.tg != null && teamDraft) { teamDraft.teams[+el.dataset.tg].group = el.value; render(); saveTeams(); return; }
+  if ((el.dataset.tn != null || el.dataset.ta != null || el.id === "evn") && teamDraft) saveTeams();
 });
 document.addEventListener("input", ev => {
   const el = ev.target;
@@ -734,7 +751,7 @@ document.addEventListener("input", ev => {
   if (el.dataset.ta != null && teamDraft) teamDraft.teams[+el.dataset.ta].abbr = el.value;
   if (el.id === "evn" && teamDraft) teamDraft.eventName = el.value;
 });
-window.addEventListener("hashchange", () => { openId = null; draft = null; render(); });
+window.addEventListener("hashchange", () => { openId = null; draft = null; teamDraft = null; saveStatus = ""; render(); });
 
 /* ---------- boot ---------- */
 async function boot() {
