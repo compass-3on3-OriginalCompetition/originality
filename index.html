@@ -113,7 +113,7 @@ table.xt th.team { text-align: left; padding: 6px 12px; min-width: 170px; font-f
 table.xt th.team .tn { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: .92rem; line-height: 1.3; }
 table.xt th.team .ab { flex: 0 0 auto; display: inline-grid; place-items: center; min-width: 34px; height: 28px; padding: 0 5px; border-radius: 6px; font-family: var(--display); font-weight: 400; font-size: .85rem; background: var(--surface-2); border: 1px solid var(--line); }
 table.xt th.team .tn small { display: block; color: var(--muted); font-weight: 500; font-size: .7rem; }
-table.xt td.cell { padding: 4px; text-align: center; min-width: 84px; }
+table.xt td.cell { padding: 4px; text-align: center; min-width: 100px; }
 table.xt td.cell .box { display: grid; place-content: center; height: 100%; min-height: 46px; border: 2px solid #5A6070; background: #0B0D14; line-height: 1.15; }
 table.xt td.cell .r { font-weight: 700; font-size: .8rem; letter-spacing: .06em; }
 table.xt td.cell .sc { font-family: var(--mono); font-weight: 600; font-size: 1rem; }
@@ -290,7 +290,7 @@ function gameRes(g) {
   if (a == null || b == null) return null;
   return { ka: a, kb: b, r: a > b ? "a" : b > a ? "b" : "d" };
 }
-// group match: up to 3 games, cold win if |PK diff| >= 6 after 2 games
+// group match: up to 3 games, cold win if |portal key diff| >= 6 after 2 games
 function evalGroup(m) {
   const raw = (m?.games || []).map(gameRes), out = [];
   for (let i = 0; i < 2; i++) { if (!raw[i]) return { games: out, done: false }; out.push(raw[i]); }
@@ -355,10 +355,11 @@ function standings(s, g) {
     const hs = r => ids.reduce((n, o) => n + (h2h[r.id][o] || 0), 0);
     tier.forEach(r => r.h = hs(r));
     tier.sort((a, b) => b.h - a.h);
+    tier.sort((a, b) => b.h - a.h || b.d - a.d);
     const subs = [];
-    for (const r of tier) { const l = subs[subs.length - 1]; if (l && l[0].h === r.h) l.push(r); else subs.push([r]); }
+    for (const r of tier) { const l = subs[subs.length - 1]; if (l && l[0].h === r.h && l[0].d === r.d) l.push(r); else subs.push([r]); }
     for (const sub of subs) {
-      if (sub.length === 1) { sub[0].rank = pos; sub[0].why = "直接対決"; ordered.push(sub[0]); pos++; continue; }
+      if (sub.length === 1) { const pre = tier.filter(x => x.h === sub[0].h); sub[0].rank = pos; sub[0].why = pre.length > 1 ? "引き分け数" : "直接対決"; ordered.push(sub[0]); pos++; continue; }
       const allIn = sub.every(r => tb.includes(r.id));
       const decisive = pos <= 2; // only 1st/2nd or 2nd/3rd are decided by playoff / lottery
       if (allIn && decisive) {
@@ -469,7 +470,7 @@ function crossCell(s, g, me, op) {
   const mw = meA ? t.wa : t.wb, ow = meA ? t.wb : t.wa, mk = meA ? t.ka : t.kb, ok = meA ? t.kb : t.ka;
   const res = !e.done ? ["live", "途中"] : mw > ow ? ["win", "WIN"] : mw < ow ? ["lose", "LOSE"] : ["draw", "DRAW"];
   const pend = m.status !== "confirmed" ? " pend" : "";
-  return `<td class="cell ${res[0]}${pend}"><div class="box" title="${pend ? "承認待ち" : ""}"><span class="r">${res[1]}</span><span class="sc">${mw} - ${ow}</span><span class="pk">PK ${mk}-${ok}${e.cold ? " ・C" : ""}</span></div></td>`;
+  return `<td class="cell ${res[0]}${pend}"><div class="box" title="${pend ? "承認待ち" : ""}"><span class="r">${res[1]}</span><span class="sc">${mw} - ${ow}</span><span class="pk">ポータルキー ${mk}-${ok}${e.cold ? " ・C" : ""}</span></div></td>`;
 }
 function viewStandings(s) {
   if (!(s.config?.teams || []).length) return noTeams();
@@ -483,8 +484,8 @@ function viewStandings(s) {
     const teamTh = t => `<th class="team" scope="row"><span class="tn"><span class="ab">${abbr(t)}</span><span>${esc(t.name)}${byId[t.id].pending ? "<small>承認待ちを含む</small>" : ""}</span></span></th>`;
     const xt = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th>${teams.map(t => `<th title="${esc(t.name)}"><span class="ab">${abbr(t)}</span></th>`).join("")}<th class="rkh">順位</th></tr></thead><tbody>
       ${teams.map(t => `<tr>${teamTh(t)}${teams.map(o => o.id === t.id ? `<td class="diag"></td>` : crossCell(s, g, t.id, o.id)).join("")}${rkCell(byId[t.id])}</tr>`).join("")}</tbody></table></div>`;
-    const stat = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th><th class="sh">PK合計</th><th class="sh">勝率</th><th class="sh">勝利数</th><th class="sh">引分</th><th class="sh">敗北</th><th class="sh">被PK</th><th class="sh">対戦</th><th class="rkh">順位</th></tr></thead><tbody>
-      ${teams.map(t => { const r = byId[t.id]; return `<tr>${teamTh(t)}<td class="n pk">${r.keys}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n">${r.w}</td><td class="n">${r.d}</td><td class="n">${r.l}</td><td class="n">${r.against}</td><td class="n">${r.mp}/${teams.length - 1}</td>${rkCell(r)}</tr>`; }).join("")}</tbody></table></div>`;
+    const stat = `<div class="grid-wrap"><table class="xt"><thead><tr><th></th><th class="sh">勝利</th><th class="sh">負け</th><th class="sh">引き分け</th><th class="sh">勝率</th><th class="sh">取得ポータルキー</th><th class="sh">残り試合数</th><th class="rkh">順位</th></tr></thead><tbody>
+      ${teams.map(t => { const r = byId[t.id]; return `<tr>${teamTh(t)}<td class="n">${r.w}</td><td class="n">${r.l}</td><td class="n">${r.d}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n pk">${r.keys}</td><td class="n">${teams.length - 1 - r.mp}</td>${rkCell(r)}</tr>`; }).join("")}</tbody></table></div>`;
     const issues = st.issues.map(is => `<div class="issue"><div><strong>${ORD(is.rank)}〜${ORD(is.rank + is.ids.length - 1)}が並んでいます</strong>：${is.ids.map(id => esc(teamName(s, id))).join("、")}<br>
       ${st.complete ? `${is.method}で決めてください。` : `グループ戦終了後も並んだ場合は、${is.method}で決めます。`}</div>
       ${role === "admin" && st.complete ? tieForm(s, g, is) : ""}</div>`).join("");
@@ -493,8 +494,8 @@ function viewStandings(s) {
       ${xt}${stat}${issues}${(s.config?.tiebreak?.[g] || []).length && role === "admin" ? `<div class="btns"><button class="btn ghost" data-act="tb-clear" data-g="${g}">順位決定の入力を取り消す</button></div>` : ""}</section>`;
   }).join("");
   return `${boards}
-    <div class="legend"><span>表の見方：行のチームから見た対戦結果。上段＝勝敗、中段＝試合の勝ち数、下段＝PK（ポータルキー）。C＝コールド勝ち、点線枠＝対戦途中、黄色枠＝承認待ち</span>
-    <span>順位の決め方：① PK合計 → ② 勝率（勝利数 ÷ 試合数、引き分け含む） → ③ 当該チーム同士の対戦結果 → ④ 順位決定戦／運営抽選。金色＝決勝トーナメント進出</span></div>
+    <div class="legend"><span>表の見方：行のチームから見た対戦結果。上段＝勝敗、中段＝試合の勝ち数、下段＝取得ポータルキー。C＝コールド勝ち、点線枠＝対戦途中、黄色枠＝承認待ち</span>
+    <span>順位の決め方：① 取得ポータルキーの合計 → ② 勝率（勝利数 ÷ 試合数、引き分け含む） → ③ 当該チーム同士の対戦結果 → ④ 引き分けの数が多いチーム → ⑤ 順位決定戦／運営抽選。金色＝決勝トーナメント進出</span></div>
     <div class="btns"><button class="btn" data-act="copy">Discord用にコピー</button></div>`;
 }
 function tieForm(s, g, is) {
@@ -522,7 +523,7 @@ function matchCard(s, g, a, b) {
   const id = mid(g, a, b), doc = s.matches[id];
   const A = doc?.a || a, B = doc?.b || b;
   const e = evalGroup(doc), t = sumMatch(e);
-  const score = e.games.length ? `${t.wa}-${t.wb}<small>PK ${t.ka}-${t.kb}${e.cold ? " ・コールド" : ""}</small>` : `<span style="color:var(--muted)">vs</span>`;
+  const score = e.games.length ? `${t.wa}-${t.wb}<small>ポータルキー ${t.ka}-${t.kb}${e.cold ? " ・コールド" : ""}</small>` : `<span style="color:var(--muted)">vs</span>`;
   const winA = e.done && t.wa > t.wb, winB = e.done && t.wb > t.wa;
   const open = openId === id;
   return `<div class="match"><button class="mhead" data-act="open" data-id="${id}" data-g="${g}" data-a="${A}" data-b="${B}" aria-expanded="${open}">
@@ -534,7 +535,7 @@ function matchCard(s, g, a, b) {
 }
 function scoreSel(i, side, v, dis) {
   const o = ['<option value="">—</option>'].concat([0, 1, 2, 3, 4, 5].map(n => `<option value="${n}" ${v === n ? "selected" : ""}>${n}</option>`)).join("");
-  return `<select data-g="${i}" data-side="${side}" aria-label="${i + 1}試合目 ${side === "a" ? "左" : "右"}チームのPK" ${dis ? "disabled" : ""}>${o}</select>`;
+  return `<select data-g="${i}" data-side="${side}" aria-label="${i + 1}試合目 ${side === "a" ? "左" : "右"}チームのポータルキー" ${dis ? "disabled" : ""}>${o}</select>`;
 }
 function editor(s, kind) {
   const d = draft, A = esc(teamName(s, d.a)), B = esc(teamName(s, d.b));
@@ -548,7 +549,7 @@ function editor(s, kind) {
       rows += gameRow(i, g, ro);
     }
     const t = sumMatch(e);
-    verdict = e.games.length ? `<div class="verdict">試合 <b>${t.wa}-${t.wb}</b>${t.d ? `（引き分け${t.d}）` : ""} ・ PK <b>${t.ka}-${t.kb}</b>${e.done ? (t.wa === t.wb ? " ・ 対戦終了（勝敗同数）" : ` ・ ${t.wa > t.wb ? A : B} の勝ち`) : " ・ 対戦途中"}${e.cold ? " ・ コールド成立" : ""}</div>` : "";
+    verdict = e.games.length ? `<div class="verdict">試合 <b>${t.wa}-${t.wb}</b>${t.d ? `（引き分け${t.d}）` : ""} ・ ポータルキー <b>${t.ka}-${t.kb}</b>${e.done ? (t.wa === t.wb ? " ・ 対戦終了（勝敗同数）" : ` ・ ${t.wa > t.wb ? A : B} の勝ち`) : " ・ 対戦途中"}${e.cold ? " ・ コールド成立" : ""}</div>` : "";
   } else {
     const e = evalBo3({ games: d.games });
     const n = Math.min(9, e.winner ? e.gs.length : Math.max(2, e.gs.length + 1));
@@ -619,18 +620,18 @@ function viewRules() {
   <section class="panel"><div class="panel-body"><h3>グループ戦（1日目）</h3><ul>
     <li>6チームずつA・Bの2グループで総当たり（1チーム5対戦）。12チーム未満なら同数ずつ、奇数なら多い側を抽選</li>
     <li>1対戦は原則3試合。1試合目はでらクランクストリート</li>
-    <li>2試合終了時点でPK合計の差が6以上なら<strong>コールド勝ち</strong>：3試合目は行わず5-0扱い（PK合計・勝率に含める）</li>
+    <li>2試合終了時点で取得ポータルキー合計の差が6以上なら<strong>コールド勝ち</strong>：3試合目は行わず5-0扱い（ポータルキー合計・勝率に含める）</li>
     <li>引き分けはやり直さない。勝ちにも負けにも数えないが、試合数には含める</li>
     <li>不戦敗はその試合を0-5、相手を5-0として扱う</li>
     <li>各グループ上位2チームが決勝トーナメントへ</li></ul></div></section>
   <section class="panel"><div class="panel-body"><h3>順位の決め方</h3><ol>
-    <li>取得ポータルキー（PK）の合計</li><li>勝率（勝利数 ÷ 試合数。引き分けを含む）</li><li>当該チーム同士の対戦結果</li><li>順位決定戦（でらクランクストリート・BO1、引き分けは決着まで再戦）。3チーム以上なら運営抽選</li></ol>
+    <li>取得ポータルキーの合計</li><li>勝率（勝利数 ÷ 試合数。引き分けを含む）</li><li>当該チーム同士の対戦結果</li><li>引き分けの数が多いチームが上位</li><li>順位決定戦（でらクランクストリート・BO1、引き分けは決着まで再戦）。3チーム以上なら運営抽選</li></ol>
     <p style="margin-top:8px">順位決定戦・抽選は1位と2位、2位と3位を決めるときだけ。それ以外は同順位です。</p></div></section>
   <section class="panel"><div class="panel-body"><h3>決勝トーナメント（2日目）</h3><ul>
     <li>準決勝：A1位 vs B2位、B1位 vs A2位</li><li>準決勝の敗者で3位決定戦、勝者で決勝。3位決定戦が先</li>
     <li>すべてBO3（先に2勝）。コールドなし。引き分けはもう一戦</li><li>2日目に来ないチームは不戦敗</li></ul></div></section>
   <section class="panel"><div class="panel-body"><h3>このサイトでの入力</h3><ul>
-    <li>各試合の両チームのPK（0〜5）を入力。不戦敗は「左/右が不戦敗」を選ぶと0-5で記録</li>
+    <li>各試合の両チームのポータルキー（0〜5）を入力。不戦敗は「左/右が不戦敗」を選ぶと0-5で記録</li>
     <li>コールドは自動で判定され、3試合目が5-0として計算されます</li>
     <li>順位決定戦・抽選の結果は、グループ戦がすべて終わった後に順位表から入力します</li>
     <li>シングルロス・マッチロスなどの処分は、該当試合を不戦敗として入力してください</li></ul></div></section></div>`;
@@ -676,7 +677,7 @@ document.addEventListener("click", async ev => {
     for (const g of GROUPS) {
       const st = standings(s, g); if (!st.rows.length) continue;
       lines.push("", `■ グループ${g}（${st.done}/${st.total} 対戦終了）`);
-      st.rows.forEach(r => lines.push(`${r.rank}位${r.tied ? "(同率)" : ""} ${r.name}　PK ${r.keys} / 勝率 ${pct(r.w, r.gp)}（${r.w}勝${r.d}分${r.l}敗）`));
+      st.rows.forEach(r => lines.push(`${r.rank}位${r.tied ? "(同率)" : ""} ${r.name}　ポータルキー ${r.keys} / 勝率 ${pct(r.w, r.gp)}（${r.w}勝${r.d}分${r.l}敗）`));
     }
     const text = lines.join("\n");
     try { await navigator.clipboard.writeText(text); toast("コピーしました"); }
