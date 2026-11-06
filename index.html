@@ -1143,7 +1143,7 @@ function settingsForm(set, id) {
       <span class="mc-t">${esc(m.ja)}</span>${m.desc.map(d => `<span class="mc-d">${esc(d)}</span>`).join("")}</label>`).join("");
   const critOpts = first => (first ? [] : [["", "なし"]]).concat(Object.entries(CRIT).map(([k, c]) => [k, c.ja]));
   return `<div class="sform">
-    <div class="sgroup"><div class="sg-t">大会の形式</div><div class="fmcards">${modeCards}</div>
+    <div class="sgroup"><div class="sg-t">大会の形式</div>${id === "sp" && modeWarn ? modeWarnView() : ""}<div class="fmcards">${modeCards}</div>
       ${mode.startsWith("group") ? row("グループの数", sel("groups", nums(1, 4, x => x === 1 ? "分けない（全チームで総当たり）" : `${x}グループ`), "グループの数")) : ""}
       ${mode === "group_ko" ? row("トーナメントに進む数", sel("advance", [[1, "各グループ1位"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]], "トーナメントに進む数")) : ""}
     </div>
@@ -1196,9 +1196,14 @@ function settingsPanel(s) {
       ${has ? `<div class="notice warn">すでに結果が入っています。形式や試合数を変えると、入力済みの結果の数え方や対戦表が変わります。</div>` : ""}
       ${settingsForm(SETS(s), "sp")}<span class="savest">変更は自動で保存されます</span></div></details>`;
 }
-let setOpen = false, addWarn = false;
+let setOpen = false, addWarn = false, modeWarn = null;
 // team counts at which a round robin gets very long: 13+ teams (round robin → tournament) or 7+ (round robin only)
 const bigWarnAt = set => set.mode === "group_ko" ? 13 : set.mode === "group" ? 7 : 0;
+function modeWarnView() {
+  const st = S(), nset = SETS({ config: { settings: modeWarn } }), n = (teamDraft ? teamDraft.teams.filter(t => (t.name || "").trim()) : allTeams(st)).length;
+  return `<div class="bigwarn" role="alert"><p><strong>「${esc(MODES[nset.mode].ja)}」に変えようとしています。</strong><br>今は${n}チーム登録されています。「${esc(MODES[nset.mode].ja)}」で${bigWarnAt(nset)}チーム以上だと、対戦数がとても多くなり（全部で${pairCount(nset, n)}対戦）、<strong>非常に時間がかかる可能性があります</strong>。大丈夫ですか？</p>
+    <div class="btns"><button class="btn danger" data-act="mode-ok">大丈夫、変更する</button><button class="btn" data-act="mode-no">やめる</button></div></div>`;
+}
 function pairCount(set, n) { const g = Math.max(1, set.groups), per = Array.from({ length: g }, (_, i) => Math.floor(n / g) + (i < n % g ? 1 : 0)); return per.reduce((a, k) => a + k * (k - 1) / 2, 0); }
 function createDlgView() {
   if (!createDlg) return "";
@@ -1730,11 +1735,12 @@ document.addEventListener("click", async ev => {
   }
   if (act === "t-add" || act === "t-add-ok") {
     const set = SETS(s), big = bigWarnAt(set), n = teamDraft.teams.length;
-    if (act === "t-add" && big && n + 1 >= big && !teamDraft.bigOk) { addWarn = true; render(); return; }
-    if (act === "t-add-ok") teamDraft.bigOk = true;
+    if (act === "t-add" && big && n + 1 === big) { addWarn = true; render(); return; } // only when crossing the line (12→13 / 6→7)
     addWarn = false;
   }
   if (act === "t-add-no") { addWarn = false; render(); return; }
+  if (act === "mode-ok" && modeWarn) { const set = modeWarn; modeWarn = null; saveSettings(s, set); return; }
+  if (act === "mode-no") { modeWarn = null; render(); return; }
   if (act === "t-add" || act === "t-add-ok") { teamDraft.teams.push({ id: uid(), name: "", group: "" }); render(); $(`#tn-${teamDraft.teams.at(-1).id}`)?.focus(); return; }
   if (act === "t-del") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "削除?"; return; }
@@ -1783,10 +1789,17 @@ document.addEventListener("change", ev => {
   if (createDlg && el.closest("#create-dlg")) { createDlg.set = readSet($("#create-dlg"), createDlg.set); render(); return; }
   if (el.closest("#settings-panel") && role === "admin") {
     const st = S(), set = readSet($("#settings-panel"), SETS(st));
+    const nT = (teamDraft ? teamDraft.teams.filter(t => (t.name || "").trim()) : allTeams(st)).length, nb = bigWarnAt(SETS({ config: { settings: set } }));
+    if (el.dataset.set === "mode" && nb && nT >= nb && SETS(st).mode !== SETS({ config: { settings: set } }).mode) { modeWarn = set; setOpen = true; render(); return; }
+    saveSettings(st, set);
+  }
+});
+function saveSettings(st, set) {
+  {
     st.config = { ...(st.config || { teams: [], tiebreak: {} }), settings: set }; setOpen = true;
     autosave("t/config", st.config); render();
   }
-});
+}
 document.addEventListener("input", ev => {
   const el = ev.target;
   if (el.dataset.tn != null && teamDraft) teamDraft.teams[+el.dataset.tn].name = el.value;
