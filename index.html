@@ -1302,7 +1302,7 @@ function viewGuide(gated) {
     <li>選手は、最初の画面の「ログインせずにコードで参加」か、ログイン後の「コードで参加する」に選手コードを入れます。</li>
     <li>「<b>マイチーム</b>」で、自分のチームの<b>現在の順位・次の対戦相手・登録内容</b>（ヒーロー・メダル・デッキ）をリアルタイムで見られます。ほかのチームの登録内容は見られません。</li>
     <li>試合が終わったら「<b>結果を運営に報告</b>」で、試合ごとのポータルキーと、<b>リプレイ画面のスクリーンショット（必須）</b>を送ります。スクショを選ぶと、<b>ポータルキーを自動で読み取って結果に入れ</b>、<b>メダル情報が映っているか</b>も確認します（メダル情報が必要な大会で映っていないと送れません）。送れるのは画面のスクショ（PNG・JPEG・WebP）だけで、送る前に端末の中で画像を作り直します。</li>
-    <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。</li></ul>`)}
+    <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか・カスタムバトルのリプレイか・映っている人がこの対戦の2チームのメンバーか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。</li></ul>`)}
   ${sec(9, "スマホで使う", `<ul>
     <li>Chromeの「︙」→「<b>ホーム画面に追加</b>」で、アプリのようにアイコンから開けます。</li>
     <li>スマホでは、画面の下のボタンでページを切り替えます。</li></ul>`)}
@@ -1471,6 +1471,22 @@ function checkPlayer(m, p) {
   }
   return { issues, notes, marks, deckNo, medalMarks, heroOk };
 }
+// a replay that is not from a custom battle is probably not a tournament match
+function modeWarn_(md) {
+  if (!md || md.kind !== "other") return "";
+  return md.sure ? `カスタムバトルではなく「${md.n}」のリプレイです。この対戦の試合か確認してください` : `カスタムバトルではない可能性があります（「${md.n}」に見えます）。この対戦の試合か確認してください`;
+}
+// do the people on the screenshot belong to the two teams of this match?
+function teamCheck(s, u, A, B) {
+  const ids = u.players.map(p => identify(s, p.name)), byTeam = {}; let unknown = 0;
+  ids.forEach(m => { if (!m) unknown++; else byTeam[m.team] = (byTeam[m.team] || 0) + 1; });
+  const others = Object.keys(byTeam).filter(t => t !== A && t !== B);
+  const hasRefs = t => membersOf(s, t).some(m => (m.nameRefs || []).length);
+  const out = [];
+  if (others.length) out.push(`この対戦ではないチーム（${others.map(t => teamName(s, t)).join("・")}）のメンバーが映っています`);
+  for (const t of [A, B]) if (!byTeam[t] && hasRefs(t)) out.push(`${teamName(s, t)}のメンバーが見つかりません（ユーザーネームが一致しません）`);
+  return { warn: out, unknown, byTeam };
+}
 function evalUnit(s, u, A, B) {
   const ps = u.players.map(p => ({ p, m: identify(s, p.name) }));
   let vA = 0, vB = 0; // votes for "blue side is team A" / "blue side is team B"
@@ -1483,6 +1499,8 @@ function evalUnit(s, u, A, B) {
   const noMedals = SETS().requireMedalShot && u.players.every(p => !p.medals);
   const issues = checks.filter(c => c.m).flatMap(c => c.issues).concat(unknown ? [`名前からメンバーを判別できない人が${unknown}人います`] : []).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
   const sideTeam = side => blueIs == null ? null : ((side === "blue") === (blueIs === "a") ? A : B);
+  const mw = modeWarn_(u.mode); if (mw) issues.unshift(mw);
+  teamCheck(s, u, A, B).warn.filter(t => t.includes("見つかりません")).forEach(t => issues.push(t));
   if (noMedals) issues.unshift("メダル情報が表示されていないスクショです。ルールにより受理できません（ⓘを押してメダル情報を表示したスクショを提出してもらってください）");
   return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes).filter(t => !t.includes("ⓘを押して詳細")), sideTeam, noMedals };
 }
@@ -1950,7 +1968,8 @@ function shotReadView(s, team, opp) {
       const side = g.mine || repDraft.side?.[idx];
       const sc = side ? `${esc(team.name)} ${side === "b" ? g.b : g.r} - ${side === "b" ? g.r : g.b} ${esc(teamName(s, opp))}` : `青 ${g.b} - ${g.r} 赤`;
       const med = g.med === 0 ? `<b class="bad-t">メダル情報なし</b>` : g.med < g.n ? `<span class="bad-t">メダル情報 ${g.med}/${g.n}人</span>` : `<span class="ok-t">メダル情報あり</span>`;
-      return `<div class="rd-row ${g.med === 0 && need ? "warn" : ""}"><span>スクショ${si + 1} → ${idx + 1}試合目：${sc}</span> ・ ${med}
+      const extra = [modeWarn_(g.mode), g.ownMissing ? "あなたのチームのメンバーが見つかりません（ユーザーネームが一致しません）。この対戦のスクショか確認してください" : ""].filter(Boolean);
+      return `<div class="rd-row ${g.med === 0 && need ? "warn" : ""}"><span>スクショ${si + 1} → ${idx + 1}試合目：${sc}</span> ・ ${med}${extra.map(t => `<div class="bad-t" style="flex-basis:100%;font-size:.8rem">⚠ ${esc(t)}</div>`).join("")}
         ${g.mine ? "" : `<span class="muted-s">自分のチームの色：</span><select data-repside="${idx}" aria-label="${idx + 1}試合目の自分のチームの色"><option value="">選ぶ</option><option value="b" ${side === "b" ? "selected" : ""}>青</option><option value="r" ${side === "r" ? "selected" : ""}>赤</option></select>`}</div>`; }).join("");
   }).join("");
   const bad = need && shotGames(repDraft).some(g => g.med === 0);
@@ -2022,8 +2041,11 @@ async function readShotGames(s, file, team, A, B) {
   return us.slice().reverse().map(u => { // the replay list shows newer games on top: earliest first
     let mine = null;
     if (team) { let vb = 0, vr = 0; u.players.forEach(p => { const m = identify(s, p.name); if (m && m.team === team) p.side === "blue" ? vb++ : vr++; }); mine = vb > vr ? "b" : vr > vb ? "r" : null; }
-    const ev = A && B ? evalUnit(s, u, A, B) : null;
-    return { b: u.score.b, r: u.score.r, sure: !!u.score.sure, mine, med: u.players.filter(p => p.medals).length, n: u.players.length, ka: ev?.ka ?? null, kb: ev?.kb ?? null, issues: ev ? ev.issues : [] };
+    const ev = A && B ? evalUnit(s, u, A, B) : null, tc = A && B ? teamCheck(s, u, A, B) : null;
+    let ownMissing = false;
+    if (team && !A) ownMissing = mine == null && membersOf(s, team).some(m => (m.nameRefs || []).length);
+    return { b: u.score.b, r: u.score.r, sure: !!u.score.sure, mine, med: u.players.filter(p => p.medals).length, n: u.players.length, ka: ev?.ka ?? null, kb: ev?.kb ?? null,
+      issues: ev ? ev.issues.filter(t => !t.startsWith("カスタムバトル")) : [], mode: u.mode ? { kind: u.mode.kind, n: u.mode.n, sure: !!u.mode.sure } : null, teamWarn: tc ? tc.warn : [], ownMissing };
   });
 }
 const shotGames = d => d.shots.flatMap((x, si) => (x.games || []).map(g => ({ ...g, si })));
@@ -2069,7 +2091,8 @@ function adminReadView(s, r) {
     : !gs.length ? `<div class="rd-row warn">スクショ${si + 1}：試合の結果を読み取れませんでした（目で確認してください）</div>`
     : gs.map(g => `<div class="rd-row ${g.med === 0 && need ? "warn" : ""}">スクショ${si + 1}：${g.ka != null ? `${esc(teamName(s, r.a))} ${g.ka} - ${g.kb} ${esc(teamName(s, r.b))}` : `青 ${g.b} - ${g.r} 赤（どちらのチームか判別できません）`}
         ・ ${g.med === 0 ? `<b class="bad-t">メダル情報なし</b>` : g.med < g.n ? `<span class="bad-t">メダル情報 ${g.med}/${g.n}人</span>` : `<span class="ok-t">メダル情報あり</span>`}
-        ${g.issues?.length ? `<div class="bad-t" style="font-size:.78rem">${g.issues.map(esc).join(" ／ ")}</div>` : ""}</div>`).join("")).join("");
+        ${[modeWarn_(g.mode), ...(g.teamWarn || [])].filter(Boolean).map(t => `<div class="bad-t" style="flex-basis:100%;font-size:.8rem">⚠ ${esc(t)}</div>`).join("")}
+        ${g.issues?.length ? `<div class="bad-t" style="font-size:.78rem;flex-basis:100%">${g.issues.map(esc).join(" ／ ")}</div>` : ""}</div>`).join("")).join("");
   const rg = readGamesOf(r), cmp = rg ? (sameGames(rg, r.games) ? `<div class="rd-row ok-t">報告された結果と、スクショから読み取った結果が一致しています</div>` : `<div class="rd-row warn"><b>報告された結果と、スクショから読み取った結果が違います。</b>読み取り：${rg.map(g => `${g.a}-${g.b}`).join(" / ")}</div>`) : "";
   return `<div class="rd-box"><div class="dl">スクショの自動読み取り</div>${rows}${cmp}</div>`;
 }
