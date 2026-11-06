@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firestore ルール</title>
+<style>
+:root { --bg: #0B0E14; --ink: #EDEFF4; --muted: #9AA0AE; --line: #2A2F3B; --accent: #FF3D5E; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 system-ui, sans-serif; padding: 16px; }
+main { max-width: 760px; margin: 0 auto; display: grid; gap: 12px; }
+h1 { font-size: 1.2rem; margin: 0; }
+ol { margin: 0; padding-left: 1.3em; color: var(--muted); }
+button { font: inherit; font-weight: 700; padding: 12px 18px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+textarea { width: 100%; box-sizing: border-box; height: 50vh; background: #000; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: 12px/1.4 ui-monospace, monospace; }
+#st { color: #6FD39B; font-weight: 700; min-height: 1.5em; }
+</style></head><body><main>
+<h1>Firestore のルール</h1>
+<ol><li>下の「ルールをコピー」を押す</li><li>Firebase コンソール →「Firestore」→「ルール（Rules）」タブを開く</li><li>中身をすべて消して貼り付け、「公開（Publish）」を押す</li></ol>
+<button id="cp">ルールをコピー</button><div id="st"></div>
+<textarea id="tx" readonly>読み込み中…</textarea>
+</main>
+<script>
+const tx = document.getElementById("tx"), st = document.getElementById("st");
+fetch("firebase/firestore.rules?" + Date.now()).then(r => r.text()).then(t => { tx.value = t; }).catch(() => { tx.value = "読み込めませんでした。ページを開き直してください。"; });
+document.getElementById("cp").onclick = async () => {
+  try { await navigator.clipboard.writeText(tx.value); st.textContent = "コピーしました。Firebase のルール画面に貼り付けてください。"; }
+  catch (e) { tx.focus(); tx.select(); st.textContent = "選択した文字を長押しして「コピー」してください。"; }
+};
+</script></body></html>
