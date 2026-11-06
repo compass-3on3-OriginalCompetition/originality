@@ -930,7 +930,7 @@ function render() {
   if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); if (resumeData) setTimeout(() => applyResume(true), 0); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
   const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
-  app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
+  app.innerHTML = (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
   if (resumeData) setTimeout(() => applyResume(false), 0);
 }
 function renderMode() {
@@ -2496,7 +2496,8 @@ async function checkSite() {
 }
 /* the site updates itself: wait for a quiet moment, keep what is being typed, reload, then put it back */
 const RESUME_KEY = "compass3on3_resume";
-let resumeData = null, autoTimer = null;
+let resumeData = null, autoTimer = null, fileMode = false;
+const SITE_URL = "https://compass-3on3-originalcompetition.github.io/originality/";
 function quietNow() {
   const a = document.activeElement;
   if (a && a.matches && a.matches("input:not([type=file]):not([type=checkbox]):not([type=radio]), textarea, select")) return false;   // someone is typing
@@ -2575,7 +2576,9 @@ async function boot() {
   render();
   if (!window.claude?.use) {
     const cfg = window.FIREBASE_CONFIG;
-    if (cfg && cfg.apiKey) return fbBoot(cfg);
+    // Firebase (Google login, codes) only works on a page opened from a web address, not from a saved file
+    if (cfg && cfg.apiKey && /^https?:$/.test(location.protocol)) return fbBoot(cfg);
+    if (cfg && cfg.apiKey) fileMode = true;
     mode = "local"; role = "admin";
     try { const d = JSON.parse(localStorage.getItem(LS_KEY) || "null"); if (d) Object.assign(real, d); } catch (e) {}
     real.members = real.members || {};
