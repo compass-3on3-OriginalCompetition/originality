@@ -516,6 +516,7 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .bad-t { color: var(--bad); }
 .ok-t { color: #6FD39B; }
 .netbar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; padding: 8px 16px; background: #2B2414; color: #F2C14B; border-bottom: 1px solid #5A4A1E; font-size: .85rem; text-align: center; }
+.netbar[hidden] { display: none; }
 .netbar.off { background: #2A1418; color: var(--bad); border-color: #5A2028; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
