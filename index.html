@@ -2240,8 +2240,12 @@ function resetData() { unsubs.forEach(u => { try { u(); } catch (e) {} }); unsub
 async function fbBoot(cfg) {
   mode = "fb"; FB.on = true; role = "viewer"; loadNote = "ログインを確認しています…"; render();
   try {
-    for (const m of ["app", "auth", "firestore"]) await loadScript(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-${m}-compat.js`);
-    firebase.initializeApp(cfg); FB.auth = firebase.auth(); FB.fs = firebase.firestore();
+    const useAC = !!cfg.appCheckKey && !cfg.useEmulator;
+    for (const m of ["app", ...(useAC ? ["app-check"] : []), "auth", "firestore"]) await loadScript(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-${m}-compat.js`);
+    firebase.initializeApp(cfg);
+    // App Check: only this site (checked with reCAPTCHA Enterprise) gets to use the database, not scripts run elsewhere
+    if (useAC) { try { firebase.appCheck().activate(new firebase.appCheck.ReCaptchaEnterpriseProvider(cfg.appCheckKey), true); } catch (e) { console.warn("App Check", e); } }
+    FB.auth = firebase.auth(); FB.fs = firebase.firestore();
     if (cfg.useEmulator) { FB.auth.useEmulator("http://127.0.0.1:9099"); FB.fs.useEmulator("127.0.0.1", 8085); window.__fb = FB; } // local testing only
   } catch (e) { loadNote = "ログインの仕組みを読み込めませんでした。通信状況を確認して、開き直してください。"; render(); return; }
   FB.auth.getRedirectResult().catch(e => toast("ログインできませんでした: " + (e.message || e.code)));

@@ -6,5 +6,7 @@ window.FIREBASE_CONFIG = {
   projectId: "compass-3on3",
   storageBucket: "compass-3on3.firebasestorage.app",
   messagingSenderId: "975106757224",
-  appId: "1:975106757224:web:85c19a9f3b1a048159e1dd"
+  appId: "1:975106757224:web:85c19a9f3b1a048159e1dd",
+  // App Check（reCAPTCHA Enterprise）のサイトキー。入れるとこのサイト以外からのアクセスを防げます（空なら使いません）
+  appCheckKey: ""
 };
