@@ -506,6 +506,12 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .rep-top .pill { margin-left: auto; }
 .rep-score { font-weight: 700; }
 .rep-reason { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; min-width: 0; flex: 1 1 10em; }
+.rd-box { display: grid; gap: 4px; border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; }
+.rd-row { font-size: .85rem; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.rd-row.warn { color: var(--bad); }
+.rd-row select { padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.bad-t { color: var(--bad); }
+.ok-t { color: #6FD39B; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -1295,8 +1301,8 @@ function viewGuide(gated) {
     <li>主催・運営は「チーム設定」の「<b>選手コード</b>」で、チームごとのコードを発行して、そのチームのメンバーに渡します。</li>
     <li>選手は、最初の画面の「ログインせずにコードで参加」か、ログイン後の「コードで参加する」に選手コードを入れます。</li>
     <li>「<b>マイチーム</b>」で、自分のチームの<b>現在の順位・次の対戦相手・登録内容</b>（ヒーロー・メダル・デッキ）をリアルタイムで見られます。ほかのチームの登録内容は見られません。</li>
-    <li>試合が終わったら「<b>結果を運営に報告</b>」で、試合ごとのポータルキーと、<b>リプレイ画面のスクリーンショット（必須）</b>を送ります。送れるのは画面のスクショ（PNG・JPEG・WebP）だけで、送る前に端末の中で画像を作り直します。</li>
-    <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショで読み取り・確認」でデッキやメダルの確認もできます。違うときは理由を書いて「却下」します。</li></ul>`)}
+    <li>試合が終わったら「<b>結果を運営に報告</b>」で、試合ごとのポータルキーと、<b>リプレイ画面のスクリーンショット（必須）</b>を送ります。スクショを選ぶと、<b>ポータルキーを自動で読み取って結果に入れ</b>、<b>メダル情報が映っているか</b>も確認します（メダル情報が必要な大会で映っていないと送れません）。送れるのは画面のスクショ（PNG・JPEG・WebP）だけで、送る前に端末の中で画像を作り直します。</li>
+    <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。</li></ul>`)}
   ${sec(9, "スマホで使う", `<ul>
     <li>Chromeの「︙」→「<b>ホーム画面に追加</b>」で、アプリのようにアイコンから開けます。</li>
     <li>スマホでは、画面の下のボタンでページを切り替えます。</li></ul>`)}
@@ -1864,6 +1870,7 @@ function subscribeAll(dbx, withMembers) {
 /* ---------- player mode (選手): own team, next match, standing, and result reports with a replay screenshot ---------- */
 let repDraft = null;          // the report form being filled in by a player
 const shotCache = {};          // rid -> [dataURL] (screenshots loaded for the operators)
+const shotReads = {};          // rid -> games read from those screenshots
 // every match a team plays: league / swiss matches and tournament matches
 function teamMatches(s, team) {
   const set = SETS(s), out = [];
@@ -1927,10 +1934,27 @@ function reportForm(s, team, ms) {
     <div class="rep-shots"><div class="dl">リプレイ画面のスクリーンショット（必須）</div>
       <div class="shot-list">${repDraft.shots.map((x, i) => `<div class="shot"><img src="${x.img}" alt="スクショ${i + 1}"><button class="btn ghost sm danger" data-act="rep-shot-del" data-i="${i}">外す</button></div>`).join("")}
         ${repDraft.shots.length < 6 ? `<label class="btn" for="rep-file">${repDraft.busy ? "確認中…" : "スクショを選ぶ"}</label><input id="rep-file" type="file" accept="image/png,image/jpeg,image/webp" multiple data-repfile="1" hidden>` : ""}</div>
-      <span class="muted-s">${SETS(s).requireMedalShot ? "メダル情報を表示させたリプレイ画面を撮ってください。" : ""}送れるのは画面のスクリーンショット（PNG・JPEG・WebP）だけです。ほかのファイルは送れません。送る前に、この端末の中で画像を作り直してから送ります。</span></div>
+      ${shotReadView(s, team, opp)}
+      <span class="muted-s">${SETS(s).requireMedalShot ? "メダル情報を表示させたリプレイ画面を撮ってください。" : ""}スクショを選ぶと、ポータルキーとメダル情報の有無を自動で読み取って、上の結果に入れます（違っていたら直してください）。送れるのは画面のスクリーンショット（PNG・JPEG・WebP）だけです。ほかのファイルは送れません。送る前に、この端末の中で画像を作り直してから送ります。</span></div>
     <label class="srow"><span class="sl">運営へのひとこと</span><div class="sc"><input data-rep="note" maxlength="300" value="${esc(repDraft.note)}" placeholder="任意（例：2試合目は相手の回線落ち）"></div></label>
     <div class="btns"><button class="btn primary" data-act="rep-send" ${repDraft.busy ? "disabled" : ""}>運営に送る</button></div>
   </div></section>`;
+}
+function shotReadView(s, team, opp) {
+  if (!repDraft.shots.length) return "";
+  const need = SETS(s).requireMedalShot;
+  const rows = repDraft.shots.map((x, si) => {
+    if (x.games == null) return `<div class="rd-row warn">スクショ${si + 1}：読み取りの準備ができていませんでした（運営が確認します）</div>`;
+    if (!x.games.length) return `<div class="rd-row warn">スクショ${si + 1}：試合の結果を読み取れませんでした。6人全員と結果が映るように撮ってください（このまま送ることもできます）</div>`;
+    return x.games.map((g, k) => { const idx = repDraft.shots.slice(0, si).reduce((n, y) => n + (y.games || []).length, 0) + k;
+      const side = g.mine || repDraft.side?.[idx];
+      const sc = side ? `${esc(team.name)} ${side === "b" ? g.b : g.r} - ${side === "b" ? g.r : g.b} ${esc(teamName(s, opp))}` : `青 ${g.b} - ${g.r} 赤`;
+      const med = g.med === 0 ? `<b class="bad-t">メダル情報なし</b>` : g.med < g.n ? `<span class="bad-t">メダル情報 ${g.med}/${g.n}人</span>` : `<span class="ok-t">メダル情報あり</span>`;
+      return `<div class="rd-row ${g.med === 0 && need ? "warn" : ""}"><span>スクショ${si + 1} → ${idx + 1}試合目：${sc}</span> ・ ${med}
+        ${g.mine ? "" : `<span class="muted-s">自分のチームの色：</span><select data-repside="${idx}" aria-label="${idx + 1}試合目の自分のチームの色"><option value="">選ぶ</option><option value="b" ${side === "b" ? "selected" : ""}>青</option><option value="r" ${side === "r" ? "selected" : ""}>赤</option></select>`}</div>`; }).join("");
+  }).join("");
+  const bad = need && shotGames(repDraft).some(g => g.med === 0);
+  return `<div class="rd-box"><div class="dl">スクショの読み取り</div>${rows}${bad ? `<div class="rd-row warn"><b>メダル情報が表示されていないスクショがあります。</b>この大会のルールでは受け付けられません。リプレイ画面でⓘを押してメダル情報を表示させてから、撮り直してください。</div>` : ""}</div>`;
 }
 function myReports(s) {
   const rs = (real.reports || []).slice().sort((a, b) => b.at - a.at);
@@ -1982,6 +2006,7 @@ async function sendReport(s) {
   for (let i = 0; i < d.games.length; i++) { const g = d.games[i]; if (!g || (g.me == null && g.op == null)) continue; if (g.me == null || g.op == null) { toast(`${i + 1}試合目の両チームのポータルキーを選んでください`); return; } games.push(me === "a" ? { a: g.me, b: g.op } : { a: g.op, b: g.me }); }
   if (!games.length) { toast("試合の結果を入れてください"); return; }
   if (!d.shots.length) { toast("リプレイ画面のスクリーンショットは必須です"); return; }
+  if (SETS(s).requireMedalShot && shotGames(d).some(g => g.med === 0)) { toast("メダル情報が表示されていないスクショがあります。メダル情報を表示させて撮り直してください"); return; }
   d.busy = true; render();
   const base = `tournaments/${FB.tid}/`, rid = rid_(), batch = FB.fs.batch();
   batch.set(FB.fs.doc(base + "reports/" + rid), { team, by: FB.user.uid, kind: m.kind, mid: m.mid, g: m.g, a: m.a, b: m.b, label: m.label, games, shots: d.shots.length, note: (d.note || "").slice(0, 300), status: "pending", at: Date.now() });
@@ -1989,6 +2014,24 @@ async function sendReport(s) {
   try { await batch.commit(); repDraft = null; toast("運営に送りました。承認されると結果に反映されます"); }
   catch (e) { d.busy = false; toast("送れませんでした: " + (e.message || e.code)); }
   render();
+}
+// read a replay screenshot: the score of each game, which side my team was on, and whether the medal info is shown
+async function readShotGames(s, file, team, A, B) {
+  const R = RD(); if (!R) return null;
+  let us; try { us = await R.readFile(file); } catch (e) { return null; }
+  return us.slice().reverse().map(u => { // the replay list shows newer games on top: earliest first
+    let mine = null;
+    if (team) { let vb = 0, vr = 0; u.players.forEach(p => { const m = identify(s, p.name); if (m && m.team === team) p.side === "blue" ? vb++ : vr++; }); mine = vb > vr ? "b" : vr > vb ? "r" : null; }
+    const ev = A && B ? evalUnit(s, u, A, B) : null;
+    return { b: u.score.b, r: u.score.r, sure: !!u.score.sure, mine, med: u.players.filter(p => p.medals).length, n: u.players.length, ka: ev?.ka ?? null, kb: ev?.kb ?? null, issues: ev ? ev.issues : [] };
+  });
+}
+const shotGames = d => d.shots.flatMap((x, si) => (x.games || []).map(g => ({ ...g, si })));
+function autoFillReport() { // fill the score rows from the screenshots (only rows the player has not touched)
+  const gs = shotGames(repDraft); if (!gs.length) return;
+  gs.forEach((g, i) => { const cur = repDraft.games[i]; if (cur && (cur.me != null || cur.op != null) && !cur.auto) return;
+    const side = g.mine || repDraft.side?.[i]; if (!side) return;
+    repDraft.games[i] = { me: side === "b" ? g.b : g.r, op: side === "b" ? g.r : g.b, auto: true }; });
 }
 const rid_ = () => Date.now().toString(36) + rid(6);
 // operators: the queue of reports
@@ -2002,9 +2045,10 @@ function reportsAdminView(s) {
         <span class="pill ${r.status === "approved" ? "on" : r.status === "rejected" ? "bad" : ""}">${repStatusJa[r.status]}</span></div>
       <div class="rep-score">${esc(teamName(s, r.a))} <span class="mono">${r.games.map(g => `${g.a}-${g.b}`).join(" / ")}</span> ${esc(teamName(s, r.b))}</div>
       ${r.note ? `<div class="muted-s">ひとこと：${esc(r.note)}</div>` : ""}
+      ${shotReads[r.id] ? adminReadView(s, r) : ""}
       ${shots ? `<div class="shot-list">${shots.map((u, i) => `<a href="${u}" target="_blank" rel="noopener" class="shot"><img src="${u}" alt="スクショ${i + 1}"></a>`).join("")}</div>` : `<button class="btn sm" data-act="rep-load" data-id="${esc(r.id)}">スクショを見る（${r.shots}枚）</button>`}
       ${r.status === "pending" ? `${exists ? `<div class="muted-s" style="color:var(--bad)">この対戦にはすでに結果が入っています。承認すると報告の結果に置き換わります。</div>` : ""}
-        <div class="btns"><button class="btn primary sm" data-act="rep-ok" data-id="${esc(r.id)}">承認して結果にする</button><button class="btn sm" data-act="rep-scan" data-id="${esc(r.id)}">スクショで読み取り・確認</button>
+        <div class="btns"><button class="btn primary sm" data-act="rep-ok" data-id="${esc(r.id)}">承認して結果にする</button>${readGamesOf(r) && !sameGames(readGamesOf(r), r.games) ? `<button class="btn sm" data-act="rep-ok-read" data-id="${esc(r.id)}">読み取った結果で承認</button>` : ""}<button class="btn sm" data-act="rep-scan" data-id="${esc(r.id)}">スクショで読み取り・確認</button>
         <input class="rep-reason" data-reason="${esc(r.id)}" placeholder="却下の理由（任意）" maxlength="200"><button class="btn ghost sm danger" data-act="rep-ng" data-id="${esc(r.id)}">却下</button></div>`
         : r.status === "rejected" && r.reason ? `<div class="muted-s">理由：${esc(r.reason)}</div>` : ""}</div>`;
   };
@@ -2012,10 +2056,30 @@ function reportsAdminView(s) {
     ${pend.map(card).join("")}
     ${done.length ? `<details><summary class="muted-s">処理した報告（最近${done.length}件）</summary><div style="display:grid;gap:8px;margin-top:8px">${done.map(card).join("")}</div></details>` : ""}</div></section>`;
 }
+// the games read from a report's screenshots, as {a, b} portal keys (null when any game could not be placed)
+function readGamesOf(r) {
+  const gs = (shotReads[r.id] || []).flatMap(x => x || []);
+  if (!gs.length || gs.some(g => g.ka == null || g.kb == null)) return null;
+  return gs.map(g => ({ a: g.ka, b: g.kb }));
+}
+const sameGames = (x, y) => x.length === y.length && x.every((g, i) => g.a === y[i].a && g.b === y[i].b);
+function adminReadView(s, r) {
+  const reads = shotReads[r.id], need = SETS(s).requireMedalShot;
+  const rows = reads.map((gs, si) => gs == null ? `<div class="rd-row warn">スクショ${si + 1}：読み取りの準備ができていませんでした</div>`
+    : !gs.length ? `<div class="rd-row warn">スクショ${si + 1}：試合の結果を読み取れませんでした（目で確認してください）</div>`
+    : gs.map(g => `<div class="rd-row ${g.med === 0 && need ? "warn" : ""}">スクショ${si + 1}：${g.ka != null ? `${esc(teamName(s, r.a))} ${g.ka} - ${g.kb} ${esc(teamName(s, r.b))}` : `青 ${g.b} - ${g.r} 赤（どちらのチームか判別できません）`}
+        ・ ${g.med === 0 ? `<b class="bad-t">メダル情報なし</b>` : g.med < g.n ? `<span class="bad-t">メダル情報 ${g.med}/${g.n}人</span>` : `<span class="ok-t">メダル情報あり</span>`}
+        ${g.issues?.length ? `<div class="bad-t" style="font-size:.78rem">${g.issues.map(esc).join(" ／ ")}</div>` : ""}</div>`).join("")).join("");
+  const rg = readGamesOf(r), cmp = rg ? (sameGames(rg, r.games) ? `<div class="rd-row ok-t">報告された結果と、スクショから読み取った結果が一致しています</div>` : `<div class="rd-row warn"><b>報告された結果と、スクショから読み取った結果が違います。</b>読み取り：${rg.map(g => `${g.a}-${g.b}`).join(" / ")}</div>`) : "";
+  return `<div class="rd-box"><div class="dl">スクショの自動読み取り</div>${rows}${cmp}</div>`;
+}
 async function loadShots(r) {
   const out = [];
   for (let i = 0; i < r.shots; i++) { try { const d = await FB.fs.doc(`tournaments/${FB.tid}/reportShots/${r.id}_${i}`).get(); if (d.exists) out.push(d.data().img); } catch (e) {} }
-  shotCache[r.id] = out; return out;
+  shotCache[r.id] = out;
+  const reads = [];
+  for (const u of out) { const f = new File([await (await fetch(u)).blob()], "shot.jpg", { type: "image/jpeg" }); reads.push(await readShotGames(S(), f, null, r.a, r.b)); }
+  shotReads[r.id] = reads; return out;
 }
 async function approveReport(s, r) {
   const games = r.games.map(g => ({ a: g.a, b: g.b, ff: null })), now = new Date().toISOString();
@@ -2041,20 +2105,28 @@ document.addEventListener("change", async ev => {
   if (el.dataset?.repfile) {
     const files = [...el.files]; el.value = ""; if (!files.length || !repDraft) return;
     repDraft.busy = true; render();
-    for (const f of files.slice(0, 6 - repDraft.shots.length)) { try { repDraft.shots.push(await prepShot(f)); } catch (e) { toast(`${f.name}：${e.message}`); } }
-    repDraft.busy = false; render(); return;
+    for (const f of files.slice(0, 6 - repDraft.shots.length)) {
+      let x; try { x = await prepShot(f); } catch (e) { toast(`${f.name}：${e.message}`); continue; }
+      x.games = await readShotGames(S(), f, FB.team); repDraft.shots.push(x);
+    }
+    autoFillReport(); repDraft.busy = false; render(); return;
   }
   if (el.dataset?.rep && repDraft) {
     const k = el.dataset.rep;
-    if (k === "mid") { repDraft = { mid: el.value, games: [], shots: repDraft.shots, note: repDraft.note, busy: false }; render(); return; }
-    if (k === "g") { const i = +el.dataset.i, g = repDraft.games[i] = repDraft.games[i] || {}; g[el.dataset.side] = el.value === "" ? null : +el.value; render(); return; }
+    if (k === "mid") { repDraft = { mid: el.value, games: [], shots: repDraft.shots, note: repDraft.note, busy: false, side: repDraft.side }; autoFillReport(); render(); return; }
+    if (k === "g") { const i = +el.dataset.i, g = repDraft.games[i] = repDraft.games[i] || {}; g[el.dataset.side] = el.value === "" ? null : +el.value; g.auto = false; render(); return; }
     if (k === "note") { repDraft.note = el.value; return; }
+  }
+  if (el.dataset?.repside != null && repDraft) {
+    repDraft.side = repDraft.side || {}; repDraft.side[+el.dataset.repside] = el.value || null;
+    const g = repDraft.games[+el.dataset.repside]; if (g?.auto) repDraft.games[+el.dataset.repside] = null;
+    autoFillReport(); render(); return;
   }
 });
 document.addEventListener("click", async ev => {
   const el = ev.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act, s = S();
-  if (act === "rep-shot-del" && repDraft) { repDraft.shots.splice(+el.dataset.i, 1); render(); return; }
+  if (act === "rep-shot-del" && repDraft) { repDraft.shots.splice(+el.dataset.i, 1); repDraft.games = repDraft.games.map(g => g?.auto ? null : g); autoFillReport(); render(); return; }
   if (act === "rep-send" && repDraft && !repDraft.busy) { const n = $('[data-rep="note"]'); if (n) repDraft.note = n.value; return sendReport(s); }
   if (act === "rep-withdraw") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと取り下げ"; return; }
@@ -2066,6 +2138,7 @@ document.addEventListener("click", async ev => {
   const r = (real.reports || []).find(x => x.id === el.dataset.id);
   if (act === "rep-load" && r) { el.disabled = true; el.textContent = "読み込み中…"; await loadShots(r); render(); return; }
   if (act === "rep-ok" && r && role === "admin") { el.disabled = true; await approveReport(s, r); return; }
+  if (act === "rep-ok-read" && r && role === "admin") { const rg = readGamesOf(r); if (!rg) return; el.disabled = true; await approveReport(s, { ...r, games: rg }); return; }
   if (act === "rep-ng" && r && role === "admin") {
     const reason = ($(`[data-reason="${CSS.escape(r.id)}"]`)?.value || "").trim().slice(0, 200);
     try { await FB.fs.doc(`tournaments/${FB.tid}/reports/${r.id}`).update({ status: "rejected", reason, decidedBy: FB.user.uid, decidedAt: Date.now() }); toast("却下しました"); }
