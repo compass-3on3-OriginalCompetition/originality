@@ -1474,7 +1474,7 @@ function checkPlayer(m, p) {
 // a replay that is not from a custom battle is probably not a tournament match
 function modeWarn_(md) {
   if (!md || md.kind !== "other") return "";
-  return md.sure ? `カスタムバトルではなく「${md.n}」のリプレイです。この対戦の試合か確認してください` : `カスタムバトルではない可能性があります（「${md.n}」に見えます）。この対戦の試合か確認してください`;
+  return "カスタムバトルではない可能性があります。この対戦の試合か確認してください";
 }
 // do the people on the screenshot belong to the two teams of this match?
 function teamCheck(s, u, A, B) {
