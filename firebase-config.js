@@ -8,5 +8,5 @@ window.FIREBASE_CONFIG = {
   messagingSenderId: "975106757224",
   appId: "1:975106757224:web:85c19a9f3b1a048159e1dd",
   // App Check（reCAPTCHA Enterprise）のサイトキー。入れるとこのサイト以外からのアクセスを防げます（空なら使いません）
-  appCheckKey: ""
+  appCheckKey: "6LfwvBIuAAAAADhnG8P10J4Prv1jLeycxdaDXUdE"
 };
