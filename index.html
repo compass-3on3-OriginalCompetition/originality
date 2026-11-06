@@ -2,6 +2,14 @@
 <title>#コンパス 3on3 順位管理</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#080A11">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="3on3順位管理">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -518,6 +526,7 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .netbar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; padding: 8px 16px; background: #2B2414; color: #F2C14B; border-bottom: 1px solid #5A4A1E; font-size: .85rem; text-align: center; }
 .netbar[hidden] { display: none; }
 .netbar.off { background: #2A1418; color: var(--bad); border-color: #5A2028; }
+.installbox { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); font-size: .85rem; margin-bottom: 12px; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -918,9 +927,9 @@ function render() {
   const app = $("#app");
   const gated = FB.on && !demoMode && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id);
   document.body.classList.toggle("gated", gated);
-  if (gated) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = r === "guide" ? viewGuide(true) : viewGate(); return; }
+  if (gated) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
-  const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => viewGuide(false) }[r](s);
+  const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
   app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
 }
 function renderMode() {
@@ -1318,7 +1327,8 @@ function viewGuide(gated) {
     <li>試合が終わったら「<b>結果を運営に報告</b>」で、試合ごとのポータルキーと、<b>その試合のリプレイ画面のスクリーンショットを1試合につき1枚（必須）</b>付けて送ります。送る前なら「外す」で付け直せます。送った後でも、承認される前なら「取り下げる」でスクショごと消せます。スクショを選ぶと、<b>ポータルキーを自動で読み取って結果に入れ</b>、<b>メダル情報が映っているか</b>も確認します（メダル情報が必要な大会で映っていないと送れません）。送れるのは画面のスクショ（PNG・JPEG・WebP）だけで、送る前に端末の中で画像を作り直します。</li>
     <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか・カスタムバトルのリプレイか・映っている人がこの対戦の2チームのメンバーか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。処理が終わった報告は「<b>スクショを削除</b>」で画像を消して、保存容量を空けられます。</li></ul>`)}
   ${sec(9, "スマホで使う", `<ul>
-    <li>Chromeの「︙」→「<b>ホーム画面に追加</b>」で、アプリのようにアイコンから開けます。</li>
+    <li><b>アプリとしてインストール</b>できます。Android・パソコンのChromeでは、最初の画面や「使い方」に出る「アプリとしてインストール」ボタン（または Chromeの「︙」→「<b>アプリをインストール</b>」/「ホーム画面に追加」）から。iPhone・iPadでは、Safariの共有ボタン（□に↑）→「<b>ホーム画面に追加</b>」から。</li>
+    <li>インストールすると、ホーム画面のアイコンから全画面で開けます。結果はそのままリアルタイムで更新され、サイトが新しくなったときは上に「新しいバージョンがあります」と出ます。</li>
     <li>スマホでは、画面の下のボタンでページを切り替えます。</li></ul>`)}
   </div>`;
 }
@@ -2251,7 +2261,7 @@ async function fbBoot(cfg) {
     if (useAC) { try { firebase.appCheck().activate(new firebase.appCheck.ReCaptchaEnterpriseProvider(cfg.appCheckKey), true); } catch (e) { console.warn("App Check", e); } }
     FB.auth = firebase.auth(); FB.fs = firebase.firestore();
     if (cfg.useEmulator) { FB.auth.useEmulator("http://127.0.0.1:9099"); FB.fs.useEmulator("127.0.0.1", 8085); window.__fb = FB; } // local testing only
-  } catch (e) { loadNote = "ログインの仕組みを読み込めませんでした。通信状況を確認して、開き直してください。"; render(); return; }
+  } catch (e) { loadNote = navigator.onLine === false ? "オフラインです。インターネットにつながってから開き直してください。" : "ログインの仕組みを読み込めませんでした。通信状況を確認して、開き直してください。"; render(); paintNet(); return; }
   FB.auth.getRedirectResult().catch(e => toast("ログインできませんでした: " + (e.message || e.code)));
   FB.auth.onAuthStateChanged(async u => {
     FB.user = u; resetData(); FB.tid = null;
@@ -2496,6 +2506,23 @@ addEventListener("offline", paintNet);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkSite(); });
 setInterval(checkSite, 10 * 60 * 1000);
 document.addEventListener("click", ev => { if (ev.target.closest('[data-act="site-reload"]')) location.reload(); });
+/* ---------- install as an app ---------- */
+let installEvt = null;
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; softRender(); });
+addEventListener("appinstalled", () => { installEvt = null; toast("アプリとして追加しました。ホーム画面のアイコンから開けます"); softRender(); });
+function installView() {
+  if (isStandalone()) return "";
+  if (installEvt) return `<div class="installbox"><span>アプリとして入れると、ホーム画面のアイコンから全画面で開けます。</span><button class="btn primary sm" data-act="pwa-install">アプリとしてインストール</button></div>`;
+  if (isIOS()) return `<div class="installbox"><span>iPhone・iPad：Safariの<b>共有ボタン</b>（□に↑）→「<b>ホーム画面に追加</b>」で、アプリとして使えます。</span></div>`;
+  return "";
+}
+document.addEventListener("click", async ev => {
+  if (!ev.target.closest('[data-act="pwa-install"]') || !installEvt) return;
+  const e = installEvt; installEvt = null; e.prompt(); try { await e.userChoice; } catch (er) {} softRender();
+});
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.FIREBASE_CONFIG?.useEmulator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 async function boot() {
   checkSite(); paintNet();
   try { const dl = $("#cardlist"); if (window.CompassReader) dl.innerHTML = CompassReader.cardNames.map(n => `<option value="${esc(n)}"></option>`).join(""); } catch (e) {}
