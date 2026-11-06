@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>#コンパス 3on3 順位管理</title>
+<title>戦闘摂理◆大会システム</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="3on3順位管理">
+<meta name="apple-mobile-web-app-title" content="大会摂理">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -927,7 +927,7 @@ function render() {
   const app = $("#app");
   const gated = FB.on && !demoMode && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id);
   document.body.classList.toggle("gated", gated);
-  if (gated) { $("#evname").innerHTML = "#コンパス <b>3on3</b> 順位管理"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); return; }
+  if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
   const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
   app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
@@ -2411,7 +2411,7 @@ function viewGate() {
   if (!FB.auth) return `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`;
   if (LOCAL.on && !FB.user) return viewLocalLobby();
   if (!FB.user) return `<section class="panel gate"><div class="panel-body">
-      <h2>#コンパス 3on3 順位管理</h2>
+      <h2>戦闘摂理◆大会システム</h2>
       <p>大会の結果入力・順位表・決勝トーナメントを管理します。作った大会は、あなたにしか見えません。ほかの人には、大会ごとに発行するコードを渡して見てもらいます。</p>
       <div class="btns"><button class="btn primary big" data-act="fb-login">Googleでログイン</button><a class="btn" href="#guide">使い方を見る</a></div>
       <div class="local-box"><button class="btn" data-act="lc-start">ログインせずに使う（この端末だけ）</button>
