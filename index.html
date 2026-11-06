@@ -927,10 +927,11 @@ function render() {
   const app = $("#app");
   const gated = FB.on && !demoMode && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id);
   document.body.classList.toggle("gated", gated);
-  if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); return; }
+  if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); if (resumeData) setTimeout(() => applyResume(true), 0); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
   const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
   app.innerHTML = (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
+  if (resumeData) setTimeout(() => applyResume(false), 0);
 }
 function renderMode() {
   const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "観戦者", player: "選手" };
@@ -1328,7 +1329,7 @@ function viewGuide(gated) {
     <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか・カスタムバトルのリプレイか・映っている人がこの対戦の2チームのメンバーか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。処理が終わった報告は「<b>スクショを削除</b>」で画像を消して、保存容量を空けられます。</li></ul>`)}
   ${sec(9, "スマホで使う", `<ul>
     <li><b>アプリとしてインストール</b>できます。Android・パソコンのChromeでは、最初の画面や「使い方」に出る「アプリとしてインストール」ボタン（または Chromeの「︙」→「<b>アプリをインストール</b>」/「ホーム画面に追加」）から。iPhone・iPadでは、Safariの共有ボタン（□に↑）→「<b>ホーム画面に追加</b>」から。</li>
-    <li>インストールすると、ホーム画面のアイコンから全画面で開けます。結果はそのままリアルタイムで更新され、サイトが新しくなったときは上に「新しいバージョンがあります」と出ます。</li>
+    <li>インストールすると、ホーム画面のアイコンから全画面で開けます。結果はそのままリアルタイムで更新されます。サイトが新しくなったときは、入力の切れ目で<b>自動で更新</b>し、入力中の内容（結果報告のポータルキー・スクショ・ひとこと、開いていた対戦、入力欄の文字など）はそのまま戻ります。</li>
     <li>スマホでは、画面の下のボタンでページを切り替えます。</li></ul>`)}
   </div>`;
 }
@@ -2491,7 +2492,52 @@ async function checkSite() {
   if (!/^https?:$/.test(location.protocol) || newSite) return;
   const v = await siteVersion(); if (!v) return;
   if (siteTag == null) { siteTag = v; return; }
-  if (v !== siteTag) { newSite = true; paintNet(); }
+  if (v !== siteTag) { newSite = true; paintNet(); autoUpdate(); }
+}
+/* the site updates itself: wait for a quiet moment, keep what is being typed, reload, then put it back */
+const RESUME_KEY = "compass3on3_resume";
+let resumeData = null, autoTimer = null;
+function quietNow() {
+  const a = document.activeElement;
+  if (a && a.matches && a.matches("input:not([type=file]):not([type=checkbox]):not([type=radio]), textarea, select")) return false;   // someone is typing
+  if (FB.busy || (repDraft && repDraft.busy) || (scan && scan.busy) || createDlg) return false;
+  if (Object.values(saveQ).some(q => q.busy || q.has)) return false;                                              // still saving
+  return true;
+}
+function saveResume() {
+  const inputs = {};
+  document.querySelectorAll("input[id], textarea[id]").forEach(el => { if (!["file", "password", "checkbox", "radio", "hidden"].includes(el.type) && el.value) inputs[el.id] = el.value; });
+  const st = { at: Date.now(), tid: FB.tid || LOCAL.id || null, hash: location.hash, y: scrollY, setOpen, pcSel, inputs,
+    editor: openId && draft ? { id: openId, base: { kind: draft.kind, group: draft.group, a: draft.a, b: draft.b, key: draft.key } } : null,
+    rep: repDraft ? { ...repDraft, busy: false } : null };
+  try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(st)); return true; }
+  catch (e) {   // too big for the browser (screenshots): keep everything but the pictures
+    if (st.rep) { st.rep = { ...st.rep, shots: [] }; st.shotsDropped = true; try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(st)); return true; } catch (e2) {} }
+    return false;
+  }
+}
+function reloadKeeping() { saveResume(); location.reload(); }
+function autoUpdate() {
+  if (autoTimer) return;
+  autoTimer = setInterval(() => { if (quietNow()) { clearInterval(autoTimer); reloadKeeping(); } }, 3000);
+}
+try { const r = JSON.parse(sessionStorage.getItem(RESUME_KEY) || "null"); sessionStorage.removeItem(RESUME_KEY); if (r && Date.now() - r.at < 5 * 60 * 1000) resumeData = r; } catch (e) {}
+// put the saved state back once the page is ready again (called at the end of render)
+function applyResume(gated) {
+  const r = resumeData; if (!r) return;
+  const here = FB.tid || LOCAL.id || null;
+  if (gated) { if (!FB.auth || FB.busy || (FB.user && r.tid)) return; }      // wait: the tournament is still opening
+  else if (!S().loaded || here !== r.tid) { if (S().loaded && here !== r.tid) resumeData = null; return; }
+  resumeData = null;
+  if (!gated) {
+    setOpen = !!r.setOpen; pcSel = r.pcSel || "";
+    if (r.rep && role === "player") repDraft = r.rep;
+    if (r.editor) { openId = null; openEditor(r.editor.id, r.editor.base); }
+    render();
+  }
+  for (const [id, v] of Object.entries(r.inputs || {})) { const el = document.getElementById(id); if (el && !el.value) el.value = v; }
+  if (r.y) setTimeout(() => scrollTo(0, r.y), 50);
+  toast(r.shotsDropped ? "サイトを新しいバージョンに更新しました。入力中の内容は戻しましたが、選んだスクショだけは選び直してください" : "サイトを新しいバージョンに更新しました（入力中の内容はそのままです）");
 }
 function paintNet() {
   const el = $("#netbar"); if (!el) return;
@@ -2499,13 +2545,13 @@ function paintNet() {
   el.hidden = !off && !newSite;
   el.className = "netbar" + (off ? " off" : "");
   el.innerHTML = off ? "オフラインです。つながると、自動で最新の結果に更新されます。"
-    : newSite ? `このサイトの新しいバージョンがあります。<button class="btn sm" data-act="site-reload">更新する</button><span class="muted-s">（入力中の報告は消えます）</span>` : "";
+    : newSite ? `新しいバージョンがあります。入力の切れ目で、入力中の内容を保ったまま自動で更新します。<button class="btn sm" data-act="site-reload">今すぐ更新</button>` : "";
 }
 addEventListener("online", () => { paintNet(); checkSite(); });
 addEventListener("offline", paintNet);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkSite(); });
 setInterval(checkSite, 10 * 60 * 1000);
-document.addEventListener("click", ev => { if (ev.target.closest('[data-act="site-reload"]')) location.reload(); });
+document.addEventListener("click", ev => { if (ev.target.closest('[data-act="site-reload"]')) reloadKeeping(); });
 /* ---------- install as an app ---------- */
 let installEvt = null;
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
