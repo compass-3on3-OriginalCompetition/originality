@@ -595,18 +595,46 @@ function modeNameMasks() {
   return modeMasks;
 }
 // the label taken from real バトルアリーナ replays (same font as the game): the surest way to say "this is not a custom battle"
+const CUSTOM_T = { m: Float32Array.from("002e0000002efdaff700002f20000000001d30000000850762c200c1000000000c25b000005e00000017777bf700008f31111100007f00000001d507c47100f1000000000d45b00089efb99960000003f40000bffffff80000a900000001f502e00000f5000000002e35b0005dfed89fa0000009a00001f75555b80002e400000002f002f30000ffa10000003d05b00000d8000ca000002e400004f10000980006e000000007e001e50000fbf50000004d05b00001d4000ca000007d00000bc6a000e40009a000000008a000b50000f37d2000008c05b00203e3000ca00001de40000953e405e2001e400006100ca000b90000f11eeba0008805b01e03d0000aa00007edd1000000becec0005d10001e500c50007a0000f105aa9000a805b01f08d00007a0000c92e600000018af7000e800002f501d40006e1000f100000000e305b01f08800009a0003f407e000000000f4004f200002f505f30004f3000f100000000e205b01f7e80068f7047db001d91007777cf1005fa7777df30de00001fd100f100000006f205f7affe100cfc208ff30003f106fffff80005febfffe502e6000008d100c10000000aa002fff7", c => parseInt(c, 16) / 15), r: 8.0 };
 const ARENA_T = { m: Float32Array.from("005604a48200c4000000000b52c0000188888888103b000009800000000000000005900000a804c17200c4000000001f23d00002eeeeeeef706f10000b80000000000000000ac00000d304e10000c5100000001f03d000000000000e706f10000c80000000000001222ae32203f300e20000cfb10000001f03d000000017000b706f10000e80000000000009ffffffff03e100e60000c8e70000002e03d00000004c0009706f10000e80000000000003555bd55507d000c80000c49c2000006a03d00300004e542d706c00000d800bbbbbbba1000006c00009b000890000c41ddbb0008a03d04e10004fffef60490000098008b59bbb71000004c0000d80008d0000c404aaa000c803d05f10004f83330001000009800000000000000009c0000e30004d0000c400000000c403d05f10004d0000000000000980000000000000000ac0002e20002e3000c400000002f403d05d10006c0000000000000d80000000000000000ac000ce10000db000c40000000af203f8cb0177ec0000000047779f50000000000000377f9000c9000005e000a40000000a9003fff602fff5000000009ffffd10000000000000dffd3000", c => parseInt(c, 16) / 15), r: 8.04 };
 // result: { kind: "custom" | "other" | null, n: the closest mode name, sure }
 function modeOf(img, box) {
   try {
     const m = maskFrom(img, box, modeTxt, 72, 12); if (!m) return null;
-    const dA = maskSim(m, ARENA_T);
+    const dC = maskSim(m, CUSTOM_T), dA = maskSim(m, ARENA_T);
+    if (dC < 0.42 && dC < dA) return { kind: "custom", n: "カスタムバトル", sure: true, d: +dC.toFixed(3) };
     if (dA < 0.42) return { kind: "other", n: "バトルアリーナ", sure: true, d: +dA.toFixed(3) };
     const ds = modeNameMasks().map(x => ({ n: x.n, d: maskSim(m, x.m) })).sort((a, b) => a.d - b.d);
     const gap = ds[1].d - ds[0].d;
     if (ds[0].n === "カスタムバトル") return { kind: gap >= 0.03 ? "custom" : null, n: ds[0].n, sure: false, d: +ds[0].d.toFixed(3), dA: +dA.toFixed(3) };
     return { kind: gap >= 0.05 ? "other" : null, n: ds[0].n, sure: false, d: +ds[0].d.toFixed(3), dA: +dA.toFixed(3) };
   } catch (e) { return null; }
+}
+// the section banners of the replay list (a black band between two orange lines): "▼注目のバトル" / "▼〇〇の過去バトル"
+function sectionBanners(img) {
+  const W = img.width, H = img.height, D = img.data, xs = []; for (let x = Math.round(W * 0.1); x < W * 0.9; x += 4) xs.push(x);
+  const runs = []; let a = -1;
+  for (let y = 0; y < H; y++) {
+    let n = 0; for (const x of xs) { const q = (y * W + x) * 4, r = D[q], g = D[q + 1], b = D[q + 2]; if (r > 90 && r < 215 && g > 45 && g < 140 && b < 70 && r - g > 28) n++; }
+    const on = n > xs.length * 0.7;
+    if (on && a < 0) a = y; if (!on && a >= 0) { runs.push([a, y]); a = -1; }
+  }
+  if (a >= 0) runs.push([a, H]);
+  const out = [];
+  for (let i = 0; i + 1 < runs.length; i++) {
+    const gap = runs[i + 1][0] - runs[i][1];
+    if (gap < W * 0.012 || gap > W * 0.09) continue;
+    out.push({ fy0: runs[i][0] / H, fy1: runs[i + 1][1] / H });
+    i++;
+  }
+  return out;
+}
+// is this replay in the "注目のバトル" section? That section is always at the very top of the list and the
+// player's own "▼〇〇の過去バトル" banner always comes after it, so: anything above the last banner is someone else's match.
+// (When only one banner shows and nothing is above it, it is taken as the player's own banner.)
+function featuredUnit(u, banners) {
+  if (u.fy0 == null || !banners.length) return false;
+  return u.fy0 < banners[banners.length - 1].fy0;
 }
 function cropURL(im, box, maxW) {
   const [x0, y0, x1, y1] = box.map(Math.round);
@@ -621,7 +649,7 @@ function sliceUnits(c, img, name, at0) {
   sp.cards.forEach((k, j) => {
     const sc = document.createElement('canvas'); sc.width = c.width; sc.height = k.y1 - k.y0;
     sc.getContext('2d').drawImage(c, 0, k.y0, c.width, k.y1 - k.y0, 0, 0, c.width, k.y1 - k.y0);
-    units.push({ im: sc, img: new ImageData(img.data.slice(k.y0 * c.width * 4, k.y1 * c.width * 4), c.width, k.y1 - k.y0), name: `${name}（${j + 1}試合目）`, at: at0 - j * 1000 });
+    units.push({ im: sc, img: new ImageData(img.data.slice(k.y0 * c.width * 4, k.y1 * c.width * 4), c.width, k.y1 - k.y0), name: `${name}（${j + 1}試合目）`, at: at0 - j * 1000, fy0: k.y0 / c.height, fy1: k.y1 / c.height });
   });
   return { units, skipped: sp.skipped };
 }
@@ -749,9 +777,10 @@ async function readFile(file) {
     const im = L.im, c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
     const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(im, 0, 0);
     const img = ctx.getImageData(0, 0, c.width, c.height);
-    const rd = readBest(c, img, file.name || 'スクショ', Date.now());
+    const rd = readBest(c, img, file.name || 'スクショ', Date.now()), banners = sectionBanners(img);
     const out = [];
     for (const u of rd.units) {
+      if (featuredUnit(u, banners)) continue; // a match in "▼注目のバトル" is someone else's, not this player's
       let a; try { a = Core.analyze(u.img, () => false); } catch (e) { continue; }
       const players = a.panels.filter(p => !p.empty).map(p => ({
         side: p.side, idx: p.idx,
