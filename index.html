@@ -294,6 +294,7 @@ button.bx:hover { border-color: #fff; }
 
 /* ---------- phones ---------- */
 .bnav { display: none; }
+#tabs a[hidden], .bnav a[hidden] { display: none !important; }
 .mtree { display: none; }
 @media (max-width: 640px) {
   .bracket-stage { display: none; }
@@ -322,7 +323,7 @@ button.bx:hover { border-color: #fff; }
 }
 @media (max-width: 600px) {
   nav.tabs { display: none; }
-  .bnav { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--surface); border-top: 1px solid var(--line);
+  .bnav { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--surface); border-top: 1px solid var(--line);
     padding: 4px max(4px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)); }
   .bnav a { display: grid; justify-items: center; gap: 2px; padding: 6px 0 4px; color: var(--muted); text-decoration: none; font-size: .68rem; font-weight: 700; border-radius: 10px; }
   .bnav a svg { width: 22px; height: 22px; }
@@ -468,6 +469,13 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .srow .sc { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
 .srow select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); max-width: 100%; }
 .chk { display: inline-flex; gap: 6px; align-items: center; font-size: .88rem; }
+.fmcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.fmcard { display: grid; align-content: start; gap: 4px; padding: 10px 12px 10px 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; position: relative; }
+.fmcard input { position: absolute; left: 12px; top: 13px; width: 16px !important; height: 16px; margin: 0; padding: 0; min-height: 0; accent-color: var(--accent, #E8384F); }
+.fmcard.on { border-color: var(--accent, #E8384F); box-shadow: 0 0 0 1px var(--accent, #E8384F) inset; }
+.mc-t { font-weight: 700; }
+.mc-d { font-size: .78rem; color: var(--muted); line-height: 1.5; }
+.crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
 details.spanel > summary::-webkit-details-marker { display: none; }
@@ -527,14 +535,14 @@ const num = v => (v === "" || v == null || isNaN(+v)) ? null : +v;
 const pct = (w, gp) => gp ? (w / gp * 100).toFixed(1) + "%" : "—";
 const uid = () => "t" + Math.random().toString(36).slice(2, 8);
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2600); }
-const teamsOf = (s, g) => (s.config?.teams || []).filter(t => t.group === g);
+const teamsOf = (s, g) => (s.config?.teams || []).filter(t => t.group === g || (g === "A" && SETS(s).format === "group" && SETS(s).groups === 1));
 const teamName = (s, id) => (s.config?.teams || []).find(t => t.id === id)?.name || "（未定）";
 const mid = (g, a, b) => g + "_" + [a, b].sort().join("_");
 const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
-const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, coldAfter: 2, coldDiff: 6, rankBy: "keys", koBest: 3, third: true,
-  swissRounds: 5, swissAdvance: 4, maxTeams: 12, submitHeroes: true, submitDecks: true, requireMedalShot: true };
+const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, coldAfter: 2, coldDiff: 6, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
+  swissRounds: 5, swissAdvance: 0, maxTeams: 12, submitHeroes: true, submitDecks: true, requireMedalShot: true };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -542,11 +550,34 @@ function SETS(st) {
   if (x.games < 2) x.cold = false;
   x.groups = Math.max(1, Math.min(4, +x.groups || 2));
   x.koBest = [1, 3, 5].includes(+x.koBest) ? +x.koBest : 3;
+  // older tournaments only had rankBy (keys first / win rate first)
+  const own = (st || S())?.config?.settings || {};
+  if (!own.rank1) { x.rank1 = x.rankBy === "wins" ? "grate" : "keys"; x.rank2 = x.rankBy === "wins" ? "keys" : "grate"; x.rank3 = ""; }
+  x.ranks = [x.rank1, x.rank2, x.rank3].filter((k, i, a) => CRIT[k] && a.indexOf(k) === i);
+  if (!x.ranks.length) x.ranks = ["keys", "grate"];
+  x.mode = x.format === "group" ? (+x.advance > 0 ? "group_ko" : "group") : x.format;
   return x;
 }
+// ranking criteria the organiser can pick (in order)
+const CRIT = {
+  keys: { ja: "取得ポータルキー数", note: "全試合で取ったポータルキーの合計", v: r => r.keys },
+  keydiff: { ja: "ポータルキー差", note: "取ったポータルキー − 取られたポータルキー", v: r => r.keys - r.against },
+  gwins: { ja: "勝利数（試合ごと）", note: "1試合勝つごとに1勝", v: r => r.w },
+  grate: { ja: "勝率（試合ごと）", note: "勝利数 ÷ 試合数（引き分けも試合数に含む）", v: r => r.gp ? r.w / r.gp : 0 },
+  mwins: { ja: "対戦の勝利数（勝ち越しで1勝）", note: "1対戦で相手より多く勝てば1勝。3試合で1勝2敗なら0勝", v: r => r.mw },
+  mrate: { ja: "対戦の勝率（勝ち越しで1勝）", note: "勝ち越した対戦の数 ÷ 終わった対戦の数", v: r => r.mp ? r.mw / r.mp : 0 },
+  mpts: { ja: "勝ち点（対戦ごと）", note: "1対戦で勝ち越し3点・五分1点・負け越し0点", v: r => 3 * r.mw + r.md },
+  gpts: { ja: "勝ち点（試合ごと）", note: "1試合ごとに勝ち3点・引き分け1点・負け0点", v: r => 3 * r.w + r.d },
+};
+const MODES = {
+  group_ko: { ja: "総当たり → トーナメント", desc: ["グループ内の全チームと1回ずつ対戦し、上位チームが決勝トーナメントに進みます。", "対戦数が多く、実力が順位に出やすい形式です。そのぶん時間がかかります。"] },
+  group: { ja: "総当たりのみ", desc: ["全チーム（グループに分けたときはグループ内の全チーム）と1回ずつ対戦し、順位表の順位がそのまま最終順位になります。", "トーナメントはありません。チーム数が多いと対戦数が大きく増えます（6チームで15対戦、12チームで66対戦）。"] },
+  knockout: { ja: "トーナメントのみ", desc: ["負けたらそこで終わりの勝ち抜き戦です。いちばん短い時間で優勝が決まります。", "1回負けたチームはそれ以降試合がありません。チーム数が4・8・16…でないときは、不戦勝の枠ができます。"] },
+  swiss: { ja: "スイスドローのみ", desc: ["毎ラウンド、成績の近いチーム同士が対戦します（同じ相手とは2回当たりません）。", "勝っても負けても、全チームが同じラウンド数を戦います。総当たりより少ない対戦数で順位が決まります。チーム数が奇数だと、毎ラウンド1チームが休みになります。"] },
+};
+const fmtJa = set => set.format === "swiss" && +set.swissAdvance > 0 ? "スイスドロー → トーナメント" : MODES[set.mode]?.ja || "";
 const GROUP_IDS = ["A", "B", "C", "D"];
 const groupsOf = st => SETS(st).format === "group" ? GROUP_IDS.slice(0, SETS(st).groups) : [];
-const FORMAT_JA = { group: "グループ総当たり → 決勝トーナメント", knockout: "トーナメントのみ", swiss: "スイスドロー → 決勝トーナメント" };
 
 /* ---------- rules engine ---------- */
 // circle method: n teams -> n-1 rounds (even) / n rounds (odd, one bye per round)
@@ -613,7 +644,7 @@ function evalBo3(m, set) {
 // one league table (a group, or the whole swiss stage). pairs: [[matchId, x, y]]
 function leagueTable(s, teams, pairs, tbKey, advance) {
   const set = SETS(s), st = {}, h2h = {};
-  teams.forEach(t => { st[t.id] = { id: t.id, name: t.name, keys: 0, against: 0, w: 0, d: 0, l: 0, gp: 0, mp: 0, left: 0 }; h2h[t.id] = {}; });
+  teams.forEach(t => { st[t.id] = { id: t.id, name: t.name, keys: 0, against: 0, w: 0, d: 0, l: 0, gp: 0, mp: 0, mw: 0, md: 0, ml: 0, left: 0 }; h2h[t.id] = {}; });
   let done = 0;
   for (const [id, x, y] of pairs) {
     if (!st[x] || !st[y]) continue;
@@ -629,17 +660,20 @@ function leagueTable(s, teams, pairs, tbKey, advance) {
       else if (q.r === "b") { B.w++; A.l++; h2h[m.b][m.a] = (h2h[m.b][m.a] || 0) + 1; }
       else { A.d++; B.d++; }
     }
-    if (e.done) { A.mp++; B.mp++; done++; }
+    if (e.done) {
+      A.mp++; B.mp++; done++;
+      const wa = e.games.filter(q => q.r === "a").length, wb = e.games.filter(q => q.r === "b").length;
+      if (wa > wb) { A.mw++; B.ml++; } else if (wb > wa) { B.mw++; A.ml++; } else { A.md++; B.md++; }
+    }
   }
   const rows = Object.values(st);
-  const rate = r => r.gp ? r.w / r.gp : 0;
-  const eqRate = (a, b) => a.w * b.gp === b.w * a.gp || (!a.gp && !b.gp);
-  // ranking: portal keys first (the original rules) or win rate first
-  rows.sort((a, b) => set.rankBy === "wins" ? (rate(b) - rate(a) || b.keys - a.keys || a.name.localeCompare(b.name, "ja")) : (b.keys - a.keys || rate(b) - rate(a) || a.name.localeCompare(b.name, "ja")));
+  // ranking: the criteria the organiser chose, in order
+  const cmp = (a, b) => { for (const k of set.ranks) { const d = CRIT[k].v(b) - CRIT[k].v(a); if (Math.abs(d) > 1e-9) return d; } return 0; };
+  rows.sort((a, b) => cmp(a, b) || a.name.localeCompare(b.name, "ja"));
   const tiers = [];
   for (const r of rows) {
     const last = tiers[tiers.length - 1];
-    if (last && last[0].keys === r.keys && eqRate(last[0], r)) last.push(r); else tiers.push([r]);
+    if (last && cmp(last[0], r) === 0) last.push(r); else tiers.push([r]);
   }
   const tb = s.config?.tiebreak?.[tbKey] || [];
   const ordered = [], issues = [];
@@ -801,7 +835,10 @@ function render() {
   renderPending = false;
   const s = S(), r = route();
   document.querySelectorAll("#tabs a, #bnav a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + r ? "page" : "false"));
-  { const ko = SETS(s).format === "knockout", t = $('#tabs a[href="#bracket"]'); if (t) t.textContent = ko ? "トーナメント" : "決勝トーナメント"; }
+  { const set = SETS(s), ko = set.format === "knockout", t = $('#tabs a[href="#bracket"]'); if (t) t.textContent = ko ? "トーナメント" : "決勝トーナメント";
+    const noKo = !ko && (set.format === "group" ? !(+set.advance > 0) : !(+set.swissAdvance > 0));
+    document.querySelectorAll('#tabs a[href="#bracket"], #bnav a[href="#bracket"]').forEach(a => a.hidden = noKo);
+    if (noKo && r === "bracket") { location.replace("#standings"); return; } }
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : "#コンパス <b>3on3</b> 大会";
   renderMode();
   const app = $("#app");
@@ -822,10 +859,10 @@ function renderMode() {
 }
 function noTeams() {
   return `<div class="panel"><div class="empty"><strong>まだチームが登録されていません</strong>
-    <span>「チーム設定」でチーム名を登録すると、大会の設定（${esc(FORMAT_JA[SETS().format])}）に合わせて、対戦表と順位表が自動で作られます。</span>
+    <span>「チーム設定」でチーム名を登録すると、大会の設定（${esc(fmtJa(SETS()))}）に合わせて、対戦表と順位表が自動で作られます。</span>
     <div class="btns"><a class="btn primary" href="#teams">チーム設定へ</a><button class="btn" data-act="demo-on">デモで動きを見る</button></div></div></div>`;
 }
-function gtitle(g) { return `<h2><span class="gtag ${g}">${g}</span>グループ${g}</h2>`; }
+function gtitle(g) { return SETS().groups > 1 || SETS().format !== "group" ? `<h2><span class="gtag ${g}">${g}</span>グループ${g}</h2>` : `<h2>総当たり</h2>`; }
 
 const ORD = n => n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th");
 const abbr = t => esc(t?.abbr || [...(t?.name || "?").replace(/^【デモ】/, "")].slice(0, 2).join(""));
@@ -840,19 +877,28 @@ function crossCell(s, g, me, op) {
   return `<td class="cell ${res[0]}"><div class="box"><span class="r">${res[1]}</span><span class="sc">${mw} - ${ow}</span><span class="pk">ポータルキー ${mk}-${ok}${e.cold ? " ・C" : ""}</span></div></td>`;
 }
 function rkCellOf(r, adv) { const top = r.rank <= adv && !r.tied; return `<td class="rk ${top ? "top" : ""}">${ORD(r.rank)}${r.tied ? "<small>同率</small>" : r.why ? `<small>${r.why}</small>` : ""}</td>`; }
+const EXTRA_COL = {
+  keydiff: ["ポータルキー差", r => (r.keys - r.against > 0 ? "+" : "") + (r.keys - r.against)],
+  mwins: ["対戦 勝-分-負", r => `${r.mw}-${r.md}-${r.ml}`],
+  mrate: ["対戦の勝率", r => pct(r.mw, r.mp)],
+  mpts: ["勝ち点", r => 3 * r.mw + r.md],
+  gpts: ["勝ち点", r => 3 * r.w + r.d],
+};
 function statTable(s, teams, byId, adv) {
+  const set = SETS(s), ex = set.ranks.filter(k => EXTRA_COL[k]).filter((k, i, a) => !(k === "mrate" && a.includes("mwins")));
+  if (ex.includes("mrate") && !ex.includes("mwins")) ex.unshift("mwins");
   const teamTh = t => `<th class="team" scope="row"><span class="tn"><span class="ab">${abbr(t)}</span><span>${esc(t.name)}</span></span></th>`;
-  return `<div class="grid-wrap"><table class="xt stats"><thead><tr><th></th><th class="sh">勝利</th><th class="sh">負け</th><th class="sh">引き分け</th><th class="sh">勝率</th><th class="sh">取得ポータルキー</th><th class="sh">残り試合数</th><th class="rkh">順位</th></tr></thead><tbody>
-      ${teams.map(t => { const r = byId[t.id]; return r ? `<tr>${teamTh(t)}<td class="n">${r.w}</td><td class="n">${r.l}</td><td class="n">${r.d}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n pk">${r.keys}</td><td class="n">${r.left}</td>${rkCellOf(r, adv)}</tr>` : ""; }).join("")}</tbody></table></div>`;
+  return `<div class="grid-wrap"><table class="xt stats"><thead><tr><th></th><th class="sh">勝利</th><th class="sh">負け</th><th class="sh">引き分け</th><th class="sh">勝率</th><th class="sh">取得ポータルキー</th>${ex.map(k => `<th class="sh">${EXTRA_COL[k][0]}</th>`).join("")}<th class="sh">残り試合数</th><th class="rkh">順位</th></tr></thead><tbody>
+      ${teams.map(t => { const r = byId[t.id]; return r ? `<tr>${teamTh(t)}<td class="n">${r.w}</td><td class="n">${r.l}</td><td class="n">${r.d}</td><td class="n">${pct(r.w, r.gp)}</td><td class="n pk">${r.keys}</td>${ex.map(k => `<td class="n">${EXTRA_COL[k][1](r)}</td>`).join("")}<td class="n">${r.left}</td>${rkCellOf(r, adv)}</tr>` : ""; }).join("")}</tbody></table></div>`;
 }
 function issuesView(s, st, key, stage) {
   return st.issues.map(is => `<div class="issue"><div><strong>${ORD(is.rank)}〜${ORD(is.rank + is.ids.length - 1)}が並んでいます</strong>：${is.ids.map(id => esc(teamName(s, id))).join("、")}<br>
       ${st.complete ? `${is.method}で決めてください。` : `${stage}終了後も並んだ場合は、${is.method}で決めます。`}</div>
       ${role === "admin" && st.complete ? tieForm(s, key, is) : ""}</div>`).join("") + ((s.config?.tiebreak?.[key] || []).length && role === "admin" ? `<div class="btns"><button class="btn ghost" data-act="tb-clear" data-g="${key}">順位決定の入力を取り消す</button></div>` : "");
 }
-function rankLegend(set) {
-  return set.rankBy === "wins" ? "① 勝率（勝利数 ÷ 試合数、引き分け含む） → ② 取得ポータルキーの合計" : "① 取得ポータルキーの合計 → ② 勝率（勝利数 ÷ 試合数、引き分け含む）";
-}
+const CIRC = "①②③④⑤⑥⑦";
+function rankSteps(set) { return set.ranks.map(k => CRIT[k].ja).concat(["当該チーム同士の対戦結果", "引き分けの数が多いチーム", "順位決定戦／運営抽選"]); }
+function rankLegend(set) { return rankSteps(set).map((x, i) => CIRC[i] + " " + x).join(" → "); }
 function viewStandings(s) {
   if (!(s.config?.teams || []).length) return noTeams();
   const set = SETS(s);
@@ -863,7 +909,7 @@ function viewStandings(s) {
     return `<section class="board"><div class="gband"><h2>Swiss <b>${swissRounds(s).length}/${set.swissRounds}</b></h2></div>
       <span class="meta" style="text-align:center;color:var(--muted);font-size:.75rem;margin-top:-10px">${st.done}/${st.total} 対戦終了</span>
       ${statTable(s, sorted, byId, set.swissAdvance)}${issuesView(s, st, "S", "スイスドロー")}</section>
-      <div class="legend"><span>順位の決め方：${rankLegend(set)} → ③ 当該チーム同士の対戦結果 → ④ 引き分けの数 → ⑤ 順位決定戦／運営抽選。${set.swissAdvance ? `金色＝決勝トーナメント進出（上位${set.swissAdvance}チーム）` : ""}</span></div>
+      <div class="legend"><span>順位の決め方：${rankLegend(set)}。${set.swissAdvance ? `金色＝決勝トーナメント進出（上位${set.swissAdvance}チーム）` : ""}</span></div>
       <div class="btns"><button class="btn" data-act="copy">Discord用にコピー</button></div>`;
   }
   const boards = groupsOf(s).filter(g => teamsOf(s, g).length).map(g => {
@@ -875,13 +921,13 @@ function viewStandings(s) {
       ${teams.map(t => `<tr>${teamTh(t)}${teams.map(o => o.id === t.id ? `<td class="diag"></td>` : crossCell(s, g, t.id, o.id)).join("")}${rkCell(byId[t.id])}</tr>`).join("")}</tbody></table></div>`;
     const stat = statTable(s, teams, byId, set.advance);
     const issues = issuesView(s, st, g, "グループ戦");
-    return `<section class="board"><div class="gband"><h2>Group <b>${g}</b></h2></div>
+    return `<section class="board"><div class="gband"><h2>${set.groups > 1 ? `Group <b>${g}</b>` : "League"}</h2></div>
       <span class="meta" style="text-align:center;color:var(--muted);font-size:.75rem;margin-top:-10px">${st.done}/${st.total} 対戦終了${st.complete ? " ・ グループ戦終了" : ""}</span>
       ${xt}${stat}${issues}</section>`;
   }).join("");
   return `${boards}
     <div class="legend"><span>表の見方：行のチームから見た対戦結果。上段＝勝敗、中段＝試合の勝ち数、下段＝取得ポータルキー。C＝コールド勝ち、点線枠＝対戦途中</span>
-    <span>順位の決め方：${rankLegend(set)} → ③ 当該チーム同士の対戦結果 → ④ 引き分けの数が多いチーム → ⑤ 順位決定戦／運営抽選。${set.advance ? `金色＝決勝トーナメント進出（各グループ上位${set.advance}チーム）` : ""}</span></div>
+    <span>順位の決め方：${rankLegend(set)}。${set.advance ? `金色＝決勝トーナメント進出（各グループ上位${set.advance}チーム）` : ""}</span></div>
     <div class="btns"><button class="btn" data-act="copy">Discord用にコピー</button></div>`;
 }
 function tieForm(s, g, is) {
@@ -1042,7 +1088,7 @@ function viewTeams(s) {
     return `<div class="notice">チームの登録は運営が行います。</div><div class="groups two">${list}</div>`;
   }
   if (!teamDraft) teamDraft = { eventName: s.config?.eventName || "", teams: (s.config?.teams || []).map(t => ({ ...t })) };
-  const d = teamDraft, n = d.teams.length, set = SETS(s), G = groupsOf(s), maxT = Math.max(2, +set.maxTeams || 12);
+  const d = teamDraft, n = d.teams.length, set = SETS(s), G = set.groups > 1 ? groupsOf(s) : [], maxT = Math.max(2, +set.maxTeams || 12);
   const counts = G.map(g => d.teams.filter(t => t.group === g).length), spread = counts.length ? Math.max(...counts) - Math.min(...counts) : 0;
   const hasResults = Object.keys(s.matches).length > 0;
   const rows = d.teams.map((t, i) => `<div class="trow"><span class="ix">${i + 1}</span>
@@ -1056,7 +1102,7 @@ function viewTeams(s) {
       <div class="counts"><span>登録 ${n} チーム</span>${G.map((g, k) => `<span>${g}：${counts[k]}</span>`).join("")}${spread > 1 ? `<span style="color:var(--bad)">グループのチーム数の差が2以上あります</span>` : ""}</div>
       <div class="btns">
         <button class="btn" data-act="t-add" ${n >= maxT ? "disabled" : ""}>チームを追加</button>
-        ${set.format === "swiss" ? "" : `<button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>${set.format === "knockout" ? "抽選で組み合わせを決める" : "抽選でグループ分け"}</button>`}
+        ${set.format === "swiss" || (set.format === "group" && set.groups === 1) ? "" : `<button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>${set.format === "knockout" ? "抽選で組み合わせを決める" : "抽選でグループ分け"}</button>`}
         <span class="savest" id="savest" style="margin-left:auto">${esc(saveStatus) || "変更は自動で保存されます"}</span></div>
       <div class="notice">${set.format === "knockout" ? "トーナメントの組み合わせは、この一覧の順番（1番から）で決まります。抽選を押すと順番をランダムに並べ替えます。" : set.format === "swiss" ? "スイスドローの組み合わせは、「対戦表・結果入力」でラウンドごとに作ります。" : `抽選は全チームをランダムに並べ替えて、${G.join("・")}に同数ずつ振り分けます。割り切れないときは、どのグループが多くなるかも抽選です。`}${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
     </div></section>${sharePanel()}${membersPanel(s)}${memPromptView()}`;
@@ -1069,22 +1115,31 @@ function settingsForm(set, id) {
   const chk = (k, t) => `<label class="chk" for="${id}-${k}"><input type="checkbox" id="${id}-${k}" data-set="${k}" ${set[k] ? "checked" : ""}> ${t}</label>`;
   const row = (lab, ctrl, note) => `<div class="srow"><span class="sl">${lab}</span><div class="sc">${ctrl}${note ? `<span class="muted-s">${note}</span>` : ""}</div></div>`;
   const nums = (a, b, f = x => x) => Array.from({ length: b - a + 1 }, (_, i) => [a + i, f(a + i)]);
-  const league = set.format !== "knockout", ko = set.format === "knockout" || (set.format === "group" ? +set.advance > 0 : +set.swissAdvance > 0);
+  const mode = set.mode, league = mode !== "knockout", ko = mode === "knockout" || mode === "group_ko" || (mode === "swiss" && +set.swissAdvance > 0);
+  const modeCards = Object.entries(MODES).map(([k, m]) => `<label class="fmcard ${mode === k ? "on" : ""}" for="${id}-mode-${k}"><input type="radio" name="${id}-mode" id="${id}-mode-${k}" data-set="mode" value="${k}" ${mode === k ? "checked" : ""}>
+      <span class="mc-t">${esc(m.ja)}</span>${m.desc.map(d => `<span class="mc-d">${esc(d)}</span>`).join("")}</label>`).join("");
+  const critOpts = first => (first ? [] : [["", "なし"]]).concat(Object.entries(CRIT).map(([k, c]) => [k, c.ja]));
   return `<div class="sform">
-    <div class="sgroup"><div class="sg-t">形式</div>
-      ${row("大会の形式", sel("format", [["group", FORMAT_JA.group], ["knockout", FORMAT_JA.knockout], ["swiss", FORMAT_JA.swiss]], "大会の形式"))}
-      ${set.format === "group" ? row("グループの数", sel("groups", nums(1, 4, x => `${x}グループ`), "グループの数")) + row("決勝トーナメントに進む数", sel("advance", [[0, "なし（グループ戦だけ）"], [1, "各グループ1位"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]], "決勝トーナメントに進む数")) : ""}
-      ${set.format === "swiss" ? row("ラウンド数", sel("swissRounds", nums(2, 9, x => `${x}ラウンド`), "ラウンド数")) + row("決勝トーナメントに進む数", sel("swissAdvance", [[0, "なし（スイスドローだけ）"], [2, "上位2チーム"], [4, "上位4チーム"], [8, "上位8チーム"]], "決勝トーナメントに進む数")) : ""}
+    <div class="sgroup"><div class="sg-t">大会の形式</div><div class="fmcards">${modeCards}</div>
+      ${mode.startsWith("group") ? row("グループの数", sel("groups", nums(1, 4, x => x === 1 ? "分けない（全チームで総当たり）" : `${x}グループ`), "グループの数")) : ""}
+      ${mode === "group_ko" ? row("トーナメントに進む数", sel("advance", [[1, "各グループ1位"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]], "トーナメントに進む数")) : ""}
+      ${mode === "swiss" ? row("ラウンド数", sel("swissRounds", nums(2, 9, x => `${x}ラウンド`), "ラウンド数"), "目安：8チームなら3ラウンド、16チームなら4ラウンドで全勝が1チームになります") : ""}
       ${row("参加チームの上限", sel("maxTeams", [4, 6, 8, 10, 12, 16, 24, 32, 48, 64].map(x => [x, `${x}チーム`]), "参加チームの上限"))}
     </div>
-    ${league ? `<div class="sgroup"><div class="sg-t">${set.format === "swiss" ? "スイスドロー" : "グループ戦"}の対戦</div>
+    ${ko ? `<div class="sgroup"><div class="sg-t">トーナメント</div>
+      ${row("3位決定戦", sel("third", [["true", "行う（準決勝の敗者どうしで対戦）"], ["false", "行わない（ベスト4まで）"]], "3位決定戦"))}
+      ${row("1試合の決め方", sel("koBest", [[1, "BO1（1勝で勝ち抜け）"], [3, "BO3（先に2勝）"], [5, "BO5（先に3勝）"]], "トーナメントの試合数"), "引き分けは数えず、もう一戦")}
+    </div>` : ""}
+    ${league ? `<div class="sgroup"><div class="sg-t">${mode === "swiss" ? "スイスドロー" : "総当たり"}の対戦</div>
       ${row("1対戦の試合数", sel("games", nums(1, 5, x => `${x}試合`), "1対戦の試合数"))}
       ${+set.games >= 2 ? row("コールド勝ち", chk("cold", "あり") + (set.cold ? ` ${sel("coldAfter", nums(1, Math.max(1, +set.games - 1), x => `${x}試合終了時点で`), "コールドの判定")} ${sel("coldDiff", nums(2, 15, x => `ポータルキー差${x}以上`), "コールドの差")}` : ""), "残りの試合は5-0の勝ちとして数えます") : ""}
-      ${row("順位の決め方", sel("rankBy", [["keys", "取得ポータルキー → 勝率"], ["wins", "勝率 → 取得ポータルキー"]], "順位の決め方"), "そのあと、当該チーム同士の対戦結果 → 引き分けの数 → 順位決定戦／抽選")}
-    </div>` : ""}
-    ${ko ? `<div class="sgroup"><div class="sg-t">トーナメント</div>
-      ${row("1試合の決め方", sel("koBest", [[1, "BO1（1勝で勝ち抜け）"], [3, "BO3（先に2勝）"], [5, "BO5（先に3勝）"]], "トーナメントの試合数"), "引き分けは数えず、もう一戦")}
-      ${row("3位決定戦", chk("third", "行う"))}
+    </div>
+    <div class="sgroup"><div class="sg-t">順位の決め方</div>
+      ${row("1番目に比べる", sel("rank1", critOpts(true), "1番目に比べるもの"))}
+      ${row("2番目に比べる", sel("rank2", critOpts(false), "2番目に比べるもの"))}
+      ${row("3番目に比べる", sel("rank3", critOpts(false), "3番目に比べるもの"))}
+      <span class="muted-s">上から順に比べて、同じなら次で比べます。それでも並んだら、当該チーム同士の対戦結果 → 引き分けの数 → 順位決定戦／抽選。</span>
+      <ul class="crit-help">${Object.values(CRIT).map(c => `<li><b>${esc(c.ja)}</b>：${esc(c.note)}</li>`).join("")}</ul>
     </div>` : ""}
     <div class="sgroup"><div class="sg-t">事前の提出と確認</div>
       ${row("ヒーローとメダル", chk("submitHeroes", "事前に登録して、リプレイで確認する"))}
@@ -1094,13 +1149,24 @@ function settingsForm(set, id) {
 }
 function readSet(root, base) {
   const x = { ...base };
-  root.querySelectorAll("[data-set]").forEach(el => { const k = el.dataset.set; x[k] = el.type === "checkbox" ? el.checked : (isNaN(+el.value) || el.value === "" ? el.value : +el.value); });
+  root.querySelectorAll("[data-set]").forEach(el => {
+    const k = el.dataset.set;
+    if (el.type === "radio") { if (el.checked) x[k] = el.value; return; }
+    x[k] = el.type === "checkbox" ? el.checked : el.value === "true" ? true : el.value === "false" ? false : (isNaN(+el.value) || el.value === "" ? el.value : +el.value);
+  });
+  // the four formats map onto the engine's settings
+  const m = x.mode; delete x.mode; delete x.ranks;
+  if (m === "group_ko") { x.format = "group"; if (!(+x.advance > 0)) x.advance = 2; }
+  else if (m === "group") { x.format = "group"; x.advance = 0; }
+  else if (m === "knockout") x.format = "knockout";
+  else if (m === "swiss") { x.format = "swiss"; if (base.format !== "swiss") x.swissAdvance = 0; }
+  if (!x.rank1) x.rank1 = "keys";
   return x;
 }
 function settingsPanel(s) {
   if (role !== "admin") return "";
   const has = Object.keys(s.matches || {}).length || Object.keys(s.bracket || {}).length;
-  return `<details class="panel spanel" id="settings-panel" ${setOpen ? "open" : ""}><summary class="panel-head"><h2>大会の設定</h2><span class="meta">${esc(FORMAT_JA[SETS(s).format])}</span></summary>
+  return `<details class="panel spanel" id="settings-panel" ${setOpen ? "open" : ""}><summary class="panel-head"><h2>大会の設定</h2><span class="meta">${esc(fmtJa(SETS(s)))}</span></summary>
     <div class="panel-body" style="display:grid;gap:12px">
       ${has ? `<div class="notice warn">すでに結果が入っています。形式や試合数を変えると、入力済みの結果の数え方や対戦表が変わります。</div>` : ""}
       ${settingsForm(SETS(s), "sp")}<span class="savest">変更は自動で保存されます</span></div></details>`;
@@ -1111,7 +1177,7 @@ function createDlgView() {
   return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="cd-t"><div class="modal-box wide" id="create-dlg">
     <h3 id="cd-t">「${esc(createDlg.name)}」の設定</h3>
     <p>あとから「チーム設定」の「大会の設定」でも変えられます。最初は、元のルール（グループ2つ・各上位2チームが決勝トーナメント・1対戦3試合・コールドあり）になっています。</p>
-    ${settingsForm(createDlg.set, "cd")}
+    ${settingsForm(SETS({ config: { settings: createDlg.set } }), "cd")}
     <div class="btns"><button class="btn primary" data-act="create-go">この設定で作成</button><button class="btn" data-act="create-cancel">キャンセル</button></div>
   </div></div>`;
 }
@@ -1122,7 +1188,7 @@ function viewGuide(gated) {
   ${sec(1, "ログインと大会の作成（主催）", `<ol>
     <li>このサイトを開いて「<b>Googleでログイン</b>」を押します。</li>
     <li>大会一覧の「新しい大会を作る」に大会名を入れて「<b>作成</b>」を押します。</li>
-    <li>「<b>大会の設定</b>」が開くので、形式（グループ総当たり／トーナメントのみ／スイスドロー）、1対戦の試合数、コールドの有無と条件、順位の決め方、決勝トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー・メダル・デッキを事前に提出させるかを選んで「<b>この設定で作成</b>」を押します。</li>
+    <li>「<b>大会の設定</b>」が開くので、形式（総当たり → トーナメント／総当たりのみ／トーナメントのみ／スイスドローのみ。それぞれの特徴も表示されます）、1対戦の試合数、コールドの有無と条件、順位の決め方（取得ポータルキー数・勝利数・勝率・勝ち越しで1勝の対戦勝利数・勝ち点などから3つまで順番に選べます）、決勝トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー・メダル・デッキを事前に提出させるかを選んで「<b>この設定で作成</b>」を押します。</li>
     <li>設定はあとから「チーム設定」の「<b>大会の設定</b>」で変えられます（結果を入れた後に変えると、数え方も変わります）。「ルール早見表」は設定に合わせて自動で書き変わります。</li>
     <li>作った大会は、あなたにしか見えません。ほかの人には、手順3のコードを渡して見てもらいます。</li></ol>`)}
   ${sec(2, "チームとメンバーの登録（主催・運営）", `<ol>
@@ -1137,7 +1203,7 @@ function viewGuide(gated) {
     <li>「チーム設定」の「<b>共有コード</b>」に、コードが2つあります。
       <ul><li><b>閲覧コード</b>：結果・順位表・決勝トーナメントを見られます。</li><li><b>運営コード</b>：結果の入力と、提出内容の登録・確認もできます。運営にだけ渡してください。</li></ul></li>
     <li>サイトのURLとコードを一緒に渡します。受け取った人は、Googleでログインして「<b>コードで参加する</b>」にコードを入れます。</li>
-    <li>Googleアカウントを使いたくない人は、最初の画面の「<b>ログインせずにコードで参加</b>」にコードを入れれば、その端末で参加できます（運営・観戦どちらも）。別の端末では、もう一度コードを入れます。</li>
+    <li>Googleアカウントを使いたくない人は、最初の画面の「<b>ログインせずにコードで参加</b>」か、「ログインせずに使う」を押した先の「<b>コードで参加</b>」にコードを入れれば、その端末で参加できます（運営・観戦どちらも）。別の端末では、もう一度コードを入れます。</li>
     <li>コードはその大会にしか使えません。知られたくない人に知られたら「<b>作り直す</b>」を押すと、前のコードは使えなくなります。</li></ul>`)}
   ${sec(4, "結果の入力（主催・運営）", `<ol>
     <li>「<b>対戦表・結果入力</b>」で対戦を押します。対戦表の左側のチームがルームを作る側です。</li>
@@ -1170,14 +1236,14 @@ function viewRules() {
     `1対戦は${set.games}試合。引き分けはやり直さず、勝ちにも負けにも数えないが、試合数には含める`,
     set.cold && set.games >= 2 ? `${set.coldAfter}試合終了時点で取得ポータルキー合計の差が${set.coldDiff}以上なら<strong>コールド勝ち</strong>：残りの試合は行わず5-0扱い（ポータルキー合計・勝率に含める）` : "コールド勝ちはなし",
     "不戦敗はその試合を0-5、相手を5-0として扱う"];
-  const rank = `<section class="panel"><div class="panel-body"><h3>順位の決め方</h3><ol>${(set.rankBy === "wins" ? ["勝率（勝利数 ÷ 試合数。引き分けを含む）", "取得ポータルキーの合計"] : ["取得ポータルキーの合計", "勝率（勝利数 ÷ 試合数。引き分けを含む）"]).concat(["当該チーム同士の対戦結果", "引き分けの数が多いチームが上位", "順位決定戦（BO1、引き分けは決着まで再戦）。3チーム以上なら運営抽選"]).map(x => `<li>${x}</li>`).join("")}</ol>
+  const rank = `<section class="panel"><div class="panel-body"><h3>順位の決め方</h3><ol>${set.ranks.map(k => `${CRIT[k].ja}（${CRIT[k].note}）`).concat(["当該チーム同士の対戦結果", "引き分けの数が多いチームが上位", "順位決定戦（BO1、引き分けは決着まで再戦）。3チーム以上なら運営抽選"]).map(x => `<li>${x}</li>`).join("")}</ol>
     <p style="margin-top:8px">順位決定戦・抽選は、1位を決めるときと、${set.format === "swiss" ? "決勝トーナメントに進むかどうか" : "次に進むかどうか"}が分かれるときだけ。それ以外は同順位です。</p></div></section>`;
   const koOn = set.format === "knockout" || (set.format === "group" ? set.advance > 0 : set.swissAdvance > 0);
   const ko = koOn ? sec(set.format === "knockout" ? "トーナメント" : "決勝トーナメント", [
     set.format === "group" ? `各グループ上位${set.advance}チームが進出。違うグループのチーム同士が当たるように組み合わせます` : set.format === "swiss" ? `スイスドローの上位${set.swissAdvance}チームが進出。上位と下位が当たるように組み合わせます` : "チーム設定の一覧の順番で組み合わせます（抽選で並べ替えられます）。チーム数が足りない枠は不戦勝",
     `すべてBO${set.koBest}（先に${Math.ceil(set.koBest / 2)}勝）。コールドなし。引き分けはもう一戦`,
     set.third ? "準決勝の敗者で3位決定戦。3位決定戦を先に、決勝を最後に行う" : "3位決定戦はなし"]) : "";
-  const stage = set.format === "group" ? sec("グループ戦", [`${set.groups}グループに分けて総当たり。チーム数は同じになるように分け、割り切れないときは多いグループを抽選`, ...league]) + rank
+  const stage = set.format === "group" ? sec("総当たり", [set.groups > 1 ? `${set.groups}グループに分けて総当たり。チーム数は同じになるように分け、割り切れないときは多いグループを抽選` : "全チームで総当たり（全チームと1回ずつ対戦）", ...league]) + rank
     : set.format === "swiss" ? sec("スイスドロー", [`全${set.swissRounds}ラウンド。1ラウンド目はランダム、2ラウンド目からは順位の近いチーム同士で、まだ当たっていない相手と組み合わせる`, "チーム数が奇数のときは、ラウンドごとに1チームが休み（勝ち点などはなし）", ...league]) + rank : "";
   const sub = sec("ヒーロー・デッキ・メダル", [
     set.submitHeroes ? "1人につきヒーロー2体と、それぞれのメダルを事前に提出（同じヒーローに別のメダルの2体でもよい）。チーム内で、メンバー同士のヒーローはすべて別のキャラクター" : "ヒーローとメダルの事前提出はなし",
@@ -1186,7 +1252,7 @@ function viewRules() {
     set.requireMedalShot ? "結果報告のリプレイは、メダル情報を表示させた状態のスクショのみ受理" : ""]);
   const input = sec("このサイトでの入力", ["各試合の両チームのポータルキー（0〜5）を入力。不戦敗は「左/右が不戦敗」を選ぶと0-5で記録",
     set.format !== "knockout" && set.cold && set.games >= 2 ? "コールドは自動で判定されます" : "", set.format !== "knockout" ? "順位決定戦・抽選の結果は、対戦がすべて終わった後に順位表から入力します" : "", "シングルロス・マッチロスなどの処分は、該当試合を不戦敗として入力してください"]);
-  return `<div class="notice">この大会の形式：<strong>${esc(FORMAT_JA[set.format])}</strong>（設定は運営が「チーム設定」の「大会の設定」で変えられます）</div><div class="rules">${stage}${ko}${input}${sub}</div>`;
+  return `<div class="notice">この大会の形式：<strong>${esc(fmtJa(set))}</strong>（設定は運営が「チーム設定」の「大会の設定」で変えられます）</div><div class="rules">${stage}${ko}${input}${sub}</div>`;
 }
 
 /* ---------- members, submitted decks and screenshot reading ---------- */
@@ -1610,8 +1676,8 @@ document.addEventListener("click", async ev => {
     return;
   }
   if (act === "copy") {
-    const set = SETS(s), lines = [`【${s.config?.eventName || "#コンパス 3on3 大会"} ${set.format === "swiss" ? "スイスドロー" : "グループ戦"} 順位】`];
-    const add = (title, st) => { lines.push("", `■ ${title}（${st.done}/${st.total} 対戦終了）`); st.rows.forEach(r => lines.push(`${r.rank}位${r.tied ? "(同率)" : ""} ${r.name}　ポータルキー ${r.keys} / 勝率 ${pct(r.w, r.gp)}（${r.w}勝${r.d}分${r.l}敗）`)); };
+    const set = SETS(s), lines = [`【${s.config?.eventName || "#コンパス 3on3 大会"} ${set.format === "swiss" ? "スイスドロー" : "総当たり"} 順位】`];
+    const add = (title, st) => { lines.push("", `■ ${title}（${st.done}/${st.total} 対戦終了）`); st.rows.forEach(r => lines.push(`${r.rank}位${r.tied ? "(同率)" : ""} ${r.name}　ポータルキー ${r.keys} / 勝率 ${pct(r.w, r.gp)}（${r.w}勝${r.d}分${r.l}敗）${set.ranks.some(k => k[0] === "m") ? ` / 対戦 ${r.mw}勝${r.md}分${r.ml}敗` : ""}${set.ranks.includes("mpts") ? ` / 勝ち点 ${3 * r.mw + r.md}` : set.ranks.includes("gpts") ? ` / 勝ち点 ${3 * r.w + r.d}` : ""}`)); };
     if (set.format === "swiss") add(`${swissRounds(s).length}/${set.swissRounds} ラウンド`, swissTable(s));
     else for (const g of groupsOf(s)) { const st = standings(s, g); if (st.rows.length) add(`グループ${g}`, st); }
     const text = lines.join("\n");
@@ -1837,6 +1903,9 @@ function viewLocalLobby() {
       <div class="glist"><div class="dl">この端末の大会</div>${a.length ? a.map(t => `<div class="trow2"><button class="topen" data-act="lc-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">この端末</span></button>
         <button class="btn ghost sm danger" data-act="lc-del" data-id="${esc(t.id)}" aria-label="${esc(t.name || "")}を削除">削除</button></div>`).join("") : `<span class="muted-s">まだありません</span>`}</div>
       <div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="lc-create">作成</button></div></div>
+      <div class="gform"><label for="anoncode">主催者からコードを受け取った人（運営・観戦）</label>
+        <div class="btns"><input id="anoncode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-anon-join">コードで参加</button></div>
+        <span class="muted-s">ログインせずに、その大会に参加します（結果はみんなと同じものを見られます）。</span></div>
       <div class="btns"><button class="btn primary" data-act="fb-login">Googleでログインする</button><a class="btn" href="#guide">使い方を見る</a></div>
       <span class="muted-s">Googleでログインすると、別の端末でも同じ大会を見られて、コードで共有もできます（この端末だけの大会は、ログイン後の一覧には出ません）。</span>
     </div></section>${createDlgView()}`;
