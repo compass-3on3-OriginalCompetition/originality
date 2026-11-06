@@ -11,6 +11,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    // a Google account (not the "join without login" anonymous sign-in)
+    function googleUser() { return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous'; }
     function tPath(tid) { return /databases/$(database)/documents/tournaments/$(tid); }
     function sPath(tid) { return /databases/$(database)/documents/secrets/$(tid); }
     function isOwner(tid) { return signedIn() && exists(tPath(tid)) && get(tPath(tid)).data.owner == request.auth.uid; }
@@ -34,7 +36,7 @@ service cloud.firestore {
     match /tournaments/{tid} {
       allow get: if isViewer(tid);
       allow list: if signedIn() && resource.data.owner == request.auth.uid;
-      allow create: if signedIn() && request.resource.data.owner == request.auth.uid
+      allow create: if googleUser() && request.resource.data.owner == request.auth.uid
                     && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt'])
                     && request.resource.data.name is string && request.resource.data.name.size() <= 60;
       allow update: if isOwner(tid) && request.resource.data.owner == resource.data.owner
@@ -79,25 +81,39 @@ service cloud.firestore {
                       && (request.resource.data.a == playerTeam(tid) || request.resource.data.b == playerTeam(tid))
                       && request.resource.data.status == 'pending'
                       && request.resource.data.kind in ['group', 'bracket']
-                      && request.resource.data.mid is string && request.resource.data.mid.size() <= 80
+                      && request.resource.data.mid is string && request.resource.data.mid.matches('^[A-Za-z0-9_]{1,80}$')
+                      && isTeamId(request.resource.data.a) && isTeamId(request.resource.data.b)
+                      && request.resource.data.g is string && request.resource.data.g.size() <= 8
+                      && request.resource.data.label is string && request.resource.data.label.size() <= 80
+                      && request.resource.data.at is int
                       && request.resource.data.games is list && request.resource.data.games.size() >= 1 && request.resource.data.games.size() <= 15
-                      && request.resource.data.shots is int && request.resource.data.shots >= 1 && request.resource.data.shots <= 15
+                      && request.resource.data.shots == request.resource.data.games.size()
                       && request.resource.data.note is string && request.resource.data.note.size() <= 300;
-        allow update: if isAdmin(tid);
+        // operators only decide (approve / reject) or mark the screenshots deleted; the reported content never changes
+        allow update: if isAdmin(tid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'decidedBy', 'decidedAt', 'shotsGone'])
+                      && request.resource.data.status in ['pending', 'approved', 'rejected'];
         allow delete: if isAdmin(tid) || (isPlayer(tid) && resource.data.by == request.auth.uid && resource.data.status == 'pending');
       }
       // the screenshots of a report: only a re-encoded JPEG (made in the browser from the picture) is accepted
       match /reportShots/{sid} {
         allow read: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
+        // one screenshot per reported game, written together with its report
         allow create: if isPlayer(tid)
+                      && getAfter(/databases/$(database)/documents/tournaments/$(tid)/reports/$(request.resource.data.rid)).data.by == request.auth.uid
+                      && getAfter(/databases/$(database)/documents/tournaments/$(tid)/reports/$(request.resource.data.rid)).data.status == 'pending'
+                      && request.resource.data.i < getAfter(/databases/$(database)/documents/tournaments/$(tid)/reports/$(request.resource.data.rid)).data.shots
                       && request.resource.data.keys().hasOnly(['team', 'rid', 'i', 'w', 'h', 'img'])
                       && request.resource.data.team == playerTeam(tid)
+                      && request.resource.data.rid is string && request.resource.data.rid.matches('^[a-z0-9]{6,40}$')
                       && sid == request.resource.data.rid + '_' + string(request.resource.data.i)
                       && request.resource.data.i is int && request.resource.data.i >= 0 && request.resource.data.i < 15
                       && request.resource.data.img is string && request.resource.data.img.size() <= 900000
                       && request.resource.data.img.matches('^data:image/jpeg;base64,[A-Za-z0-9+/]+=*$');
         allow update: if false;
-        allow delete: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
+        // a player may remove them only while the report is still waiting (withdrawing it); afterwards they are evidence
+        allow delete: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid)
+                      && (!exists(/databases/$(database)/documents/tournaments/$(tid)/reports/$(resource.data.rid))
+                          || get(/databases/$(database)/documents/tournaments/$(tid)/reports/$(resource.data.rid)).data.status == 'pending'));
       }
 
       // shared with everyone in this tournament: settings, group results, final tournament
