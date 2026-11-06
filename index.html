@@ -476,6 +476,8 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .mc-t { font-weight: 700; }
 .mc-d { font-size: .78rem; color: var(--muted); line-height: 1.5; }
 .num-in { width: 17em; max-width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+.bigwarn p { margin: 0; }
+.bigwarn { color: var(--bad); border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; background: rgba(255,107,125,.08); display: grid; gap: 8px; line-height: 1.6; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -543,7 +545,7 @@ const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
 const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, coldAfter: 2, coldDiff: 6, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
-  swissRounds: "", swissAdvance: 0, swissByeOnce: true, maxTeams: 12, submitHeroes: true, submitDecks: true, requireMedalShot: true };
+  swissRounds: "", swissAdvance: 0, swissByeOnce: true, submitHeroes: true, submitDecks: true, requireMedalShot: true };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -1107,20 +1109,22 @@ function viewTeams(s) {
     return `<div class="notice">チームの登録は運営が行います。</div><div class="groups two">${list}</div>`;
   }
   if (!teamDraft) teamDraft = { eventName: s.config?.eventName || "", teams: (s.config?.teams || []).map(t => ({ ...t })) };
-  const d = teamDraft, n = d.teams.length, set = SETS(s), G = set.groups > 1 ? groupsOf(s) : [], maxT = Math.max(2, +set.maxTeams || 12);
+  const d = teamDraft, n = d.teams.length, set = SETS(s), G = set.groups > 1 ? groupsOf(s) : [], big = bigWarnAt(set);
   const counts = G.map(g => d.teams.filter(t => t.group === g).length), spread = counts.length ? Math.max(...counts) - Math.min(...counts) : 0;
   const hasResults = Object.keys(s.matches).length > 0;
   const rows = d.teams.map((t, i) => `<div class="trow"><span class="ix">${i + 1}</span>
     <span class="tnames"><input id="tn-${t.id}" data-tn="${i}" value="${esc(t.name)}" placeholder="チーム名" maxlength="40" aria-label="チーム${i + 1}の名前"><input id="ta-${t.id}" data-ta="${i}" value="${esc(t.abbr || "")}" placeholder="略称" maxlength="4" aria-label="チーム${i + 1}の略称（表の見出し）"></span>
     ${G.length ? `<select id="tg-${t.id}" data-tg="${i}" aria-label="チーム${i + 1}のグループ"><option value="">未定</option>${G.map(g => `<option value="${g}" ${t.group === g ? "selected" : ""}>グループ${g}</option>`).join("")}</select>` : `<span class="muted-s">${set.format === "knockout" ? `${i + 1}番` : ""}</span>`}
     <button class="btn ghost danger" data-act="t-del" data-i="${i}" aria-label="削除" style="padding:6px 0">×</button></div>`).join("");
-  return `${settingsPanel(s)}<section class="panel"><div class="panel-head"><h2>チーム設定</h2><span class="meta">最大${maxT}チーム</span></div>
+  return `${settingsPanel(s)}<section class="panel"><div class="panel-head"><h2>チーム設定</h2><span class="meta">登録 ${n} チーム</span></div>
     <div class="panel-body" style="display:grid;gap:14px">
       <div class="field"><label for="evn">大会名</label><input id="evn" value="${esc(d.eventName)}" placeholder="#コンパス 3on3 大会" maxlength="60"></div>
       <div class="tlist">${rows || "<span style='color:var(--muted)'>「チームを追加」から登録してください。</span>"}</div>
+      ${addWarn ? `<div class="bigwarn" role="alert"><p><strong>${n + 1}チーム目を追加しようとしています。</strong><br>「${esc(MODES[set.mode].ja)}」で${big}チーム以上にすると、対戦数がとても多くなり（全部で${pairCount(set, n + 1)}対戦）、<strong>非常に時間がかかる可能性があります</strong>。大丈夫ですか？</p>
+        <div class="btns"><button class="btn danger" data-act="t-add-ok">大丈夫、追加する</button><button class="btn" data-act="t-add-no">やめる</button></div></div>` : ""}
       <div class="counts"><span>登録 ${n} チーム</span>${G.map((g, k) => `<span>${g}：${counts[k]}</span>`).join("")}${spread > 1 ? `<span style="color:var(--bad)">グループのチーム数の差が2以上あります</span>` : ""}</div>
       <div class="btns">
-        <button class="btn" data-act="t-add" ${n >= maxT ? "disabled" : ""}>チームを追加</button>
+        <button class="btn" data-act="t-add">チームを追加</button>
         ${set.format === "swiss" || (set.format === "group" && set.groups === 1) ? "" : `<button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>${set.format === "knockout" ? "抽選で組み合わせを決める" : "抽選でグループ分け"}</button>`}
         <span class="savest" id="savest" style="margin-left:auto">${esc(saveStatus) || "変更は自動で保存されます"}</span></div>
       <div class="notice">${set.format === "knockout" ? "トーナメントの組み合わせは、この一覧の順番（1番から）で決まります。抽選を押すと順番をランダムに並べ替えます。" : set.format === "swiss" ? "スイスドローの組み合わせは、「対戦表・結果入力」でラウンドごとに作ります。" : `抽選は全チームをランダムに並べ替えて、${G.join("・")}に同数ずつ振り分けます。割り切れないときは、どのグループが多くなるかも抽選です。`}${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
@@ -1142,7 +1146,6 @@ function settingsForm(set, id) {
     <div class="sgroup"><div class="sg-t">大会の形式</div><div class="fmcards">${modeCards}</div>
       ${mode.startsWith("group") ? row("グループの数", sel("groups", nums(1, 4, x => x === 1 ? "分けない（全チームで総当たり）" : `${x}グループ`), "グループの数")) : ""}
       ${mode === "group_ko" ? row("トーナメントに進む数", sel("advance", [[1, "各グループ1位"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]], "トーナメントに進む数")) : ""}
-      ${row("参加チームの上限", sel("maxTeams", [4, 6, 8, 10, 12, 16, 24, 32, 48, 64].map(x => [x, `${x}チーム`]), "参加チームの上限"))}
     </div>
     ${mode === "swiss" ? `<div class="sgroup"><div class="sg-t">スイスドローの設定</div>
       ${row("ラウンド数", `<input type="number" inputmode="numeric" min="1" max="30" step="1" id="${id}-swissRounds" data-set="swissRounds" value="${esc(String(set.swissRounds))}" placeholder="未記入＝全勝者が決まるまで" class="num-in" aria-label="ラウンド数">`, "大会の試合数（ラウンド数）を整数で入力してください。未記入の場合、全勝者が決定するまで行います（目安：8チームなら3ラウンド、16チームなら4ラウンド）")}
@@ -1193,7 +1196,10 @@ function settingsPanel(s) {
       ${has ? `<div class="notice warn">すでに結果が入っています。形式や試合数を変えると、入力済みの結果の数え方や対戦表が変わります。</div>` : ""}
       ${settingsForm(SETS(s), "sp")}<span class="savest">変更は自動で保存されます</span></div></details>`;
 }
-let setOpen = false;
+let setOpen = false, addWarn = false;
+// team counts at which a round robin gets very long: 13+ teams (round robin → tournament) or 7+ (round robin only)
+const bigWarnAt = set => set.mode === "group_ko" ? 13 : set.mode === "group" ? 7 : 0;
+function pairCount(set, n) { const g = Math.max(1, set.groups), per = Array.from({ length: g }, (_, i) => Math.floor(n / g) + (i < n % g ? 1 : 0)); return per.reduce((a, k) => a + k * (k - 1) / 2, 0); }
 function createDlgView() {
   if (!createDlg) return "";
   return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="cd-t"><div class="modal-box wide" id="create-dlg">
@@ -1722,7 +1728,14 @@ document.addEventListener("click", async ev => {
     if (await write("t/config", cfg)) toast("取り消しました");
     return;
   }
-  if (act === "t-add") { teamDraft.teams.push({ id: uid(), name: "", group: "" }); render(); $(`#tn-${teamDraft.teams.at(-1).id}`)?.focus(); return; }
+  if (act === "t-add" || act === "t-add-ok") {
+    const set = SETS(s), big = bigWarnAt(set), n = teamDraft.teams.length;
+    if (act === "t-add" && big && n + 1 >= big && !teamDraft.bigOk) { addWarn = true; render(); return; }
+    if (act === "t-add-ok") teamDraft.bigOk = true;
+    addWarn = false;
+  }
+  if (act === "t-add-no") { addWarn = false; render(); return; }
+  if (act === "t-add" || act === "t-add-ok") { teamDraft.teams.push({ id: uid(), name: "", group: "" }); render(); $(`#tn-${teamDraft.teams.at(-1).id}`)?.focus(); return; }
   if (act === "t-del") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "削除?"; return; }
     teamDraft.teams.splice(+el.dataset.i, 1); render(); saveTeams(); return;
