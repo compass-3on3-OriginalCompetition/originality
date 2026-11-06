@@ -2296,17 +2296,22 @@ function sharePanel() {
     ${line("adminCode", "運営コード", "結果の入力と、提出内容（ヒーロー・メダル・デッキ）の登録・確認ができます。運営にだけ渡してください。")}
     <div class="muted-s">コードを作り直すと、前のコードで参加していた人は見られなくなります。サイトのURLとコードを一緒に渡し、Googleでログインしてから「コードで参加する」に入力してもらってください。</div></div></section>${playerCodesPanel()}`;
 }
+let pcSel = "";
 function playerCodesPanel() {
   if (!FB.on || !FB.tid || role !== "admin") return "";
-  const teams = allTeams(S()), c = FB.tcodes || {};
-  return `<section class="panel"><div class="panel-head"><h2>選手コード</h2><span class="meta">チームごとに1つ</span></div><div class="panel-body" style="display:grid;gap:10px">
+  const teams = allTeams(S()), c = FB.tcodes || {}, missing = teams.filter(t => !c[t.id]).length;
+  if (pcSel && !teams.some(t => t.id === pcSel)) pcSel = "";
+  const t = teams.find(x => x.id === pcSel);
+  return `<section class="panel"><div class="panel-head"><h2>選手コード</h2><span class="meta">チームごとに1つ ・ 発行済み ${teams.length - missing}/${teams.length}</span></div><div class="panel-body" style="display:grid;gap:10px">
     <div class="muted-s">選手コードで参加した人は、<b>自分のチームの登録内容・次の対戦相手・現在の順位</b>を見られて、<b>結果とリプレイのスクショを運営に報告</b>できます。ほかのチームの提出内容は見られません。そのチームのメンバーにだけ渡してください。</div>
-    ${teams.length ? teams.map(t => `<div class="code-row"><div><div class="dl">${esc(t.name)}</div><code>${c[t.id] ? esc(`${FB.tid}.${t.id}.${c[t.id]}`) : "まだ発行していません"}</code></div>
-      <div class="btns">${c[t.id] ? `<button class="btn sm" data-act="pc-copy" data-team="${esc(t.id)}">コピー</button><button class="btn ghost sm danger" data-act="pc-issue" data-team="${esc(t.id)}">作り直す</button>` : `<button class="btn sm" data-act="pc-issue" data-team="${esc(t.id)}">発行する</button>`}</div></div>`).join("")
-      + (teams.some(t => !c[t.id]) ? `<div class="btns"><button class="btn" data-act="pc-issue-all">まだのチームの分をまとめて発行</button></div>` : "")
+    ${teams.length ? `<label class="srow"><span class="sl">チームを選ぶ</span><div class="sc"><select data-pcsel="1" aria-label="選手コードを表示するチーム"><option value="">チームを選んでください</option>${teams.map(x => `<option value="${esc(x.id)}" ${x.id === pcSel ? "selected" : ""}>${esc(x.name)}${c[x.id] ? "" : "（未発行）"}</option>`).join("")}</select></div></label>
+      ${t ? `<div class="code-row"><div><div class="dl">${esc(t.name)} の選手コード</div><code>${c[t.id] ? esc(`${FB.tid}.${t.id}.${c[t.id]}`) : "まだ発行していません"}</code></div>
+        <div class="btns">${c[t.id] ? `<button class="btn sm" data-act="pc-copy" data-team="${esc(t.id)}">コピー</button><button class="btn ghost sm danger" data-act="pc-issue" data-team="${esc(t.id)}">作り直す</button>` : `<button class="btn sm primary" data-act="pc-issue" data-team="${esc(t.id)}">発行する</button>`}</div></div>` : ""}
+      ${missing ? `<div class="btns"><button class="btn" data-act="pc-issue-all">まだのチーム（${missing}チーム）の分をまとめて発行</button></div>` : ""}`
     : `<span class="muted-s">チームを登録すると発行できます。</span>`}
     <div class="muted-s">作り直すと、前のコードで参加していた選手はそのチームの情報を見られなくなります。</div></div></section>`;
 }
+document.addEventListener("change", ev => { if (ev.target.dataset?.pcsel) { pcSel = ev.target.value; render(); } });
 async function pcIssue(ids, renew) {
   const c = { ...(FB.tcodes || {}) }; ids.forEach(id => { if (renew || !c[id]) c[id] = rid(12); });
   try { await FB.fs.doc("teamcodes/" + FB.tid).set({ codes: c }); FB.tcodes = c; render(); toast(renew ? "選手コードを作り直しました" : "選手コードを発行しました"); }
