@@ -592,6 +592,13 @@ function SETS(st) {
   if (x.games < 2) x.cold = false;
   x.groups = Math.max(1, Math.min(4, +x.groups || 2));
   x.koBest = [1, 3, 5].includes(+x.koBest) ? +x.koBest : 3;
+  // everything below goes into the page, so only known values get through
+  if (!["group", "knockout", "swiss"].includes(x.format)) x.format = "group";
+  x.coldDiff = Math.max(2, Math.min(15, Math.floor(+x.coldDiff) || 6));
+  x.advance = [0, 1, 2, 4].includes(+x.advance) ? +x.advance : 2;
+  x.swissAdvance = [0, 2, 4, 8].includes(+x.swissAdvance) ? +x.swissAdvance : 0;
+  x.cold = !!x.cold; x.third = x.third !== false && x.third !== "false"; x.swissByeOnce = x.swissByeOnce !== false && x.swissByeOnce !== "false";
+  x.submitHeroes = !!x.submitHeroes; x.submitDecks = !!x.submitDecks; x.requireMedalShot = !!x.requireMedalShot;
   // swiss rounds: a whole number, or "" = keep going until only one team has won every match
   x.swissRounds = x.swissRounds === "" || x.swissRounds == null || !(+x.swissRounds >= 1) ? "" : Math.min(30, Math.floor(+x.swissRounds));
   // older tournaments only had rankBy (keys first / win rate first)
@@ -1880,15 +1887,26 @@ window.addEventListener("hashchange", () => { openId = null; draft = null; teamD
 
 /* ---------- boot ---------- */
 let unsubs = [];
+// data from the database is written by other people (operators): ids that end up inside the page must look like ids
+const ID_RE = /^[A-Za-z0-9_]{1,40}$/, cleanId = v => typeof v === "string" && ID_RE.test(v) ? v : null;
+function cleanConfig(c) {
+  if (!c || typeof c !== "object") return c;
+  c = { ...c, eventName: typeof c.eventName === "string" ? c.eventName.slice(0, 60) : "" };
+  c.teams = (Array.isArray(c.teams) ? c.teams : []).filter(t => t && cleanId(t.id)).map(t => ({ ...t, name: String(t.name ?? "").slice(0, 60), abbr: String(t.abbr ?? "").slice(0, 10), group: ["A", "B", "C", "D"].includes(t.group) ? t.group : "" }));
+  if (c.swiss) c.swiss = { rounds: (Array.isArray(c.swiss.rounds) ? c.swiss.rounds : []).map(r => ({ pairs: (Array.isArray(r?.pairs) ? r.pairs : []).filter(p => Array.isArray(p) && cleanId(p[0]) && cleanId(p[1])), bye: cleanId(r?.bye) })) };
+  const tb = {}; for (const [k, v] of Object.entries(c.tiebreak && typeof c.tiebreak === "object" ? c.tiebreak : {})) if (/^[A-DS]$/.test(k) && Array.isArray(v)) tb[k] = v.filter(cleanId); c.tiebreak = tb;
+  return c;
+}
+const cleanResult = d => d && typeof d === "object" ? { ...d, a: cleanId(d.a), b: cleanId(d.b), games: Array.isArray(d.games) ? d.games : [] } : null;
 function subscribeAll(dbx, withMembers) {
   unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = [];
   let got = 0; const need = withMembers ? 4 : 3;
   const timer = setTimeout(() => { if (!real.loaded) { loadNote = "データにまだ接続できません。通信状況を確認してください。"; render(); } }, 10000);
   const ready = snap => { if (!snap.metadata?.fromCache) got++; real.loaded = true; if (got >= need) clearTimeout(timer); };
   const fail = e => { clearTimeout(timer); real.loaded = true; toast(e?.code === "permission-denied" ? "この大会を見る権限がなくなりました（コードが作り直された可能性があります）" : "データの読み込みが止まりました。再読み込みしてください"); render(); };
-  unsubs.push(dbx.doc("t/config").onSnapshot(snap => { real.config = snap.exists ? snap.data() : null; ready(snap); softRender(); }, fail));
-  unsubs.push(dbx.collection("matches").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.matches = m; ready(snap); softRender(); }, fail));
-  unsubs.push(dbx.collection("bracket").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.bracket = m; ready(snap); softRender(); }, fail));
+  unsubs.push(dbx.doc("t/config").onSnapshot(snap => { real.config = snap.exists ? cleanConfig(snap.data()) : null; ready(snap); softRender(); }, fail));
+  unsubs.push(dbx.collection("matches").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => { const d = cleanResult(x.data()); if (d) m[x.id] = d; }); real.matches = m; ready(snap); softRender(); }, fail));
+  unsubs.push(dbx.collection("bracket").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => { const d = cleanResult(x.data()); if (d) m[x.id] = d; }); real.bracket = m; ready(snap); softRender(); }, fail));
   if (withMembers) unsubs.push(dbx.collection("members").onSnapshot(snap => { const m = {}; snap.docs.forEach(x => m[x.id] = x.data()); real.members = m; ready(snap); softRender(); }, fail));
 }
 
