@@ -475,6 +475,7 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .fmcard.on { border-color: var(--accent, #E8384F); box-shadow: 0 0 0 1px var(--accent, #E8384F) inset; }
 .mc-t { font-weight: 700; }
 .mc-d { font-size: .78rem; color: var(--muted); line-height: 1.5; }
+.num-in { width: 17em; max-width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -542,7 +543,7 @@ const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
 const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, coldAfter: 2, coldDiff: 6, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
-  swissRounds: 5, swissAdvance: 0, swissByeOnce: true, maxTeams: 12, submitHeroes: true, submitDecks: true, requireMedalShot: true };
+  swissRounds: "", swissAdvance: 0, swissByeOnce: true, maxTeams: 12, submitHeroes: true, submitDecks: true, requireMedalShot: true };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -550,6 +551,8 @@ function SETS(st) {
   if (x.games < 2) x.cold = false;
   x.groups = Math.max(1, Math.min(4, +x.groups || 2));
   x.koBest = [1, 3, 5].includes(+x.koBest) ? +x.koBest : 3;
+  // swiss rounds: a whole number, or "" = keep going until only one team has won every match
+  x.swissRounds = x.swissRounds === "" || x.swissRounds == null || !(+x.swissRounds >= 1) ? "" : Math.min(30, Math.floor(+x.swissRounds));
   // older tournaments only had rankBy (keys first / win rate first)
   const own = (st || S())?.config?.settings || {};
   if (!own.rank1) { x.rank1 = x.rankBy === "wins" ? "grate" : "keys"; x.rank2 = x.rankBy === "wins" ? "keys" : "grate"; x.rank3 = ""; }
@@ -724,6 +727,16 @@ function swissTable(s) {
   const res = leagueTable(s, allTeams(s), pairs, "S", SETS(s).swissAdvance, swissRounds(s).map(r => r.bye).filter(Boolean));
   return res;
 }
+// where the swiss stage stands: rounds made, the planned total (null = until one unbeaten team), and whether it is over
+function swissPlan(s) {
+  const set = SETS(s), n = swissRounds(s).length, last = n ? swissRoundDone(s, n - 1) : true, total = set.swissRounds === "" ? null : set.swissRounds;
+  let over;
+  if (total != null) over = n >= total;
+  else { const rows = swissTable(s).rows, unbeaten = rows.filter(r => r.mp > 0 && r.ml === 0 && r.md === 0).length;
+    over = n > 0 && last && (unbeaten <= 1 || n >= Math.max(1, allTeams(s).length - 1)); }
+  const label = total != null ? `${n}/${total}` : `${n}`;
+  return { n, total, over, last, done: over && last, label, unit: total != null ? `${n}/${total} ラウンド` : `${n} ラウンド目（全勝が1チームになるまで）` };
+}
 function swissRoundDone(s, i) { const r = swissRounds(s)[i]; return !!r && (r.pairs || []).every(([x, y]) => evalGroup(s.matches[mid("S" + (i + 1), x, y)]).done); }
 function swissNextPairs(s) {
   const teams = allTeams(s).map(t => t.id), rounds = swissRounds(s);
@@ -753,7 +766,7 @@ function seedOrder(size) { let a = [1]; while (a.length < size) { const m = a.le
 function koEntrants(s) {
   const set = SETS(s), out = [];
   if (set.format === "group") { const G = groupsOf(s); if (!set.advance) return []; for (let k = 1; k <= set.advance; k++) for (const g of G) out.push({ id: qualifier(s, g, k), label: `${g}グループ${k}位` }); }
-  else if (set.format === "swiss") { if (!set.swissAdvance) return []; const st = swissTable(s), done = swissRounds(s).length >= set.swissRounds && swissRoundDone(s, set.swissRounds - 1);
+  else if (set.format === "swiss") { if (!set.swissAdvance) return []; const st = swissTable(s), done = swissPlan(s).done;
     for (let k = 1; k <= set.swissAdvance; k++) { const hit = st.rows.filter(r => r.rank === k); out.push({ id: done && hit.length === 1 && !hit[0].tied ? hit[0].id : null, label: `スイス${k}位` }); } }
   else allTeams(s).forEach((t, i) => out.push({ id: t.id, label: `${i + 1}番` }));
   return out;
@@ -912,7 +925,7 @@ function viewStandings(s) {
   if (set.format === "swiss") {
     const st = swissTable(s), teams = allTeams(s), byId = Object.fromEntries(st.rows.map(r => [r.id, r]));
     const sorted = st.rows.map(r => teams.find(t => t.id === r.id)).filter(Boolean);
-    return `<section class="board"><div class="gband"><h2>Swiss <b>${swissRounds(s).length}/${set.swissRounds}</b></h2></div>
+    return `<section class="board"><div class="gband"><h2>Swiss <b>${swissPlan(s).label}</b></h2></div>
       <span class="meta" style="text-align:center;color:var(--muted);font-size:.75rem;margin-top:-10px">${st.done}/${st.total} 対戦終了</span>
       ${statTable(s, sorted, byId, set.swissAdvance)}${issuesView(s, st, "S", "スイスドロー")}</section>
       <div class="legend"><span>順位の決め方：${rankLegend(set)}。${set.swissAdvance ? `金色＝決勝トーナメント進出（上位${set.swissAdvance}チーム）` : ""}</span></div>
@@ -949,11 +962,11 @@ function viewMatches(s) {
   if (set.format === "knockout") return `<div class="notice">この大会は<strong>トーナメントのみ</strong>の形式です。対戦カードを押して結果を入力します。</div>` + viewBracket(s);
   if (set.format === "swiss") {
     const rs = swissRounds(s), n = rs.length, last = n ? swissRoundDone(s, n - 1) : true;
-    const canNext = role === "admin" && n < set.swissRounds && last && allTeams(s).length >= 2;
+    const plan = swissPlan(s), canNext = role === "admin" && !plan.over && last && allTeams(s).length >= 2;
     const rounds = rs.map((r, i) => `<div class="round"><h3>ROUND ${i + 1}${r.bye ? ` ・ 休み（不戦勝）：${esc(teamName(s, r.bye))}` : ""}</h3><div class="mlist">${(r.pairs || []).map(([a, b]) => matchCard(s, "S" + (i + 1), a, b)).join("")}</div></div>`).reverse().join("");
-    return intro + `<section class="panel"><div class="panel-head"><h2>スイスドロー</h2><span class="meta">${n}/${set.swissRounds} ラウンド</span></div><div class="panel-body" style="display:grid;gap:12px">
+    return intro + `<section class="panel"><div class="panel-head"><h2>スイスドロー</h2><span class="meta">${plan.unit}</span></div><div class="panel-body" style="display:grid;gap:12px">
       ${role === "admin" ? `<div class="btns"><button class="btn primary" data-act="swiss-next" ${canNext ? "" : "disabled"}>第${n + 1}ラウンドの組み合わせを作る</button>${n && role === "admin" ? `<button class="btn ghost danger" data-act="swiss-undo">最後のラウンドを取り消す</button>` : ""}
-        <span class="muted-s">${n >= set.swissRounds ? "全ラウンドの組み合わせを作りました。" : !last ? "今のラウンドの対戦がすべて終わると、次のラウンドを作れます。" : n ? "順位の近いチーム同士で、まだ当たっていない相手と組み合わせます。" : "1ラウンド目はランダムに組み合わせます。"}</span></div>` : ""}
+        <span class="muted-s">${plan.over ? (plan.total == null ? "全勝のチームが1チームになったので、スイスドローは終わりです。" : "全ラウンドの組み合わせを作りました。") : !last ? "今のラウンドの対戦がすべて終わると、次のラウンドを作れます。" : n ? "順位の近いチーム同士で、まだ当たっていない相手と組み合わせます。" : "1ラウンド目はランダムに組み合わせます。"}</span></div>` : ""}
       ${rounds || "<div class='muted-s'>まだ組み合わせがありません。</div>"}</div></section>`;
   }
   const panels = groupsOf(s).filter(g => teamsOf(s, g).length).map(g => {
@@ -1129,16 +1142,18 @@ function settingsForm(set, id) {
     <div class="sgroup"><div class="sg-t">大会の形式</div><div class="fmcards">${modeCards}</div>
       ${mode.startsWith("group") ? row("グループの数", sel("groups", nums(1, 4, x => x === 1 ? "分けない（全チームで総当たり）" : `${x}グループ`), "グループの数")) : ""}
       ${mode === "group_ko" ? row("トーナメントに進む数", sel("advance", [[1, "各グループ1位"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]], "トーナメントに進む数")) : ""}
-      ${mode === "swiss" ? row("ラウンド数", sel("swissRounds", nums(2, 9, x => `${x}ラウンド`), "ラウンド数"), "目安：8チームなら3ラウンド、16チームなら4ラウンドで全勝が1チームになります")
-        + row("奇数のときの休み", chk("swissByeOnce", "不戦勝（休み）は1チーム1回まで"), "チーム数が奇数のとき、休みのチームは不戦勝（全試合5-0の勝ち）。オンにすると、一度不戦勝になったチームはそれ以降休みになりません") : ""}
       ${row("参加チームの上限", sel("maxTeams", [4, 6, 8, 10, 12, 16, 24, 32, 48, 64].map(x => [x, `${x}チーム`]), "参加チームの上限"))}
     </div>
+    ${mode === "swiss" ? `<div class="sgroup"><div class="sg-t">スイスドローの設定</div>
+      ${row("ラウンド数", `<input type="number" inputmode="numeric" min="1" max="30" step="1" id="${id}-swissRounds" data-set="swissRounds" value="${esc(String(set.swissRounds))}" placeholder="未記入＝全勝者が決まるまで" class="num-in" aria-label="ラウンド数">`, "大会の試合数（ラウンド数）を整数で入力してください。未記入の場合、全勝者が決定するまで行います（目安：8チームなら3ラウンド、16チームなら4ラウンド）")}
+      ${row("奇数のときの不戦勝", sel("swissByeOnce", [["true", "不戦勝は1チーム1回まで（おすすめ）"], ["false", "何度でも（いちばん下のチームが休み）"]], "奇数のときの不戦勝"), "チーム数が奇数のときだけ、毎ラウンド1チームが休みになり、不戦勝（全試合5-0の勝ち）になります。休むのは順位がいちばん下のチームです。「1回まで」にすると、一度不戦勝になったチームはそれ以降休みにならず、その次に下のチームが休みます")}
+    </div>` : ""}
     ${ko ? `<div class="sgroup"><div class="sg-t">トーナメント</div>
       ${row("3位決定戦", sel("third", [["true", "行う（準決勝の敗者どうしで対戦）"], ["false", "行わない（ベスト4まで）"]], "3位決定戦"))}
       ${row("1試合の決め方", sel("koBest", [[1, "BO1（1勝で勝ち抜け）"], [3, "BO3（先に2勝）"], [5, "BO5（先に3勝）"]], "トーナメントの試合数"), "引き分けは数えず、もう一戦")}
     </div>` : ""}
     ${league ? `<div class="sgroup"><div class="sg-t">${mode === "swiss" ? "スイスドロー" : "総当たり"}の対戦</div>
-      ${row("1対戦の試合数", sel("games", nums(1, 5, x => `${x}試合`), "1対戦の試合数"))}
+      ${row("1対戦の試合数", sel("games", nums(1, 5, x => `${x}試合${x % 2 ? "" : "（偶数）"}`), "1対戦の試合数"), "奇数（1・3・5試合）にするのがおすすめです。偶数だと勝ち数が並んで対戦が五分（引き分け）になりやすく、勝ち越しで順位を決めるときに差がつきにくくなります")}
       ${+set.games >= 2 ? row("コールド勝ち", chk("cold", "あり") + (set.cold ? ` ${sel("coldAfter", nums(1, Math.max(1, +set.games - 1), x => `${x}試合終了時点で`), "コールドの判定")} ${sel("coldDiff", nums(2, 15, x => `ポータルキー差${x}以上`), "コールドの差")}` : ""), "残りの試合は5-0の勝ちとして数えます") : ""}
     </div>
     <div class="sgroup"><div class="sg-t">順位の決め方</div>
@@ -1251,7 +1266,7 @@ function viewRules() {
     `すべてBO${set.koBest}（先に${Math.ceil(set.koBest / 2)}勝）。コールドなし。引き分けはもう一戦`,
     set.third ? "準決勝の敗者で3位決定戦。3位決定戦を先に、決勝を最後に行う" : "3位決定戦はなし"]) : "";
   const stage = set.format === "group" ? sec("総当たり", [set.groups > 1 ? `${set.groups}グループに分けて総当たり。チーム数は同じになるように分け、割り切れないときは多いグループを抽選` : "全チームで総当たり（全チームと1回ずつ対戦）", ...league]) + rank
-    : set.format === "swiss" ? sec("スイスドロー", [`全${set.swissRounds}ラウンド。1ラウンド目はランダム、2ラウンド目からは順位の近いチーム同士で、まだ当たっていない相手と組み合わせる`, `チーム数が奇数のときは、ラウンドごとに1チームが休み。休みのチームは<strong>不戦勝</strong>（全${set.games}試合を5-0の勝ちとして数える）。休みになるのは順位がいちばん下のチーム${set.swissByeOnce ? "（ただし、すでに不戦勝になったチームは2回目の休みにならない）" : "（同じチームが何度休みになってもよい）"}`, ...league]) + rank : "";
+    : set.format === "swiss" ? sec("スイスドロー", [`${set.swissRounds === "" ? "全勝のチームが1チームになるまでラウンドを続ける" : `全${set.swissRounds}ラウンド`}。1ラウンド目はランダム、2ラウンド目からは順位の近いチーム同士で、まだ当たっていない相手と組み合わせる`, `チーム数が奇数のときは、ラウンドごとに1チームが休み。休みのチームは<strong>不戦勝</strong>（全${set.games}試合を5-0の勝ちとして数える）。休みになるのは順位がいちばん下のチーム${set.swissByeOnce ? "（ただし、すでに不戦勝になったチームは2回目の休みにならない）" : "（同じチームが何度休みになってもよい）"}`, ...league]) + rank : "";
   const sub = sec("ヒーロー・デッキ・メダル", [
     set.submitHeroes ? "1人につきヒーロー2体と、それぞれのメダルを事前に提出（同じヒーローに別のメダルの2体でもよい）。チーム内で、メンバー同士のヒーローはすべて別のキャラクター" : "ヒーローとメダルの事前提出はなし",
     set.submitDecks ? "1人につきデッキ2つを事前に提出。試合ごとにどのヒーロー・デッキを組み合わせてもよい" : "デッキの事前提出はなし",
@@ -1685,7 +1700,7 @@ document.addEventListener("click", async ev => {
   if (act === "copy") {
     const set = SETS(s), lines = [`【${s.config?.eventName || "#コンパス 3on3 大会"} ${set.format === "swiss" ? "スイスドロー" : "総当たり"} 順位】`];
     const add = (title, st) => { lines.push("", `■ ${title}（${st.done}/${st.total} 対戦終了）`); st.rows.forEach(r => lines.push(`${r.rank}位${r.tied ? "(同率)" : ""} ${r.name}　ポータルキー ${r.keys} / 勝率 ${pct(r.w, r.gp)}（${r.w}勝${r.d}分${r.l}敗）${set.ranks.some(k => k[0] === "m") ? ` / 対戦 ${r.mw}勝${r.md}分${r.ml}敗` : ""}${set.ranks.includes("mpts") ? ` / 勝ち点 ${3 * r.mw + r.md}` : set.ranks.includes("gpts") ? ` / 勝ち点 ${3 * r.w + r.d}` : ""}`)); };
-    if (set.format === "swiss") add(`${swissRounds(s).length}/${set.swissRounds} ラウンド`, swissTable(s));
+    if (set.format === "swiss") add(swissPlan(s).unit, swissTable(s));
     else for (const g of groupsOf(s)) { const st = standings(s, g); if (st.rows.length) add(`グループ${g}`, st); }
     const text = lines.join("\n");
     try { await navigator.clipboard.writeText(text); toast("コピーしました"); }
@@ -1723,7 +1738,7 @@ document.addEventListener("click", async ev => {
   }
   if (act === "swiss-next" && role === "admin") {
     const set = SETS(s), rs = swissRounds(s);
-    if (rs.length >= set.swissRounds || (rs.length && !swissRoundDone(s, rs.length - 1))) return;
+    if (swissPlan(s).over || (rs.length && !swissRoundDone(s, rs.length - 1))) return;
     const nx = swissNextPairs(s), cfg = JSON.parse(JSON.stringify(s.config)); cfg.swiss = { rounds: rs.concat([{ pairs: nx.pairs, bye: nx.bye }]) };
     if (await write("t/config", cfg)) toast(`第${rs.length + 1}ラウンドの組み合わせを作りました`); return;
   }
