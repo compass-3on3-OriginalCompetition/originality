@@ -515,6 +515,8 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .rd-row select { padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .bad-t { color: var(--bad); }
 .ok-t { color: #6FD39B; }
+.netbar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; padding: 8px 16px; background: #2B2414; color: #F2C14B; border-bottom: 1px solid #5A4A1E; font-size: .85rem; text-align: center; }
+.netbar.off { background: #2A1418; color: var(--bad); border-color: #5A2028; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -549,6 +551,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
   <a href="#rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7a2 2 0 012 2v14a2 2 0 00-2-2H4zM20 4h-5a2 2 0 00-2 2v14a2 2 0 012-2h5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>ルール</a>
   <a href="#guide"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.5 9.3a2.6 2.6 0 015 .9c0 1.8-2.5 2.2-2.5 3.8M12 17.2v.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>使い方</a>
 </nav>
+<div id="netbar" class="netbar" hidden></div>
 <main class="wrap" id="app"><div class="empty"><strong>読み込み中…</strong></div></main>
 <div id="toast" class="toast" hidden></div>
 
@@ -2466,7 +2469,34 @@ document.addEventListener("click", async ev => {
   if (act === "pc-issue-all") return pcIssue(allTeams(S()).map(t => t.id), false);
   if (act === "pc-copy") { const t = el.dataset.team, v = `${FB.tid}.${t}.${(FB.tcodes || {})[t]}`; try { await navigator.clipboard.writeText(v); toast("コピーしました"); } catch (e) { toast(v); } }
 });
+/* ---------- keeping an open page fresh ---------- */
+// results already arrive live (Firestore listeners); this covers the two other cases:
+// the connection is gone, and a newer version of the site was published while the page stayed open
+let siteTag = null, newSite = false;
+async function siteVersion() {
+  try { const r = await fetch(location.pathname.replace(/[^/]*$/, "") + "index.html", { method: "HEAD", cache: "no-store" }); return r.ok ? (r.headers.get("etag") || r.headers.get("last-modified")) : null; } catch (e) { return null; }
+}
+async function checkSite() {
+  if (!/^https?:$/.test(location.protocol) || newSite) return;
+  const v = await siteVersion(); if (!v) return;
+  if (siteTag == null) { siteTag = v; return; }
+  if (v !== siteTag) { newSite = true; paintNet(); }
+}
+function paintNet() {
+  const el = $("#netbar"); if (!el) return;
+  const off = navigator.onLine === false;
+  el.hidden = !off && !newSite;
+  el.className = "netbar" + (off ? " off" : "");
+  el.innerHTML = off ? "オフラインです。つながると、自動で最新の結果に更新されます。"
+    : newSite ? `このサイトの新しいバージョンがあります。<button class="btn sm" data-act="site-reload">更新する</button><span class="muted-s">（入力中の報告は消えます）</span>` : "";
+}
+addEventListener("online", () => { paintNet(); checkSite(); });
+addEventListener("offline", paintNet);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkSite(); });
+setInterval(checkSite, 10 * 60 * 1000);
+document.addEventListener("click", ev => { if (ev.target.closest('[data-act="site-reload"]')) location.reload(); });
 async function boot() {
+  checkSite(); paintNet();
   try { const dl = $("#cardlist"); if (window.CompassReader) dl.innerHTML = CompassReader.cardNames.map(n => `<option value="${esc(n)}"></option>`).join(""); } catch (e) {}
   render();
   if (!window.claude?.use) {
