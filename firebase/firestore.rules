@@ -2,8 +2,10 @@ rules_version = '2';
 // #コンパス 3on3 順位管理 — who may read / write what.
 //  - Every tournament is private to its owner (the Google account that created it).
 //  - Other people get in only with that tournament's code:
-//      閲覧コード (view code)  -> can read the tournament's results
+//      観戦コード (view code)  -> can read the tournament's results
 //      運営コード (admin code) -> can also edit results and read operator-only data
+//      選手コード (one per team) -> can read the results, read only their own team's submissions,
+//                                   and send result reports (with a replay screenshot) for the operators to approve
 //  - A code only ever opens its own tournament. Reissuing a code shuts out everyone who used the old one.
 //  - Submitted heroes / medals / decks / name samples live under /members and are readable by operators only.
 service cloud.firestore {
@@ -17,7 +19,16 @@ service cloud.firestore {
       return signedIn() && exists(p) && exists(sPath(tid)) && get(p).data.code == get(sPath(tid)).data[field];
     }
     function isAdmin(tid) { return isOwner(tid) || joinedWith(tid, 'admins', 'adminCode'); }
-    function isViewer(tid) { return isAdmin(tid) || joinedWith(tid, 'viewers', 'viewCode'); }
+    function tcPath(tid) { return /databases/$(database)/documents/teamcodes/$(tid); }
+    function pPath(tid) { return /databases/$(database)/documents/tournaments/$(tid)/players/$(request.auth.uid); }
+    // a player joined with their team's code, and that code has not been reissued since
+    function isPlayer(tid) {
+      return signedIn() && exists(pPath(tid)) && exists(tcPath(tid))
+             && get(pPath(tid)).data.code == get(tcPath(tid)).data.codes[get(pPath(tid)).data.team];
+    }
+    function playerTeam(tid) { return get(pPath(tid)).data.team; }
+    function isViewer(tid) { return isAdmin(tid) || joinedWith(tid, 'viewers', 'viewCode') || isPlayer(tid); }
+    function isTeamId(v) { return v is string && v.matches('^[a-z0-9]{2,20}$'); }
     function isCode(v) { return v is string && v.size() >= 10 && v.size() <= 40; }
 
     match /tournaments/{tid} {
@@ -48,12 +59,57 @@ service cloud.firestore {
         allow delete: if isOwner(tid) || (signedIn() && request.auth.uid == uid);
       }
 
+      // players: each person writes only their own entry, and only with their team's current code
+      match /players/{uid} {
+        allow get: if signedIn() && (request.auth.uid == uid || isAdmin(tid));
+        allow list: if isAdmin(tid);
+        allow create, update: if signedIn() && request.auth.uid == uid && exists(tcPath(tid))
+                              && request.resource.data.keys().hasOnly(['code', 'team', 'at'])
+                              && isTeamId(request.resource.data.team)
+                              && request.resource.data.code == get(tcPath(tid)).data.codes[request.resource.data.team];
+        allow delete: if isAdmin(tid) || (signedIn() && request.auth.uid == uid);
+      }
+
+      // result reports from players: they wait for an operator to approve them
+      match /reports/{rid} {
+        allow read: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
+        allow create: if isPlayer(tid)
+                      && request.resource.data.keys().hasOnly(['team', 'by', 'kind', 'mid', 'g', 'a', 'b', 'label', 'games', 'shots', 'note', 'status', 'at'])
+                      && request.resource.data.team == playerTeam(tid) && request.resource.data.by == request.auth.uid
+                      && (request.resource.data.a == playerTeam(tid) || request.resource.data.b == playerTeam(tid))
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.kind in ['group', 'bracket']
+                      && request.resource.data.mid is string && request.resource.data.mid.size() <= 80
+                      && request.resource.data.games is list && request.resource.data.games.size() >= 1 && request.resource.data.games.size() <= 15
+                      && request.resource.data.shots is int && request.resource.data.shots >= 1 && request.resource.data.shots <= 15
+                      && request.resource.data.note is string && request.resource.data.note.size() <= 300;
+        allow update: if isAdmin(tid);
+        allow delete: if isAdmin(tid) || (isPlayer(tid) && resource.data.by == request.auth.uid && resource.data.status == 'pending');
+      }
+      // the screenshots of a report: only a re-encoded JPEG (made in the browser from the picture) is accepted
+      match /reportShots/{sid} {
+        allow read: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
+        allow create: if isPlayer(tid)
+                      && request.resource.data.keys().hasOnly(['team', 'rid', 'i', 'w', 'h', 'img'])
+                      && request.resource.data.team == playerTeam(tid)
+                      && sid == request.resource.data.rid + '_' + string(request.resource.data.i)
+                      && request.resource.data.i is int && request.resource.data.i >= 0 && request.resource.data.i < 15
+                      && request.resource.data.img is string && request.resource.data.img.size() <= 900000
+                      && request.resource.data.img.matches('^data:image/jpeg;base64,[A-Za-z0-9+/]+=*$');
+        allow update: if false;
+        allow delete: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
+      }
+
       // shared with everyone in this tournament: settings, group results, final tournament
       match /data/{doc}    { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
       match /matches/{doc} { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
       match /bracket/{doc} { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
       // operators only: submitted heroes, medals, decks and name samples
-      match /members/{doc} { allow read, write: if isAdmin(tid); }
+      // (a player may read only their own team's entries)
+      match /members/{doc} {
+        allow read: if isAdmin(tid) || (isPlayer(tid) && (doc.matches('^' + playerTeam(tid) + '_m[0-9]+$') || doc == 'share_' + playerTeam(tid)));
+        allow write: if isAdmin(tid);
+      }
     }
 
     // the two codes of a tournament: only its owner sees or changes them
@@ -61,6 +117,13 @@ service cloud.firestore {
       allow read: if isOwner(tid);
       allow create, update: if isOwner(tid) && request.resource.data.keys().hasOnly(['viewCode', 'adminCode'])
                             && isCode(request.resource.data.viewCode) && isCode(request.resource.data.adminCode);
+      allow delete: if isOwner(tid);
+    }
+
+    // the per-team player codes: the owner and operators hand them out
+    match /teamcodes/{tid} {
+      allow read: if isAdmin(tid);
+      allow create, update: if isAdmin(tid) && request.resource.data.keys().hasOnly(['codes']) && request.resource.data.codes is map;
       allow delete: if isOwner(tid);
     }
 
