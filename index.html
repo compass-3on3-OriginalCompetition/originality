@@ -539,6 +539,9 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .danger-zone { border-color: rgba(255,107,125,.4); }
 .final-zone { border-color: rgba(242,193,75,.5); }
 .final-note { border-color: rgba(242,193,75,.5); }
+#fx-bg { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+#fx-bg[hidden] { display: none; }
+.fx-toggle.on { border-color: #78DCFF; color: #BFF0FF; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -573,6 +576,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
   <a href="#rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7a2 2 0 012 2v14a2 2 0 00-2-2H4zM20 4h-5a2 2 0 00-2 2v14a2 2 0 012-2h5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>ルール</a>
   <a href="#guide"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.5 9.3a2.6 2.6 0 015 .9c0 1.8-2.5 2.2-2.5 3.8M12 17.2v.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>使い方</a>
 </nav>
+<canvas id="fx-bg" aria-hidden="true"></canvas>
 <div id="netbar" class="netbar" hidden></div>
 <main class="wrap" id="app"><div class="empty"><strong>読み込み中…</strong></div></main>
 <div id="toast" class="toast" hidden></div>
@@ -972,13 +976,14 @@ function renderInner() {
   app.innerHTML = (isLocked(s) ? `<div class="notice final-note"><strong>この大会は結果が確定しています。</strong>結果・順位・登録内容は、これ以上変更できません。</div>` : "") + (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
   if (resumeData) setTimeout(() => applyResume(false), 0);
 }
+const fxBtn = () => `<button class="btn ghost fx-toggle ${fxOn() ? "on" : ""}" data-act="fx-toggle" aria-pressed="${fxOn()}" title="動く背景（稲妻）のオン・オフ" style="padding:2px 10px;font-size:.78rem">⚡ 背景 ${fxOn() ? "オン" : "オフ"}</button>`;
 function renderMode() {
   const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "観戦者", player: "選手" };
   const m = mode === "local" ? `<span class="pill">${LOCAL.on ? "この端末だけ" : "この端末に保存"}</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
-  if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""; return; }
+  if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = fxBtn() + (FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""); return; }
   const fbBtns = FB.on && (FB.user || LOCAL.on) ? `<button class="btn ghost" data-act="${LOCAL.on ? "lc-lobby" : "fb-lobby"}" style="padding:2px 10px;font-size:.78rem">大会一覧</button>` : "";
   $("#mode").innerHTML = `${m}${fbBtns}<span class="pill ${role === "admin" ? "on" : ""}">${FB.on && FB.isOwner && role === "admin" ? "主催" : role === "player" ? `選手・${esc(teamName(S(), FB.team))}` : labels[role]}</span>
-    <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>`;
+    <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>${fxBtn()}`;
 }
 function noTeams() {
   return `<div class="panel"><div class="empty"><strong>まだチームが登録されていません</strong>
@@ -1383,7 +1388,8 @@ function viewGuide(gated) {
   ${sec(9, "スマホで使う", `<ul>
     <li><b>アプリとしてインストール</b>できます。Android・パソコンのChromeでは、最初の画面や「使い方」に出る「アプリとしてインストール」ボタン（または Chromeの「︙」→「<b>アプリをインストール</b>」/「ホーム画面に追加」）から。iPhone・iPadでは、Safariの共有ボタン（□に↑）→「<b>ホーム画面に追加</b>」から。</li>
     <li>インストールすると、ホーム画面のアイコンから全画面で開けます。結果はそのままリアルタイムで更新されます。サイトが新しくなったときは、入力の切れ目で<b>自動で更新</b>し、入力中の内容（結果報告のポータルキー・スクショ・ひとこと、開いていた対戦、入力欄の文字など）はそのまま戻ります。</li>
-    <li>スマホでは、画面の下のボタンでページを切り替えます。</li></ul>`)}
+    <li>スマホでは、画面の下のボタンでページを切り替えます。</li>
+    <li>画面の上の「<b>⚡ 背景</b>」で、黒い背景に稲妻が走る<b>動く背景</b>のオン・オフを切り替えられます（最初はオフ。端末ごとに覚えます）。</li></ul>`)}
   </div>`;
 }
 function viewRules() {
@@ -2769,6 +2775,56 @@ document.addEventListener("click", async ev => {
   if (act === "pc-issue-all") return pcIssue(allTeams(S()).map(t => t.id), false);
   if (act === "pc-copy") { const t = el.dataset.team, v = `${FB.tid}.${t}.${(FB.tcodes || {})[t]}`; try { await navigator.clipboard.writeText(v); toast("コピーしました"); } catch (e) { toast(v); } }
 });
+/* ---------- moving background: lightning across the black (off unless switched on; remembered on this device) ---------- */
+const FX_KEY = "compass3on3_fx";
+function fxOn() { try { return localStorage.getItem(FX_KEY) === "1"; } catch (e) { return false; } }
+const FX = { cv: null, ctx: null, w: 0, h: 0, dpr: 1, bolts: [], raf: 0, next: 0 };
+function fxResize() {
+  const c = FX.cv; if (!c) return;
+  FX.dpr = Math.min(2, devicePixelRatio || 1); FX.w = innerWidth; FX.h = innerHeight;
+  c.width = Math.round(FX.w * FX.dpr); c.height = Math.round(FX.h * FX.dpr); FX.ctx.setTransform(FX.dpr, 0, 0, FX.dpr, 0, 0);
+}
+// a jagged path from (x0, y0) to (x1, y1), with a few side branches
+function fxBolt() {
+  const W = FX.w, H = FX.h, x0 = W * (0.1 + Math.random() * 0.8), x1 = x0 + (Math.random() - 0.5) * W * 0.6, y1 = H * (0.55 + Math.random() * 0.45);
+  const split = (a, b, rough, depth) => { let pts = [a, b]; for (let k = 0; k < depth; k++) { const nx = [pts[0]]; for (let i = 1; i < pts.length; i++) { const p = pts[i - 1], q = pts[i], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      nx.push([(p[0] + q[0]) / 2 + (Math.random() - 0.5) * d * rough, (p[1] + q[1]) / 2 + (Math.random() - 0.5) * d * rough * 0.3], q); } pts = nx; } return pts; };
+  const main = split([x0, -10], [x1, y1], 0.55, 7), paths = [{ pts: main, w: 2.6 }];
+  for (let i = 0; i < 3; i++) { const p = main[Math.floor(main.length * (0.2 + Math.random() * 0.5))], ang = (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.6) + Math.PI / 2, len = H * (0.1 + Math.random() * 0.2);
+    paths.push({ pts: split(p, [p[0] + Math.cos(ang) * len, p[1] + Math.sin(ang) * len], 0.6, 5), w: 1.3 }); }
+  const red = Math.random() < 0.25;   // mostly blue-white, sometimes the site's red
+  return { paths, born: performance.now(), life: 650 + Math.random() * 350, glow: red ? "255,61,94" : "120,220,255" };
+}
+function fxFrame(t) {
+  FX.raf = 0; if (!fxOn() || document.hidden) return;
+  const g = FX.ctx; g.clearRect(0, 0, FX.w, FX.h);
+  if (t > FX.next) { FX.bolts.push(fxBolt()); if (Math.random() < 0.3) FX.bolts.push(fxBolt()); FX.next = t + 1800 + Math.random() * 3200; }
+  FX.bolts = FX.bolts.filter(b => t - b.born < b.life);
+  for (const b of FX.bolts) {
+    const age = (t - b.born) / b.life, flick = age < 0.25 ? (Math.random() < 0.5 ? 1 : 0.55) : 1, a = Math.max(0, 1 - age) * flick;
+    if (age < 0.12) { g.fillStyle = `rgba(${b.glow},${0.06 * (1 - age / 0.12)})`; g.fillRect(0, 0, FX.w, FX.h); }   // a faint flash of the sky
+    for (const p of b.paths) {
+      g.beginPath(); p.pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+      g.lineJoin = "round"; g.lineCap = "round";
+      g.shadowColor = `rgba(${b.glow},${a})`; g.shadowBlur = 18; g.strokeStyle = `rgba(${b.glow},${0.55 * a})`; g.lineWidth = p.w * 3; g.stroke();
+      g.shadowBlur = 0; g.strokeStyle = `rgba(255,255,255,${0.9 * a})`; g.lineWidth = p.w; g.stroke();
+    }
+  }
+  FX.raf = requestAnimationFrame(fxFrame);
+}
+function fxApply() {
+  const c = FX.cv || (FX.cv = $("#fx-bg")); if (!c) return;
+  if (!FX.ctx) { FX.ctx = c.getContext("2d"); addEventListener("resize", fxResize); }
+  const on = fxOn(); c.hidden = !on;
+  if (on) { fxResize(); FX.next = performance.now() + 400; if (!FX.raf) FX.raf = requestAnimationFrame(fxFrame); }
+  else { if (FX.raf) cancelAnimationFrame(FX.raf); FX.raf = 0; FX.bolts = []; FX.ctx.clearRect(0, 0, FX.w, FX.h); }
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && fxOn() && !FX.raf) FX.raf = requestAnimationFrame(fxFrame); });
+document.addEventListener("click", ev => {
+  if (!ev.target.closest('[data-act="fx-toggle"]')) return;
+  try { localStorage.setItem(FX_KEY, fxOn() ? "0" : "1"); } catch (e) {}
+  fxApply(); renderMode(); toast(fxOn() ? "動く背景をオンにしました" : "動く背景をオフにしました");
+});
 /* ---------- keeping an open page fresh ---------- */
 // results already arrive live (Firestore listeners); this covers the two other cases:
 // the connection is gone, and a newer version of the site was published while the page stayed open
@@ -2859,7 +2915,7 @@ document.addEventListener("click", async ev => {
 });
 if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.FIREBASE_CONFIG?.useEmulator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 async function boot() {
-  checkSite(); paintNet();
+  checkSite(); paintNet(); fxApply();
   try { const dl = $("#cardlist"); if (window.CompassReader) dl.innerHTML = CompassReader.cardNames.map(n => `<option value="${esc(n)}"></option>`).join(""); } catch (e) {}
   render();
   if (!window.claude?.use) {
