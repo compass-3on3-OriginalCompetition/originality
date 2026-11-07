@@ -527,6 +527,15 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .netbar[hidden] { display: none; }
 .netbar.off { background: #2A1418; color: var(--bad); border-color: #5A2028; }
 .installbox { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); font-size: .85rem; margin-bottom: 12px; }
+.rep-group { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.rep-gt { font-size: .9rem; }
+.pair { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: .88rem; }
+.pair.ok { background: rgba(111,211,155,.12); color: #6FD39B; }
+.pair.ng { background: rgba(255,107,125,.12); color: var(--bad); }
+.pair.wait { background: var(--surface-2); color: var(--muted); }
+.stg { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; flex-basis: 100%; }
+.stg img { width: 120px; border-radius: 4px; border: 1px solid var(--line); }
+.stg select { padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: .8rem; }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -597,7 +606,7 @@ const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
 const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
-  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, submitHeroes: true, submitDecks: true, requireMedalShot: true };
+  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, stageCheck: true, submitHeroes: true, submitDecks: true, requireMedalShot: true };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -610,6 +619,7 @@ function SETS(st) {
   x.advance = [0, 1, 2, 4].includes(+x.advance) ? +x.advance : 2;
   x.swissAdvance = [0, 2, 4, 8].includes(+x.swissAdvance) ? +x.swissAdvance : 0;
   x.cold = !!x.cold; x.third = x.third !== false && x.third !== "false"; x.swissByeOnce = x.swissByeOnce !== false && x.swissByeOnce !== "false";
+  x.stageCheck = x.stageCheck !== false && x.stageCheck !== "false";
   x.submitHeroes = !!x.submitHeroes; x.submitDecks = !!x.submitDecks; x.requireMedalShot = !!x.requireMedalShot;
   // swiss rounds: a whole number, or "" = keep going until only one team has won every match
   x.swissRounds = x.swissRounds === "" || x.swissRounds == null || !(+x.swissRounds >= 1) ? "" : Math.min(30, Math.floor(+x.swissRounds));
@@ -952,7 +962,7 @@ function renderInner() {
   document.body.classList.toggle("gated", gated);
   if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); if (resumeData) setTimeout(() => applyResume(true), 0); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
-  const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
+  const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + outsPanel(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
   app.innerHTML = (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
   if (resumeData) setTimeout(() => applyResume(false), 0);
 }
@@ -1260,6 +1270,7 @@ function settingsForm(set, id) {
       ${row("ヒーローとメダル", chk("submitHeroes", "事前に登録して、リプレイで確認する"))}
       ${row("デッキ", chk("submitDecks", "事前に登録して、リプレイで確認する"))}
       ${row("リプレイのスクショ", chk("requireMedalShot", "メダル情報が表示されたものだけ受け付ける"))}
+      ${row("ステージ", chk("stageCheck", "ステージのルールを確認する"), "1試合目と、引き分けの次の試合は「でらクランクストリート」、禁止ステージは使わない。ステージは、運営が一度見本を登録すると見分けられるようになります")}
     </div></div>`;
 }
 function readSet(root, base) {
@@ -1356,7 +1367,10 @@ function viewGuide(gated) {
     <li>選手は、最初の画面の「ログインせずにコードで参加」か、ログイン後の「コードで参加する」に選手コードを入れます。</li>
     <li>「<b>マイチーム</b>」で、自分のチームの<b>現在の順位・次の対戦相手・登録内容</b>（ヒーロー・メダル・デッキ）をリアルタイムで見られます。ほかのチームの登録内容は見られません。</li>
     <li>試合が終わったら「<b>結果を運営に報告</b>」で、試合ごとのポータルキーと、<b>その試合のリプレイ画面のスクリーンショットを1試合につき1枚（必須）</b>付けて送ります。送る前なら「外す」で付け直せます。送った後でも、承認される前なら「取り下げる」でスクショごと消せます。スクショを選ぶと、<b>ポータルキーを自動で読み取って結果に入れ</b>、<b>メダル情報が映っているか</b>も確認します（メダル情報が必要な大会で映っていないと送れません）。送れるのは画面のスクショ（PNG・JPEG・WebP）だけで、送る前に端末の中で画像を作り直します。</li>
-    <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか・カスタムバトルのリプレイか・映っている人がこの対戦の2チームのメンバーか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。処理が終わった報告は「<b>スクショを削除</b>」で画像を消して、保存容量を空けられます。</li></ul>`)}
+    <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか・カスタムバトルのリプレイか・映っている人がこの対戦の2チームのメンバーか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。処理が終わった報告は「<b>スクショを削除</b>」で画像を消して、保存容量を空けられます。</li>
+    <li>同じ対戦に両チームから報告が届くと、まとめて並び、「<b>両チームの報告が一致しています</b>／<b>食い違っています</b>」と出ます。一致していれば「一致した結果で承認」の1回で両方の報告が確定します。承認すると、スクショから読み取った<b>全員の使用ヒーロー・メダル・デッキ</b>も対戦表に記録され、観戦者も見られるようになります。</li>
+    <li>ステージ：運営がスクショ横の「このステージを登録…」で一度登録したステージは、次から見分けられます。1試合目や引き分けの次がでらクランクストリートでないとき、禁止ステージのときに警告が出ます（選手の報告画面にも出ます）。</li>
+    <li>棄権・失格：「対戦表・結果入力」の「<b>棄権・失格</b>」で、チームのまだ結果が入っていない試合をまとめて不戦敗にできます。「解除」で、そこで入れた不戦敗だけを消せます。</li></ul>`)}
   ${sec(9, "スマホで使う", `<ul>
     <li><b>アプリとしてインストール</b>できます。Android・パソコンのChromeでは、最初の画面や「使い方」に出る「アプリとしてインストール」ボタン（または Chromeの「︙」→「<b>アプリをインストール</b>」/「ホーム画面に追加」）から。iPhone・iPadでは、Safariの共有ボタン（□に↑）→「<b>ホーム画面に追加</b>」から。</li>
     <li>インストールすると、ホーム画面のアイコンから全画面で開けます。結果はそのままリアルタイムで更新されます。サイトが新しくなったときは、入力の切れ目で<b>自動で更新</b>し、入力中の内容（結果報告のポータルキー・スクショ・ひとこと、開いていた対戦、入力欄の文字など）はそのまま戻ります。</li>
@@ -1533,6 +1547,105 @@ function checkPlayer(m, p) {
   }
   return { issues, notes, marks, deckNo, medalMarks, heroOk };
 }
+/* ---------- disqualification / withdrawal: every game this team has not played yet becomes a forfeit (0-5) ---------- */
+const OUT_JA = { dq: "失格", wd: "棄権" };
+function outsPanel(s) {
+  if (role !== "admin" || demoMode) return "";
+  const teams = allTeams(s); if (!teams.length) return "";
+  const outs = s.config?.outs || {};
+  return `<details class="panel outs" ${Object.keys(outs).length ? "open" : ""}><summary class="panel-head"><h2>棄権・失格</h2><span class="meta">${Object.keys(outs).length ? `${Object.keys(outs).length}チーム` : "なし"}</span></summary><div class="panel-body" style="display:grid;gap:10px">
+    <div class="muted-s">選んだチームの、<b>まだ結果が入っていない試合をすべて不戦敗（0-5）</b>にします。すでに入っている結果はそのままです。「解除」で、ここで入れた不戦敗だけを消せます。</div>
+    <div class="btns"><select id="out-team" aria-label="チーム">${teams.filter(t => !outs[t.id]).map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("")}</select>
+      <button class="btn danger" data-act="out-apply" data-kind="wd">棄権にする</button><button class="btn danger" data-act="out-apply" data-kind="dq">失格にする</button></div>
+    ${Object.entries(outs).map(([id, k]) => `<div class="code-row"><div><b>${esc(teamName(s, id))}</b>：${OUT_JA[k]}</div><div class="btns">
+      <button class="btn sm" data-act="out-apply" data-kind="${k}" data-team="${esc(id)}" title="新しくできた対戦（スイスドローの次のラウンドなど）にも入れます">もう一度入れる</button>
+      <button class="btn ghost sm" data-act="out-undo" data-team="${esc(id)}">解除（不戦敗を消す）</button></div></div>`).join("")}
+  </div></details>`;
+}
+// fill / clear the forfeits of one team in all its matches
+async function outFill(s, team, kind) {
+  const set = SETS(s); let n = 0;
+  for (const m of teamMatches(s, team)) {
+    const side = m.a === team ? "a" : "b";
+    if (m.kind === "group") {
+      const doc = s.matches[m.mid] || { group: m.g, a: m.a, b: m.b, games: [] };
+      if (evalGroup(doc, set).done) continue;
+      const games = (doc.games || []).slice();
+      for (let i = 0; i < set.games; i++) if (!gameRes(games[i])) { games[i] = { a: null, b: null, ff: side, bulk: kind }; n++; }
+      await write("matches/" + m.mid, { ...doc, a: doc.a || m.a, b: doc.b || m.b, games, updatedAt: new Date().toISOString() });
+    } else {
+      const doc = s.bracket[m.mid] || { key: m.mid, a: m.a, b: m.b, games: [] }, e = evalBo3(doc, set);
+      if (e.winner) continue;
+      const games = (doc.games || []).filter(g => gameRes(g)); let opp = side === "a" ? e.wb : e.wa;
+      while (opp < e.need) { games.push({ a: null, b: null, ff: side, bulk: kind }); opp++; n++; }
+      await write("bracket/" + m.mid, { ...doc, a: doc.a || m.a, b: doc.b || m.b, games, updatedAt: new Date().toISOString() });
+    }
+  }
+  return n;
+}
+async function outClear(s, team) {
+  let n = 0;
+  for (const m of teamMatches(s, team)) {
+    const path = m.kind === "group" ? "matches/" + m.mid : "bracket/" + m.mid, doc = m.kind === "group" ? s.matches[m.mid] : s.bracket[m.mid];
+    if (!doc) continue;
+    const side = m.a === team ? "a" : "b", games = (doc.games || []).filter(g => !(g && g.bulk && g.ff === side));
+    if (games.length === (doc.games || []).length) continue;
+    n += (doc.games || []).length - games.length;
+    while (games.length && !gameRes(games[games.length - 1])) games.pop();
+    await write(path, games.length ? { ...doc, games, updatedAt: new Date().toISOString() } : null);
+  }
+  return n;
+}
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act]"); if (!el || role !== "admin") return;
+  const act = el.dataset.act, s = S();
+  if (act === "out-apply") {
+    const team = el.dataset.team || $("#out-team")?.value, kind = el.dataset.kind; if (!team) return;
+    if (!el.dataset.team && el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = `もう一度押すと${teamName(s, team)}を${OUT_JA[kind]}に`; return; }
+    el.disabled = true;
+    const n = await outFill(s, team, kind);
+    const cfg = { ...(S().config || {}) }; cfg.outs = { ...(cfg.outs || {}), [team]: kind }; await write("t/config", cfg);
+    toast(`${teamName(s, team)}を${OUT_JA[kind]}にしました（不戦敗 ${n}試合）`); return;
+  }
+  if (act === "out-undo") {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと解除"; return; }
+    const team = el.dataset.team; el.disabled = true;
+    const n = await outClear(s, team);
+    const cfg = { ...(S().config || {}) }; const o = { ...(cfg.outs || {}) }; delete o[team]; cfg.outs = o; await write("t/config", cfg);
+    toast(`${teamName(s, team)}の${n}試合の不戦敗を消しました`); return;
+  }
+});
+/* ---------- stages ---------- */
+// the rule only needs to know: is it でらクランクストリート, another allowed stage, or a banned one
+const STAGE_CATS = ["でらクランクストリート", "使えるステージ（その他）", "トレーニングステージ", "【ストヘス区】急襲戦闘区域", "【裏】ステージ", "でらクラクラストリート", "グレートホール", "立体交差のない風景"];
+const STAGE_FIRST = 0, isBannedStage = k => k >= 2;
+function stageEnc(f) { const b = new Uint8Array(f.length); f.forEach((v, i) => b[i] = v < 0 ? 255 : Math.max(0, Math.min(254, v))); let t = ""; b.forEach(x => t += String.fromCharCode(x)); return btoa(t); }
+function stageDec(t) { try { const r = atob(t); return Array.from(r, ch => { const v = ch.charCodeAt(0); return v === 255 ? -1 : v; }); } catch (e) { return null; } }
+// which registered stage this picture is (null: not registered yet)
+function stageOf(s, feat) {
+  const R = RD(); if (!R || !feat || !R.stageDist) return null;
+  let best = null, bd = 1e9;
+  for (const ref of (s.config?.stageRefs || [])) { const f = stageDec(ref.f); if (!f) continue; const d = R.stageDist(f, feat); if (d < bd) { bd = d; best = ref.k; } }
+  return bd < R.STAGE_T ? best : null;
+}
+// warnings for game i (games: the reported scores so far, to know whether the game before was a draw)
+function stageWarn(s, k, i, prevDraw) {
+  if (!SETS(s).stageCheck || k == null) return [];
+  const out = [];
+  if (isBannedStage(k)) out.push(`禁止ステージ「${STAGE_CATS[k]}」の可能性があります`);
+  else if (i === 0 && k !== STAGE_FIRST) out.push("1試合目は「でらクランクストリート」のはずですが、違うステージの可能性があります");
+  else if (prevDraw && k !== STAGE_FIRST) out.push("前の試合が引き分けなので「でらクランクストリート」のはずですが、違うステージの可能性があります");
+  return out;
+}
+const isDraw = g => g && g.a != null && g.b != null && +g.a === +g.b;
+// a small picture of the stage, and (operators) a way to register it
+function stageTeach(s, g, key) {
+  if (!g?.stageURL) return "";
+  const k = stageOf(s, g.stage);
+  return `<span class="stg"><img src="${img_(g.stageURL)}" alt="ステージ"><span class="muted-s">${k == null ? "ステージ未登録" : esc(STAGE_CATS[k])}</span>
+    ${role === "admin" && g.stage ? `<select data-stagepick="${esc(key)}" aria-label="このステージ"><option value="">${k == null ? "このステージを登録…" : "登録し直す…"}</option>${STAGE_CATS.map((n, i) => `<option value="${i}">${esc(n)}</option>`).join("")}</select>` : ""}</span>`;
+}
+const stageFeats = {};   // key -> feature, for the register select
 // a replay that is not from a custom battle is probably not a tournament match
 function modeWarn_(md) {
   if (!md || md.kind !== "other") return "";
@@ -1549,6 +1662,13 @@ function teamCheck(s, u, A, B) {
   for (const t of [A, B]) if (!byTeam[t] && hasRefs(t)) out.push(`${teamName(s, t)}のメンバーが見つかりません（ユーザーネームが一致しません）`);
   return { warn: out, unknown, byTeam };
 }
+// what each player used in a game; saved with the result so everyone (viewers too) can see it
+function usedOf(u, ev2, A, B) {
+  const R = RD(), side = p => { const t = ev2.sideTeam(p.side); return t === A ? "a" : t === B ? "b" : ""; };
+  return u.players.map(p => ({ t: side(p), name: p.nameURL || "", hero: p.hero || "",
+    medals: (p.medals || []).map(x => ({ k: x.k || null, c: x.c || "", lvl: x.lvl || null, img: x.url || "" })),
+    cards: (p.cards || []).map(c => ({ img: c.url || "", n: R ? R.cardName(c.top || [], c.ratio || 0) : "" })) }));
+}
 function evalUnit(s, u, A, B) {
   const ps = u.players.map(p => ({ p, m: identify(s, p.name) }));
   let vA = 0, vB = 0; // votes for "blue side is team A" / "blue side is team B"
@@ -1562,6 +1682,7 @@ function evalUnit(s, u, A, B) {
   const issues = checks.filter(c => c.m).flatMap(c => c.issues).concat(unknown ? [`名前からメンバーを判別できない人が${unknown}人います`] : []).concat(checks.filter(c => c.wrong).map(c => `${memberLabel(s, c.m)} は、この対戦のチームのメンバーではありません`));
   const sideTeam = side => blueIs == null ? null : ((side === "blue") === (blueIs === "a") ? A : B);
   const mw = modeWarn_(u.mode); if (mw) issues.unshift(mw);
+  { const k = stageOf(s, u.stage); if (SETS(s).stageCheck && k != null && isBannedStage(k)) issues.unshift(`禁止ステージ「${STAGE_CATS[k]}」の可能性があります`); }
   teamCheck(s, u, A, B).warn.filter(t => t.includes("見つかりません")).forEach(t => issues.push(t));
   if (noMedals) issues.unshift("メダル情報が表示されていないスクショです。ルールにより受理できません（ⓘを押してメダル情報を表示したスクショを提出してもらってください）");
   return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes).filter(t => !t.includes("ⓘを押して詳細")), sideTeam, noMedals };
@@ -1733,11 +1854,7 @@ document.addEventListener("click", ev => {
   if (act === "scan-apply" && draft && scan) {
     const u = scan.units[+el.dataset.u], ev2 = evalUnit(s, u, draft.a, draft.b);
     if (ev2.ka == null || ev2.kb == null) return;
-    // what each of the 6 players used in this game; saved with the result so everyone (viewers too) can see it
-    const R = RD(), side = p => { const t = ev2.sideTeam(p.side); return t === draft.a ? "a" : t === draft.b ? "b" : ""; };
-    const used = u.players.map(p => ({ t: side(p), name: p.nameURL || "", hero: p.hero || "",
-      medals: (p.medals || []).map(x => ({ k: x.k || null, c: x.c || "", lvl: x.lvl || null, img: x.url || "" })),
-      cards: (p.cards || []).map(c => ({ img: c.url || "", n: R ? R.cardName(c.top || [], c.ratio || 0) : "" })) }));
+    const used = usedOf(u, ev2, draft.a, draft.b);
     draft.games[u.slot] = { a: ev2.ka, b: ev2.kb, ff: null, check: { issues: ev2.issues, at: new Date().toISOString() }, used: { players: used, at: new Date().toISOString() } };
     for (let k = 0; k < u.slot; k++) draft.games[k] = draft.games[k] || { a: null, b: null, ff: null };
     render(); saveDraft(); toast(`${u.slot + 1}試合目に記入しました`); return;
@@ -1785,7 +1902,7 @@ function autosave(path, body) {
   })();
 }
 function saveDraft() {
-  const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null, ...(g.check ? { check: g.check } : {}), ...(g.used ? { used: g.used } : {}) }) : { a: null, b: null, ff: null })
+  const games = draft.games.map(g => g ? ({ a: num(g.a), b: num(g.b), ff: g.ff || null, ...(g.check ? { check: g.check } : {}), ...(g.used ? { used: g.used } : {}), ...(g.bulk ? { bulk: g.bulk } : {}) }) : { a: null, b: null, ff: null })
     .filter((g, i, arr) => arr.slice(i).some(x => x.ff || x.a != null || x.b != null));
   const now = new Date().toISOString();
   const body = !games.length ? null : draft.kind === "group"
@@ -1952,6 +2069,8 @@ function cleanConfig(c) {
   c.teams = (Array.isArray(c.teams) ? c.teams : []).filter(t => t && cleanId(t.id)).map(t => ({ ...t, name: String(t.name ?? "").slice(0, 60), abbr: String(t.abbr ?? "").slice(0, 10), group: ["A", "B", "C", "D"].includes(t.group) ? t.group : "" }));
   if (c.swiss) c.swiss = { rounds: (Array.isArray(c.swiss.rounds) ? c.swiss.rounds : []).map(r => ({ pairs: (Array.isArray(r?.pairs) ? r.pairs : []).filter(p => Array.isArray(p) && cleanId(p[0]) && cleanId(p[1])), bye: cleanId(r?.bye) })) };
   const tb = {}; for (const [k, v] of Object.entries(c.tiebreak && typeof c.tiebreak === "object" ? c.tiebreak : {})) if (/^[A-DS]$/.test(k) && Array.isArray(v)) tb[k] = v.filter(cleanId); c.tiebreak = tb;
+  c.outs = Object.fromEntries(Object.entries(c.outs && typeof c.outs === "object" ? c.outs : {}).filter(([k, v]) => cleanId(k) && ["dq", "wd"].includes(v)));
+  c.stageRefs = (Array.isArray(c.stageRefs) ? c.stageRefs : []).filter(x => x && Number.isInteger(x.k) && x.k >= 0 && x.k < STAGE_CATS.length && typeof x.f === "string" && /^[A-Za-z0-9+/=]{100,2000}$/.test(x.f)).slice(-80);
   return c;
 }
 const cleanResult = d => d && typeof d === "object" ? { ...d, a: cleanId(d.a), b: cleanId(d.b), games: Array.isArray(d.games) ? d.games : [] } : null;
@@ -2049,7 +2168,7 @@ function shotReadRow(s, team, opp, i) {
   const side = g.mine || repDraft.side?.[i];
   const sc = side ? `${esc(team.name)} ${side === "b" ? g.b : g.r} - ${side === "b" ? g.r : g.b} ${esc(teamName(s, opp))}` : `青 ${g.b} - ${g.r} 赤`;
   const med = g.med === 0 ? `<b class="bad-t">メダル情報なし</b>` : g.med < g.n ? `<span class="bad-t">メダル情報 ${g.med}/${g.n}人</span>` : `<span class="ok-t">メダル情報あり</span>`;
-  const extra = [modeWarn_(g.mode), g.ownMissing ? "あなたのチームのメンバーが見つかりません（ユーザーネームが一致しません）。この対戦のスクショか確認してください" : "",
+  const prev = repDraft.games[i - 1], extra = [modeWarn_(g.mode), ...stageWarn(s, stageOf(s, g.stage), i, prev && prev.me != null && prev.op != null && prev.me === prev.op), g.ownMissing ? "あなたのチームのメンバーが見つかりません（ユーザーネームが一致しません）。この対戦のスクショか確認してください" : "",
     g.med === 0 && need ? "メダル情報が表示されていません。この大会のルールでは受け付けられません。リプレイ画面でⓘを押してメダル情報を表示させてから、撮り直してください" : ""].filter(Boolean);
   return `<div class="rd-row ${g.med === 0 && need ? "warn" : ""}"><span>読み取り：${sc}</span> ・ ${med}
     ${g.mine ? "" : `<span class="muted-s">自分のチームの色：</span><select data-repside="${i}" aria-label="${i + 1}試合目の自分のチームの色"><option value="">選ぶ</option><option value="b" ${side === "b" ? "selected" : ""}>青</option><option value="r" ${side === "r" ? "selected" : ""}>赤</option></select>`}
@@ -2130,7 +2249,8 @@ async function readShotGames(s, file, team, A, B) {
     let ownMissing = false;
     if (team && !A) ownMissing = mine == null && membersOf(s, team).some(m => (m.nameRefs || []).length);
     return { b: u.score.b, r: u.score.r, sure: !!u.score.sure, mine, med: u.players.filter(p => p.medals).length, n: u.players.length, ka: ev?.ka ?? null, kb: ev?.kb ?? null,
-      issues: ev ? ev.issues.filter(t => !t.startsWith("カスタムバトル")) : [], mode: u.mode ? { kind: u.mode.kind, n: u.mode.n, sure: !!u.mode.sure } : null, teamWarn: tc ? tc.warn : [], ownMissing };
+      issues: ev ? ev.issues.filter(t => !t.startsWith("カスタムバトル")) : [], mode: u.mode ? { kind: u.mode.kind, n: u.mode.n, sure: !!u.mode.sure } : null, teamWarn: tc ? tc.warn : [], ownMissing,
+      stage: u.stage || null, stageURL: u.stageURL || "", _u: u };
   });
 }
 function autoFillReport() { // fill each row from its own screenshot (rows the player typed by hand are left alone)
@@ -2161,8 +2281,18 @@ function reportsAdminView(s) {
         <input class="rep-reason" data-reason="${esc(r.id)}" placeholder="却下の理由（任意）" maxlength="200"><button class="btn ghost sm danger" data-act="rep-ng" data-id="${esc(r.id)}">却下</button></div>`
         : `${r.status === "rejected" && r.reason ? `<div class="muted-s">理由：${esc(r.reason)}</div>` : ""}${r.shotsGone ? "" : `<div class="btns"><button class="btn ghost sm danger" data-act="rep-shots-del" data-id="${esc(r.id)}">スクショを削除</button></div>`}`}</div>`;
   };
+  const groups = {}; pend.forEach(r => (groups[r.kind + "|" + r.mid] = groups[r.kind + "|" + r.mid] || []).push(r));
+  const groupView = list => {
+    const r0 = list[0], latest = t => list.filter(x => x.team === t).sort((x, y) => y.at - x.at)[0], ra = latest(r0.a), rb = latest(r0.b);
+    let head;
+    if (ra && rb) head = sameRaw(ra.games, rb.games)
+      ? `<div class="pair ok"><b>両チームの報告が一致しています</b>（${gamesTxt(ra.games)}）<button class="btn primary sm" data-act="rep-ok" data-id="${esc(ra.id)}">一致した結果で承認</button></div>`
+      : `<div class="pair ng"><b>両チームの報告が食い違っています</b><span>${esc(teamName(s, r0.a))}の報告：${gamesTxt(ra.games)}</span><span>${esc(teamName(s, r0.b))}の報告：${gamesTxt(rb.games)}</span><span class="muted-s">スクショを見て正しい方を承認するか、Discordで両チームに確認してください</span></div>`;
+    else head = `<div class="pair wait">${esc(teamName(s, ra ? r0.b : r0.a))}の報告はまだ届いていません（片方の報告だけで承認することもできます）</div>`;
+    return `<div class="rep-group"><div class="rep-gt"><b>${esc(r0.label || "")}</b>：${esc(teamName(s, r0.a))} vs ${esc(teamName(s, r0.b))}</div>${head}${list.map(card).join("")}</div>`;
+  };
   return `<section class="panel rep-admin"><div class="panel-head"><h2>選手からの結果報告</h2><span class="meta">${pend.length ? `承認待ち ${pend.length}件` : "承認待ちはありません"}</span></div><div class="panel-body" style="display:grid;gap:10px">
-    ${pend.map(card).join("")}
+    ${Object.values(groups).map(groupView).join("")}
     ${done.length ? `<details><summary class="muted-s">処理した報告（最近${done.length}件）</summary><div style="display:grid;gap:8px;margin-top:8px">${done.map(card).join("")}</div></details>` : ""}</div></section>`;
 }
 // the games read from a report's screenshots, as {a, b} portal keys (null when any game could not be placed)
@@ -2171,6 +2301,7 @@ function readGamesOf(r) {
   if (!gs.length || gs.some(g => !g || g.ka == null || g.kb == null)) return null;
   return gs.map(g => ({ a: g.ka, b: g.kb }));
 }
+const sameRaw = (x, y) => Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((g, i) => pk_(g?.a) != null && pk_(g?.a) === pk_(y[i]?.a) && pk_(g?.b) === pk_(y[i]?.b));
 const sameGames = (x, y) => Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((g, i) => g.a === pk_(y[i]?.a) && g.b === pk_(y[i]?.b));
 function adminReadView(s, r) {
   const reads = shotReads[r.id], need = SETS(s).requireMedalShot;
@@ -2178,7 +2309,8 @@ function adminReadView(s, r) {
     : !gs.length ? `<div class="rd-row warn">${si + 1}試合目のスクショ：試合の結果を読み取れませんでした（目で確認してください）</div>`
     : [gs[gs.length - 1]].map(g => `<div class="rd-row ${g.med === 0 && need ? "warn" : ""}">${si + 1}試合目のスクショ：${g.ka != null ? `${esc(teamName(s, r.a))} ${g.ka} - ${g.kb} ${esc(teamName(s, r.b))}` : `青 ${g.b} - ${g.r} 赤（どちらのチームか判別できません）`}
         ・ ${g.med === 0 ? `<b class="bad-t">メダル情報なし</b>` : g.med < g.n ? `<span class="bad-t">メダル情報 ${g.med}/${g.n}人</span>` : `<span class="ok-t">メダル情報あり</span>`}
-        ${[modeWarn_(g.mode), ...(g.teamWarn || [])].filter(Boolean).map(t => `<div class="bad-t" style="flex-basis:100%;font-size:.8rem">⚠ ${esc(t)}</div>`).join("")}
+        ${(stageFeats[r.id + ":" + si] = g.stage, stageTeach(s, g, r.id + ":" + si))}
+        ${[modeWarn_(g.mode), ...stageWarn(s, stageOf(s, g.stage), si, isDraw(r.games?.[si - 1])), ...(g.teamWarn || [])].filter(Boolean).map(t => `<div class="bad-t" style="flex-basis:100%;font-size:.8rem">⚠ ${esc(t)}</div>`).join("")}
         ${g.issues?.length ? `<div class="bad-t" style="font-size:.78rem;flex-basis:100%">${g.issues.map(esc).join(" ／ ")}</div>` : ""}</div>`).join("")).join("");
   const rg = readGamesOf(r), cmp = rg ? (sameGames(rg, r.games) ? `<div class="rd-row ok-t">報告された結果と、スクショから読み取った結果が一致しています</div>` : `<div class="rd-row warn"><b>報告された結果と、スクショから読み取った結果が違います。</b>読み取り：${rg.map(g => `${g.a}-${g.b}`).join(" / ")}</div>`) : "";
   return `<div class="rd-box"><div class="dl">スクショの自動読み取り</div>${rows}${cmp}</div>`;
@@ -2199,11 +2331,24 @@ async function approveReport(s, r) {
   if (!reportMatch(s, r)) { toast("報告の対戦が、この大会の対戦と一致しません（承認できません）"); return; }
   const gs = Array.isArray(r.games) ? r.games : [];
   if (!gs.length || gs.length > 15 || gs.some(g => pk_(g?.a) == null || pk_(g?.b) == null)) { toast("報告のポータルキーが正しくありません（承認できません）"); return; }
-  const games = gs.map(g => ({ a: pk_(g.a), b: pk_(g.b), ff: null })), now = new Date().toISOString();
+  const now = new Date().toISOString();
+  if (!shotReads[r.id] && !r.shotsGone) { toast("スクショを読み取っています…"); await loadShots(r); }
+  const reads = shotReads[r.id] || [];
+  const games = gs.map((g, i) => {
+    const one = { a: pk_(g.a), b: pk_(g.b), ff: null }, rd = reads[i] && reads[i].length ? reads[i][reads[i].length - 1] : null;
+    if (rd?._u) { const ev2 = evalUnit(s, rd._u, r.a, r.b); one.used = { players: usedOf(rd._u, ev2, r.a, r.b), at: now }; one.check = { issues: ev2.issues, at: now }; }
+    return one;
+  });
   const ok = r.kind === "group" ? await write("matches/" + r.mid, { group: r.g, a: r.a, b: r.b, games, updatedAt: now, report: r.id })
     : await write("bracket/" + r.mid, { key: r.mid, a: r.a, b: r.b, games, updatedAt: now, report: r.id });
   if (!ok) return;
-  try { await FB.fs.doc(`tournaments/${FB.tid}/reports/${r.id}`).update({ status: "approved", decidedBy: FB.user.uid, decidedAt: Date.now() }); toast("承認して結果にしました"); }
+  try {
+    await FB.fs.doc(`tournaments/${FB.tid}/reports/${r.id}`).update({ status: "approved", decidedBy: FB.user.uid, decidedAt: Date.now() });
+    // the other team's report of the same match, if it says the same, is settled too
+    for (const o of (real.reports || []).filter(o => o.id !== r.id && o.status === "pending" && o.kind === r.kind && o.mid === r.mid && sameRaw(o.games, gs)))
+      await FB.fs.doc(`tournaments/${FB.tid}/reports/${o.id}`).update({ status: "approved", decidedBy: FB.user.uid, decidedAt: Date.now() });
+    toast("承認して結果にしました（使ったヒーロー・メダル・デッキも対戦表に出ます）");
+  }
   catch (e) { toast("結果は入れましたが、報告の状態を変えられませんでした: " + (e.message || e.code)); }
 }
 function subscribeReports() {
@@ -2219,6 +2364,14 @@ function subscribeOwnTeam() { // a player may read only their own team's entries
 }
 document.addEventListener("change", async ev => {
   const el = ev.target;
+  if (el.dataset?.stagepick != null && el.value !== "" && role === "admin") {
+    const f = stageFeats[el.dataset.stagepick]; if (!f) return;
+    const st = S(), cfg = { ...(st.config || {}) }, R = RD();
+    const others = (cfg.stageRefs || []).filter(x => { const g = stageDec(x.f); return !(g && R && R.stageDist(g, f) < R.STAGE_T); });   // re-registering replaces the old label
+    cfg.stageRefs = [...others, { k: +el.value, f: stageEnc(f) }].slice(-80);
+    if (await write("t/config", cfg)) toast(`「${STAGE_CATS[+el.value]}」として登録しました。次からはこのステージを見分けます`);
+    return;
+  }
   if (el.dataset?.repfile != null) { // one screenshot for one game
     const i = +el.dataset.repfile, f = el.files[0]; el.value = ""; if (!f || !repDraft || repDraft.busy) return;
     repDraft.busy = "r" + i; render();

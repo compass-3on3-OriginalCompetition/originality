@@ -793,7 +793,7 @@ async function readFile(file) {
         cards: p.cards ? p.cards.map((f, k) => { const s = cardSuggest(f); return { f: b64(f), top: s ? s.top.map(x => x.n) : [], ratio: s ? s.ratio : 0, url: cropURL(u.im, p.cardBox[k], 44) }; }) : null,
       }));
       const mp = a.det.blue[0], msc = a.det.sc, modeBox = [mp.x0 - 4 * msc, mp.y0 - 108 * msc, mp.x0 + 230 * msc, mp.y0 - 62 * msc];
-      out.push({ label: u.name, detail: !!a.detail, modeURL: cropURL(u.im, modeBox, 300), mode: modeOf(u.img, modeBox), score: { b: a.score.b, r: a.score.r, sure: a.score.db < DIGIT_SURE && a.score.dr < DIGIT_SURE }, players });
+      out.push({ label: u.name, detail: !!a.detail, modeURL: cropURL(u.im, modeBox, 300), mode: modeOf(u.img, modeBox), stage: a.stage ? Array.from(a.stage, v => v < 0 ? -1 : Math.round(v)) : null, stageURL: a.stageBox ? cropURL(u.im, a.stageBox, 240) : '', score: { b: a.score.b, r: a.score.r, sure: a.score.db < DIGIT_SURE && a.score.dr < DIGIT_SURE }, players });
     }
     return out;
   } finally { URL.revokeObjectURL(L.url); }
@@ -969,7 +969,7 @@ window.CompassReader = {
   cardDiff,
   CARD_SAME: 0.78,
   CARD_MAYBE: 0.9,
-  heroNames: Core.HERO_NAMES.slice(),
+  heroNames: Core.HERO_NAMES.slice(), stageDist: (a, b) => Core.stageDist(a, b), STAGE_T: Core.T.stage,
   cardNames: CARD_NAMES,
   heroIcon: n => HERO_ICON[n] || '',
   nameDist: (a, b) => Core.maskDist(enc.unmask(a), enc.unmask(b)),
