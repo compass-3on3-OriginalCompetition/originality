@@ -2786,22 +2786,44 @@ function fxResize() {
 }
 // one clash: a red bolt from the left and a blue-white bolt from the right meet somewhere near the middle
 const FX_RED = "255,61,94", FX_BLUE = "120,220,255";
-function fxSplit(a, b, rough, depth) {
-  let pts = [a, b];
-  for (let k = 0; k < depth; k++) { const nx = [pts[0]]; for (let i = 1; i < pts.length; i++) { const p = pts[i - 1], q = pts[i], dx = q[0] - p[0], dy = q[1] - p[1], d = Math.hypot(dx, dy), off = (Math.random() - 0.5) * d * rough;
-    nx.push([(p[0] + q[0]) / 2 - dy / (d || 1) * off, (p[1] + q[1]) / 2 + dx / (d || 1) * off], q); } pts = nx; }
+// a lightning channel: a random walk toward the target with many small kinks (not a smooth curve)
+function fxWalk(a, b, step, wander) {
+  const pts = [[a[0], a[1]]]; let x = a[0], y = a[1];
+  for (let guard = 0; guard < 600; guard++) {
+    const dx = b[0] - x, dy = b[1] - y, d = Math.hypot(dx, dy);
+    if (d < step * 1.2) { pts.push([b[0], b[1]]); break; }
+    // mostly small kinks, now and then a sharp turn; uneven segment lengths
+    const kink = (Math.random() + Math.random() - 1) * wander * (Math.random() < 0.18 ? 2.4 : 1) * (d > step * 6 ? 1 : 0.4);
+    const ang = Math.atan2(dy, dx) + kink, l = step * (0.25 + Math.pow(Math.random(), 1.5) * 1.9);
+    x += Math.cos(ang) * l; y += Math.sin(ang) * l; pts.push([x, y]);
+  }
   return pts;
+}
+// thinner branches split off the channel (and off the branches), pointing roughly the same way
+function fxBranches(main, ang0, depth, w, out) {
+  for (let i = 4; i < main.length - 4; i++) {
+    if (Math.random() > (depth ? 0.05 : 0.11)) continue;
+    const p = main[i], ang = ang0 + (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.75), len = (depth ? 18 : 40) + Math.random() * (depth ? 45 : 120);
+    const pts = fxWalk(p, [p[0] + Math.cos(ang) * len, p[1] + Math.sin(ang) * len], 6, 1.5);
+    out.push({ pts, w: w * 0.5, at: i / main.length, depth: depth + 1 });
+    if (depth < 1) fxBranches(pts, ang, depth + 1, w * 0.5, out);
+  }
+  return out;
 }
 function fxClash() {
   const W = FX.w, H = FX.h, cx = W * (0.35 + Math.random() * 0.3), cy = H * (0.25 + Math.random() * 0.5);
   const side = (fromX, col) => {
-    const start = [fromX, H * (0.1 + Math.random() * 0.8)], main = fxSplit(start, [cx, cy], 0.45, 7), paths = [{ pts: main, w: 2.8 }];
-    for (let i = 0; i < 2; i++) { const p = main[Math.floor(main.length * (0.25 + Math.random() * 0.45))], dir = Math.atan2(cy - start[1], cx - start[0]) + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5), len = Math.min(W, H) * (0.08 + Math.random() * 0.12);
-      paths.push({ pts: fxSplit(p, [p[0] + Math.cos(dir) * len, p[1] + Math.sin(dir) * len], 0.6, 5), w: 1.4, late: 0.3 }); }
-    return { col, paths };
+    const start = [fromX, H * (0.1 + Math.random() * 0.8)], main = fxWalk(start, [cx, cy], 10, 1.5), ang = Math.atan2(cy - start[1], cx - start[0]);
+    return { col, main, branches: fxBranches(main, ang, 0, 2.6, []) };
   };
-  const sparks = [];   // where they meet: white sparks, made when the bolts touch (see fxSparks)
-  return { sides: [side(-20, FX_RED), side(W + 20, FX_BLUE)], cx, cy, sparks, born: performance.now(), life: 1100 + Math.random() * 300 };
+  // how bright the channel is after the bolts meet: the return stroke, a few re-strikes, then the afterglow
+  const pulses = [[0, 1], [0.05, 0.3], [0.09, 0.95], [0.14, 0.22], [0.19, 0.75], [0.24, 0.18], [0.3, 0.5]].map(([t, v]) => [t + (Math.random() - 0.5) * 0.02, v * (0.85 + Math.random() * 0.15)]);
+  return { sides: [side(-20, FX_RED), side(W + 20, FX_BLUE)], cx, cy, sparks: [], pulses, lead: 0.16 + Math.random() * 0.08, born: performance.now(), life: 1400 };
+}
+function fxBright(b, ts) {   // ts: seconds since the bolts met
+  let v = 0; for (const [t, val] of b.pulses) if (ts >= t) v = val;
+  const after = b.pulses[b.pulses.length - 1][0];
+  return ts < after ? v : v * Math.exp(-(ts - after) / 0.18);
 }
 // sparks: random direction and speed (most slow, a few fast), slowed by air, pulled down, short-lived
 function fxSparks(x, y, n) {
@@ -2822,19 +2844,30 @@ function fxFrame(t) {
   FX.bolts = FX.bolts.filter(b => t - b.born < b.life);
   g.lineJoin = "round"; g.lineCap = "round";
   for (const b of FX.bolts) {
-    const age = (t - b.born) / b.life, grow = Math.min(1, age / 0.16), hit = age >= 0.16, after = hit ? (age - 0.16) / 0.84 : 0;
-    const flick = age < 0.35 ? (Math.random() < 0.5 ? 1 : 0.6) : 1, a = (hit ? Math.max(0, 1 - after) : 1) * flick;
-    // the two halves of the sky light up in their team colour when they meet
-    if (hit && after < 0.18) {
-      const k = 0.07 * (1 - after / 0.18), gr = g.createLinearGradient(0, 0, FX.w, 0);
+    const sec = (t - b.born) / 1000, lead = b.lead, hit = sec >= lead, ts = sec - lead, after = hit ? Math.min(1, ts / ((b.life / 1000) - lead)) : 0;
+    const I = hit ? fxBright(b, ts) : 0;
+    // the two halves of the sky light up in their team colour with each strike
+    if (hit && I > 0.15) {
+      const k = 0.06 * I, gr = g.createLinearGradient(0, 0, FX.w, 0);
       gr.addColorStop(0, `rgba(${FX_RED},${k})`); gr.addColorStop(0.5, "rgba(0,0,0,0)"); gr.addColorStop(1, `rgba(${FX_BLUE},${k})`);
       g.fillStyle = gr; g.fillRect(0, 0, FX.w, FX.h);
     }
-    for (const sd of b.sides) for (const p of sd.paths) {
-      const upto = p.late ? Math.max(0, (grow - p.late) / (1 - p.late)) : grow; if (upto <= 0) continue;
-      fxPath(g, p.pts, upto);
-      g.shadowColor = `rgba(${sd.col},${a})`; g.shadowBlur = 20; g.strokeStyle = `rgba(${sd.col},${0.6 * a})`; g.lineWidth = p.w * 3; g.stroke();
-      g.shadowBlur = 0; g.strokeStyle = `rgba(255,255,255,${0.9 * a})`; g.lineWidth = p.w; g.stroke();
+    for (const sd of b.sides) {
+      // before they meet: a faint leader that advances in small jerky steps, its branches feeling around
+      const frac = hit ? 1 : Math.floor((sec / lead) * 14) / 14;
+      const draw = (pts, upto, w, alpha, glow) => {
+        if (upto <= 0 || alpha <= 0.01) return; fxPath(g, pts, upto);
+        g.shadowColor = `rgba(${sd.col},${alpha})`; g.shadowBlur = glow; g.strokeStyle = `rgba(${sd.col},${0.55 * alpha})`; g.lineWidth = w * 3; g.stroke();
+        g.shadowBlur = 0; g.strokeStyle = `rgba(255,255,255,${0.92 * alpha})`; g.lineWidth = w; g.stroke();
+      };
+      if (!hit) {
+        draw(sd.main, frac, 1.1, 0.45, 8);
+        for (const br of sd.branches) draw(br.pts, Math.min(1, (frac - br.at) * 3), br.w * 0.6, 0.3, 6);
+      } else {
+        draw(sd.main, 1, 2.6, I, 22);
+        const bi = I * Math.exp(-ts / 0.12);   // the branches go dark sooner than the main channel
+        for (const br of sd.branches) draw(br.pts, 1, br.w, bi * (br.depth > 1 ? 0.6 : 0.85), 12);
+      }
     }
     if (hit) {
       // the impact: a short white flash, then sparks that fly, slow down, fall and fade like real ones
