@@ -2493,7 +2493,8 @@ async function sweepStale() {
   if (swept || !FB.user) return; swept = true;
   try {
     const cut = firebase.firestore.Timestamp.fromMillis(Date.now() - 31 * 24 * 3600 * 1000);   // one spare day for clock differences
-    const snap = await FB.fs.collection("tournaments").where("seenAt", "<", cut).limit(3).get();
+    const snap = await FB.fs.collection("activity").where("seenAt", "<", cut).limit(3).get();
+    // deleteTournament removes the "last opened" record last, so a cleanup that stops halfway is finished by the next visitor
     for (const d of snap.docs) { try { await deleteTournament(d.id); } catch (e) {} }
   } catch (e) {}
 }
@@ -2516,8 +2517,9 @@ async function fbOpen(tid, quiet) {
   if (admin) { try { FB.tcodes = (await FB.fs.doc("teamcodes/" + tid).get()).data()?.codes || {}; } catch (e) { FB.tcodes = {}; } }
   try { localStorage.setItem(LAST_TID, tid); } catch (e) {}
   db = fsWrap(tid); subscribeAll(db, admin);
-  { const seen = FB.t.seenAt?.toMillis ? FB.t.seenAt.toMillis() : 0;
-    if (Date.now() - seen > 12 * 3600 * 1000) FB.fs.doc("tournaments/" + tid).update({ seenAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {}); }
+  { // record "someone opened it" (at most every 12 hours from this device)
+    const k = "compass3on3_seen_" + tid; let last = 0; try { last = +localStorage.getItem(k) || 0; } catch (e) {}
+    if (Date.now() - last > 12 * 3600 * 1000) FB.fs.doc("activity/" + tid).set({ seenAt: firebase.firestore.FieldValue.serverTimestamp() }).then(() => { try { localStorage.setItem(k, String(Date.now())); } catch (e) {} }).catch(() => {}); }
   if (role === "player") { subscribeOwnTeam(); if (!location.hash || location.hash === "#standings") location.hash = "myteam"; }
   subscribeReports();
 }
@@ -2713,6 +2715,7 @@ async function deleteTournament(tid) {
   }
   for (const p of ["teamcodes/" + tid, "secrets/" + tid, "users/" + FB.user.uid + "/joined/" + tid]) await FB.fs.doc(p).delete().catch(() => {});
   await FB.fs.doc("tournaments/" + tid).delete();
+  await FB.fs.doc("activity/" + tid).delete().catch(() => {});
   return n;
 }
 document.addEventListener("click", async ev => {

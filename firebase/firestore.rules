@@ -38,15 +38,13 @@ service cloud.firestore {
     // finalised: results are fixed, nothing can be changed
     function isFinal(tid) { return exists(tPath(tid)) && tData(tid).get('final', false) == true; }
     function canEdit(tid) { return isAdmin(tid) && !isFinal(tid); }
-    // nobody has opened it for 30 days
-    function staleAt(d) { return d.get('seenAt', request.time) < request.time - duration.value(30, 'd'); }
-    function isStale(tid) { return signedIn() && exists(tPath(tid)) && staleAt(tData(tid)); }
+    // nobody has opened it for 30 days (kept in /activity/{tid}: only the time it was last opened)
+    function aPath(tid) { return /databases/$(database)/documents/activity/$(tid); }
+    function isStale(tid) { return signedIn() && exists(aPath(tid)) && get(aPath(tid)).data.seenAt < request.time - duration.value(30, 'd'); }
 
     match /tournaments/{tid} {
       allow get: if isViewer(tid);
       allow list: if signedIn() && resource.data.owner == request.auth.uid;
-      // finding tournaments nobody has opened for 30 days (the query must ask for seenAt older than that)
-      allow list: if signedIn() && resource.data.seenAt < request.time - duration.value(30, 'd');
       allow create: if googleUser() && request.resource.data.owner == request.auth.uid
                     && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt', 'seenAt'])
                     && request.resource.data.name is string && request.resource.data.name.size() <= 60
@@ -58,7 +56,7 @@ service cloud.firestore {
                        && (!isFinal(tid) || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenAt'])))
                     || (isViewer(tid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenAt'])
                        && request.resource.data.seenAt == request.time);
-      allow delete: if isOwner(tid) || (signedIn() && staleAt(resource.data));
+      allow delete: if isOwner(tid) || isStale(tid);
 
       // people who joined with a code; each person writes only their own entry, and only with the right code
       match /viewers/{uid} {
@@ -159,6 +157,13 @@ service cloud.firestore {
       allow read: if isAdmin(tid);
       allow create, update: if canEdit(tid) && request.resource.data.keys().hasOnly(['codes']) && request.resource.data.codes is map;
       allow delete: if isOwner(tid) || isStale(tid);
+    }
+
+    // when each tournament was last opened (nothing else): anyone signed in may look, to find ones nobody opened for 30 days
+    match /activity/{tid} {
+      allow read: if signedIn();
+      allow create, update: if isViewer(tid) && request.resource.data.keys().hasOnly(['seenAt']) && request.resource.data.seenAt == request.time;
+      allow delete: if isOwner(tid) || isStale(tid) || (signedIn() && !exists(tPath(tid)));
     }
 
     // each person's own list of tournaments they joined
