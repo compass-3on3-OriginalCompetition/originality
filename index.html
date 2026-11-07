@@ -1221,7 +1221,8 @@ function settingsForm(set, id) {
       ${row("1チームの人数", sel("teamSize", [[3, "3on3（1チーム3人）"], [2, "2on2（1チーム2人）"], [1, "1on1（1人ずつ・個人戦）"]], "1チームの人数"), "メンバー登録の人数と、スクショの確認に使います")}
     </div>
     <div class="sgroup"><div class="sg-t">大会の形式</div>${id === "sp" && modeWarn ? modeWarnView() : ""}<div class="fmcards">${modeCards}</div>
-      ${mode.startsWith("group") ? row("グループの数", sel("groups", nums(1, 4, x => x === 1 ? "分けない（全チームで総当たり）" : `${x}グループ`), "グループの数")) : ""}
+      ${mode === "group_ko" ? row("グループの数", sel("groups", [[2, "2グループ"], [4, "4グループ"]], "グループの数"), "トーナメントの組み合わせがそろうように、偶数のグループだけ選べます")
+        : mode === "group" ? row("グループの数", sel("groups", nums(1, 4, x => x === 1 ? "分けない（全チームで総当たり）" : `${x}グループ`), "グループの数")) : ""}
       ${mode === "group_ko" ? row("トーナメントに進む数", sel("advance", [[1, "各グループ1位"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]], "トーナメントに進む数")) : ""}
     </div>
     ${mode === "swiss" ? `<div class="sgroup"><div class="sg-t">スイスドローの設定</div>
@@ -1258,7 +1259,7 @@ function readSet(root, base) {
   });
   // the four formats map onto the engine's settings
   const m = x.mode; delete x.mode; delete x.ranks;
-  if (m === "group_ko") { x.format = "group"; if (!(+x.advance > 0)) x.advance = 2; }
+  if (m === "group_ko") { x.format = "group"; if (!(+x.advance > 0)) x.advance = 2; if (+x.groups % 2) x.groups = +x.groups === 1 ? 2 : 4; }   // even number of groups only
   else if (m === "group") { x.format = "group"; x.advance = 0; }
   else if (m === "knockout") x.format = "knockout";
   else if (m === "swiss") { x.format = "swiss"; if (base.format !== "swiss") x.swissAdvance = 0; }
