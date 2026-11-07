@@ -1389,7 +1389,7 @@ function viewGuide(gated) {
     <li><b>アプリとしてインストール</b>できます。Android・パソコンのChromeでは、最初の画面や「使い方」に出る「アプリとしてインストール」ボタン（または Chromeの「︙」→「<b>アプリをインストール</b>」/「ホーム画面に追加」）から。iPhone・iPadでは、Safariの共有ボタン（□に↑）→「<b>ホーム画面に追加</b>」から。</li>
     <li>インストールすると、ホーム画面のアイコンから全画面で開けます。結果はそのままリアルタイムで更新されます。サイトが新しくなったときは、入力の切れ目で<b>自動で更新</b>し、入力中の内容（結果報告のポータルキー・スクショ・ひとこと、開いていた対戦、入力欄の文字など）はそのまま戻ります。</li>
     <li>スマホでは、画面の下のボタンでページを切り替えます。</li>
-    <li>画面の上の「<b>⚡ 背景</b>」で、黒い背景に稲妻が走る<b>動く背景</b>のオン・オフを切り替えられます（最初はオフ。端末ごとに覚えます）。</li></ul>`)}
+    <li>画面の上の「<b>⚡ 背景</b>」で、黒い背景で<b>赤い雷と青い雷がぶつかり合う動く背景</b>のオン・オフを切り替えられます（最初はオフ。端末ごとに覚えます）。</li></ul>`)}
   </div>`;
 }
 function viewRules() {
@@ -2784,30 +2784,63 @@ function fxResize() {
   FX.dpr = Math.min(2, devicePixelRatio || 1); FX.w = innerWidth; FX.h = innerHeight;
   c.width = Math.round(FX.w * FX.dpr); c.height = Math.round(FX.h * FX.dpr); FX.ctx.setTransform(FX.dpr, 0, 0, FX.dpr, 0, 0);
 }
-// a jagged path from (x0, y0) to (x1, y1), with a few side branches
-function fxBolt() {
-  const W = FX.w, H = FX.h, x0 = W * (0.1 + Math.random() * 0.8), x1 = x0 + (Math.random() - 0.5) * W * 0.6, y1 = H * (0.55 + Math.random() * 0.45);
-  const split = (a, b, rough, depth) => { let pts = [a, b]; for (let k = 0; k < depth; k++) { const nx = [pts[0]]; for (let i = 1; i < pts.length; i++) { const p = pts[i - 1], q = pts[i], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
-      nx.push([(p[0] + q[0]) / 2 + (Math.random() - 0.5) * d * rough, (p[1] + q[1]) / 2 + (Math.random() - 0.5) * d * rough * 0.3], q); } pts = nx; } return pts; };
-  const main = split([x0, -10], [x1, y1], 0.55, 7), paths = [{ pts: main, w: 2.6 }];
-  for (let i = 0; i < 3; i++) { const p = main[Math.floor(main.length * (0.2 + Math.random() * 0.5))], ang = (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.6) + Math.PI / 2, len = H * (0.1 + Math.random() * 0.2);
-    paths.push({ pts: split(p, [p[0] + Math.cos(ang) * len, p[1] + Math.sin(ang) * len], 0.6, 5), w: 1.3 }); }
-  const red = Math.random() < 0.25;   // mostly blue-white, sometimes the site's red
-  return { paths, born: performance.now(), life: 650 + Math.random() * 350, glow: red ? "255,61,94" : "120,220,255" };
+// one clash: a red bolt from the left and a blue-white bolt from the right meet somewhere near the middle
+const FX_RED = "255,61,94", FX_BLUE = "120,220,255";
+function fxSplit(a, b, rough, depth) {
+  let pts = [a, b];
+  for (let k = 0; k < depth; k++) { const nx = [pts[0]]; for (let i = 1; i < pts.length; i++) { const p = pts[i - 1], q = pts[i], dx = q[0] - p[0], dy = q[1] - p[1], d = Math.hypot(dx, dy), off = (Math.random() - 0.5) * d * rough;
+    nx.push([(p[0] + q[0]) / 2 - dy / (d || 1) * off, (p[1] + q[1]) / 2 + dx / (d || 1) * off], q); } pts = nx; }
+  return pts;
+}
+function fxClash() {
+  const W = FX.w, H = FX.h, cx = W * (0.35 + Math.random() * 0.3), cy = H * (0.25 + Math.random() * 0.5);
+  const side = (fromX, col) => {
+    const start = [fromX, H * (0.1 + Math.random() * 0.8)], main = fxSplit(start, [cx, cy], 0.45, 7), paths = [{ pts: main, w: 2.8 }];
+    for (let i = 0; i < 2; i++) { const p = main[Math.floor(main.length * (0.25 + Math.random() * 0.45))], dir = Math.atan2(cy - start[1], cx - start[0]) + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5), len = Math.min(W, H) * (0.08 + Math.random() * 0.12);
+      paths.push({ pts: fxSplit(p, [p[0] + Math.cos(dir) * len, p[1] + Math.sin(dir) * len], 0.6, 5), w: 1.4, late: 0.3 }); }
+    return { col, paths };
+  };
+  const sparks = Array.from({ length: 26 }, (_, i) => { const ang = Math.random() * Math.PI * 2, len = 18 + Math.random() * Math.min(W, H) * 0.12;
+    return { ang, len, col: i % 2 ? FX_RED : FX_BLUE, sp: 0.6 + Math.random() * 0.8 }; });
+  return { sides: [side(-20, FX_RED), side(W + 20, FX_BLUE)], cx, cy, sparks, born: performance.now(), life: 1100 + Math.random() * 300 };
+}
+function fxPath(g, pts, upto) {
+  const n = Math.max(2, Math.ceil(pts.length * upto)); g.beginPath();
+  for (let i = 0; i < n && i < pts.length; i++) i ? g.lineTo(pts[i][0], pts[i][1]) : g.moveTo(pts[i][0], pts[i][1]);
 }
 function fxFrame(t) {
   FX.raf = 0; if (!fxOn() || document.hidden) return;
   const g = FX.ctx; g.clearRect(0, 0, FX.w, FX.h);
-  if (t > FX.next) { FX.bolts.push(fxBolt()); if (Math.random() < 0.3) FX.bolts.push(fxBolt()); FX.next = t + 1800 + Math.random() * 3200; }
+  if (t > FX.next) { FX.bolts.push(fxClash()); FX.next = t + 2500 + Math.random() * 2500; }
   FX.bolts = FX.bolts.filter(b => t - b.born < b.life);
+  g.lineJoin = "round"; g.lineCap = "round";
   for (const b of FX.bolts) {
-    const age = (t - b.born) / b.life, flick = age < 0.25 ? (Math.random() < 0.5 ? 1 : 0.55) : 1, a = Math.max(0, 1 - age) * flick;
-    if (age < 0.12) { g.fillStyle = `rgba(${b.glow},${0.06 * (1 - age / 0.12)})`; g.fillRect(0, 0, FX.w, FX.h); }   // a faint flash of the sky
-    for (const p of b.paths) {
-      g.beginPath(); p.pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
-      g.lineJoin = "round"; g.lineCap = "round";
-      g.shadowColor = `rgba(${b.glow},${a})`; g.shadowBlur = 18; g.strokeStyle = `rgba(${b.glow},${0.55 * a})`; g.lineWidth = p.w * 3; g.stroke();
+    const age = (t - b.born) / b.life, grow = Math.min(1, age / 0.16), hit = age >= 0.16, after = hit ? (age - 0.16) / 0.84 : 0;
+    const flick = age < 0.35 ? (Math.random() < 0.5 ? 1 : 0.6) : 1, a = (hit ? Math.max(0, 1 - after) : 1) * flick;
+    // the two halves of the sky light up in their team colour when they meet
+    if (hit && after < 0.18) {
+      const k = 0.07 * (1 - after / 0.18), gr = g.createLinearGradient(0, 0, FX.w, 0);
+      gr.addColorStop(0, `rgba(${FX_RED},${k})`); gr.addColorStop(0.5, "rgba(0,0,0,0)"); gr.addColorStop(1, `rgba(${FX_BLUE},${k})`);
+      g.fillStyle = gr; g.fillRect(0, 0, FX.w, FX.h);
+    }
+    for (const sd of b.sides) for (const p of sd.paths) {
+      const upto = p.late ? Math.max(0, (grow - p.late) / (1 - p.late)) : grow; if (upto <= 0) continue;
+      fxPath(g, p.pts, upto);
+      g.shadowColor = `rgba(${sd.col},${a})`; g.shadowBlur = 20; g.strokeStyle = `rgba(${sd.col},${0.6 * a})`; g.lineWidth = p.w * 3; g.stroke();
       g.shadowBlur = 0; g.strokeStyle = `rgba(255,255,255,${0.9 * a})`; g.lineWidth = p.w; g.stroke();
+    }
+    if (hit) {
+      // the impact: a white flash with a red/blue rim, and sparks of both colours flying out
+      const fa = Math.max(0, 1 - after * 1.6), r = 14 + after * 70;
+      const rg = g.createRadialGradient(b.cx, b.cy, 0, b.cx, b.cy, r * 2.2);
+      rg.addColorStop(0, `rgba(255,255,255,${0.95 * fa})`); rg.addColorStop(0.35, `rgba(${FX_BLUE},${0.45 * fa})`); rg.addColorStop(0.6, `rgba(${FX_RED},${0.3 * fa})`); rg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = rg; g.beginPath(); g.arc(b.cx, b.cy, r * 2.2, 0, Math.PI * 2); g.fill();
+      for (const sp of b.sparks) {
+        const d0 = sp.len * Math.min(1, after * 2.4 * sp.sp), d1 = Math.max(0, d0 - 16), x = Math.cos(sp.ang), y = Math.sin(sp.ang), sa = Math.max(0, 1 - after * 1.3);
+        if (sa <= 0) continue;
+        g.beginPath(); g.moveTo(b.cx + x * d1, b.cy + y * d1); g.lineTo(b.cx + x * d0, b.cy + y * d0);
+        g.shadowColor = `rgba(${sp.col},${sa})`; g.shadowBlur = 8; g.strokeStyle = `rgba(${sp.col},${sa})`; g.lineWidth = 2; g.stroke(); g.shadowBlur = 0;
+      }
     }
   }
   FX.raf = requestAnimationFrame(fxFrame);
