@@ -597,7 +597,7 @@ const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
 const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, coldAfter: 2, coldDiff: 6, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
-  swissRounds: "", swissAdvance: 0, swissByeOnce: true, submitHeroes: true, submitDecks: true, requireMedalShot: true };
+  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, submitHeroes: true, submitDecks: true, requireMedalShot: true };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -605,6 +605,7 @@ function SETS(st) {
   if (x.games < 2) x.cold = false;
   x.groups = Math.max(1, Math.min(4, +x.groups || 2));
   x.koBest = [1, 3, 5].includes(+x.koBest) ? +x.koBest : 3;
+  x.teamSize = [1, 2, 3].includes(+x.teamSize) ? +x.teamSize : 3;
   // everything below goes into the page, so only known values get through
   if (!["group", "knockout", "swiss"].includes(x.format)) x.format = "group";
   x.coldDiff = Math.max(2, Math.min(15, Math.floor(+x.coldDiff) || 6));
@@ -639,6 +640,8 @@ const MODES = {
   knockout: { ja: "トーナメントのみ", desc: ["負けたらそこで終わりの勝ち抜き戦です。いちばん短い時間で優勝が決まります。", "1回負けたチームはそれ以降試合がありません。チーム数が4・8・16…でないときは、不戦勝の枠ができます。"] },
   swiss: { ja: "スイスドローのみ", desc: ["毎ラウンド、成績の近いチーム同士が対戦します（同じ相手とは2回当たりません）。", "勝っても負けても、全チームが同じラウンド数を戦います。総当たりより少ない対戦数で順位が決まります。チーム数が奇数だと、毎ラウンド1チームが休み（不戦勝）になります。"] },
 };
+const vsJa = set => `${set.teamSize}on${set.teamSize}`;
+const defaultEventName = st => `#コンパス ${vsJa(SETS(st))} 大会`;
 const fmtJa = set => set.format === "swiss" && +set.swissAdvance > 0 ? "スイスドロー → トーナメント" : MODES[set.mode]?.ja || "";
 const GROUP_IDS = ["A", "B", "C", "D"];
 const groupsOf = st => SETS(st).format === "group" ? GROUP_IDS.slice(0, SETS(st).groups) : [];
@@ -911,7 +914,15 @@ function softRender() {
   render();
 }
 document.addEventListener("focusout", () => { if (renderPending) setTimeout(() => { if (renderPending) { renderPending = false; softRender(); } }, 250); });
+// redrawing replaces the page: keep where the person was (page scroll, scroll inside an open window, the control they were using)
 function render() {
+  const keep = { y: scrollY, boxes: [...document.querySelectorAll(".modal, .modal-box")].map(el => el.scrollTop), focus: document.activeElement?.id || null };
+  renderInner();
+  if (Math.abs(scrollY - keep.y) > 1) scrollTo(0, keep.y);
+  document.querySelectorAll(".modal, .modal-box").forEach((el, i) => { if (keep.boxes[i] != null) el.scrollTop = keep.boxes[i]; });
+  if (keep.focus && !document.activeElement?.id) { const el = document.getElementById(keep.focus); if (el && el.type !== "file") try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+function renderInner() {
   renderPending = false;
   const s = S(), r = route();
   document.querySelectorAll("#tabs a, #bnav a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + r ? "page" : "false"));
@@ -922,7 +933,7 @@ function render() {
     document.querySelectorAll('#tabs a[href="#myteam"], #bnav a[href="#myteam"]').forEach(a => a.hidden = role !== "player");
     const pend = role === "admin" ? (real.reports || []).filter(x => x.status === "pending").length : 0, mt = $('#tabs a[href="#matches"]');
     if (mt) mt.innerHTML = `対戦表・結果入力${pend ? ` <span class="badge">${pend}</span>` : ""}`; }
-  $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : "#コンパス <b>3on3</b> 大会";
+  $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : `#コンパス <b>${vsJa(SETS(s))}</b> 大会`;
   renderMode();
   const app = $("#app");
   const gated = FB.on && !demoMode && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id);
@@ -1181,7 +1192,7 @@ function viewTeams(s) {
     <button class="btn ghost danger" data-act="t-del" data-i="${i}" aria-label="削除" style="padding:6px 0">×</button></div>`).join("");
   return `${settingsPanel(s)}<section class="panel"><div class="panel-head"><h2>チーム設定</h2><span class="meta">登録 ${n} チーム</span></div>
     <div class="panel-body" style="display:grid;gap:14px">
-      <div class="field"><label for="evn">大会名</label><input id="evn" value="${esc(d.eventName)}" placeholder="#コンパス 3on3 大会" maxlength="60"></div>
+      <div class="field"><label for="evn">大会名</label><input id="evn" value="${esc(d.eventName)}" placeholder="${esc(defaultEventName(s))}" maxlength="60"></div>
       <div class="tlist">${rows || "<span style='color:var(--muted)'>「チームを追加」から登録してください。</span>"}</div>
       ${addWarn ? `<div class="bigwarn" role="alert"><p><strong>${n + 1}チーム目を追加しようとしています。</strong><br>「${esc(MODES[set.mode].ja)}」で${big}チーム以上にすると、対戦数がとても多くなり（全部で${pairCount(set, n + 1)}対戦）、<strong>非常に時間がかかる可能性があります</strong>。大丈夫ですか？</p>
         <div class="btns"><button class="btn danger" data-act="t-add-ok">大丈夫、追加する</button><button class="btn" data-act="t-add-no">やめる</button></div></div>` : ""}
@@ -1206,6 +1217,9 @@ function settingsForm(set, id) {
       <span class="mc-t">${esc(m.ja)}</span>${m.desc.map(d => `<span class="mc-d">${esc(d)}</span>`).join("")}</label>`).join("");
   const critOpts = first => (first ? [] : [["", "なし"]]).concat(Object.entries(CRIT).map(([k, c]) => [k, c.ja]));
   return `<div class="sform">
+    <div class="sgroup"><div class="sg-t">対戦の人数</div>
+      ${row("1チームの人数", sel("teamSize", [[3, "3on3（1チーム3人）"], [2, "2on2（1チーム2人）"], [1, "1on1（1人ずつ・個人戦）"]], "1チームの人数"), "メンバー登録の人数と、スクショの確認に使います")}
+    </div>
     <div class="sgroup"><div class="sg-t">大会の形式</div>${id === "sp" && modeWarn ? modeWarnView() : ""}<div class="fmcards">${modeCards}</div>
       ${mode.startsWith("group") ? row("グループの数", sel("groups", nums(1, 4, x => x === 1 ? "分けない（全チームで総当たり）" : `${x}グループ`), "グループの数")) : ""}
       ${mode === "group_ko" ? row("トーナメントに進む数", sel("advance", [[1, "各グループ1位"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]], "トーナメントに進む数")) : ""}
@@ -1284,7 +1298,7 @@ function viewGuide(gated) {
   ${sec(1, "ログインと大会の作成（主催）", `<ol>
     <li>このサイトを開いて「<b>Googleでログイン</b>」を押します。</li>
     <li>大会一覧の「新しい大会を作る」に大会名を入れて「<b>作成</b>」を押します。</li>
-    <li>「<b>大会の設定</b>」が開くので、形式（総当たり → トーナメント／総当たりのみ／トーナメントのみ／スイスドローのみ。それぞれの特徴も表示されます）、1対戦の試合数、コールドの有無と条件、順位の決め方（取得ポータルキー数・勝利数・勝率・勝ち越しで1勝の対戦勝利数・勝ち点などから3つまで順番に選べます）、決勝トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー・メダル・デッキを事前に提出させるかを選んで「<b>この設定で作成</b>」を押します。</li>
+    <li>「<b>大会の設定</b>」が開くので、1チームの人数（3on3・2on2・1on1）、形式（総当たり → トーナメント／総当たりのみ／トーナメントのみ／スイスドローのみ。それぞれの特徴も表示されます）、1対戦の試合数、コールドの有無と条件、順位の決め方（取得ポータルキー数・勝利数・勝率・勝ち越しで1勝の対戦勝利数・勝ち点などから3つまで順番に選べます）、決勝トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー・メダル・デッキを事前に提出させるかを選んで「<b>この設定で作成</b>」を押します。</li>
     <li>設定はあとから「チーム設定」の「<b>大会の設定</b>」で変えられます（結果を入れた後に変えると、数え方も変わります）。「ルール早見表」は設定に合わせて自動で書き変わります。</li>
     <li>作った大会は、あなたにしか見えません。ほかの人には、手順3のコードを渡して見てもらいます。</li></ol>`)}
   ${sec(2, "チームとメンバーの登録（主催・運営）", `<ol>
@@ -1311,7 +1325,7 @@ function viewGuide(gated) {
     <li>「<b>順位表</b>」は、取得ポータルキー → 勝率（設定で逆にもできます） → 当該チーム同士の対戦結果 → 引き分けの数 の順で自動で並びます。並んだ場合は、主催が順位決定戦・抽選の結果を入れます。</li>
     <li>「<b>決勝トーナメント</b>」は、設定した数の上位チームが自動で入ります（トーナメントのみの大会は、チーム設定の並び順で組み合わせます）。対戦カードを押すと結果を入力できます（主催・運営）。</li>
     <li>「Discord用にコピー」で、順位表を文字で貼り付けられます。</li>
-    <li>運営がリプレイのスクショから結果を記入した試合は、「対戦表」で対戦を押すと、<b>6人が使ったヒーロー・メダル・デッキ</b>を誰でも見られます。</li></ul>`)}
+    <li>運営がリプレイのスクショから結果を記入した試合は、「対戦表」で対戦を押すと、<b>全員が使ったヒーロー・メダル・デッキ</b>を誰でも見られます。</li></ul>`)}
   ${sec(6, "大会一覧の整理", `<ul>
     <li>大会一覧の「<b>削除</b>」（2回押す）で、<b>この端末の一覧から</b>大会を消せます。大会の情報（結果・チーム・提出内容）は消えません。</li>
     <li>消した大会は、一覧の下の「この端末から削除した大会」から「<b>取得し直す</b>」で戻せます。</li>
@@ -1349,6 +1363,7 @@ function viewRules() {
   const stage = set.format === "group" ? sec("総当たり", [set.groups > 1 ? `${set.groups}グループに分けて総当たり。チーム数は同じになるように分け、割り切れないときは多いグループを抽選` : "全チームで総当たり（全チームと1回ずつ対戦）", ...league]) + rank
     : set.format === "swiss" ? sec("スイスドロー", [`${set.swissRounds === "" ? "全勝のチームが1チームになるまでラウンドを続ける" : `全${set.swissRounds}ラウンド`}。1ラウンド目はランダム、2ラウンド目からは順位の近いチーム同士で、まだ当たっていない相手と組み合わせる`, `チーム数が奇数のときは、ラウンドごとに1チームが休み。休みのチームは<strong>不戦勝</strong>（全${set.games}試合を5-0の勝ちとして数える）。休みになるのは順位がいちばん下のチーム${set.swissByeOnce ? "（ただし、すでに不戦勝になったチームは2回目の休みにならない）" : "（同じチームが何度休みになってもよい）"}`, ...league]) + rank : "";
   const sub = sec("ヒーロー・デッキ・メダル", [
+    set.teamSize === 1 ? "1on1（個人戦）。1人で1チームとして登録する" : `${vsJa(set)}。1チーム${set.teamSize}人`,
     set.submitHeroes ? "1人につきヒーロー2体と、それぞれのメダルを事前に提出（同じヒーローに別のメダルの2体でもよい）。チーム内で、メンバー同士のヒーローはすべて別のキャラクター" : "ヒーローとメダルの事前提出はなし",
     set.submitDecks ? "1人につきデッキ2つを事前に提出。試合ごとにどのヒーロー・デッキを組み合わせてもよい" : "デッキの事前提出はなし",
     set.submitHeroes || set.submitDecks ? "提出外のヒーロー・デッキ・メダルの使用は違反行為" : "",
@@ -1372,7 +1387,7 @@ const asCard = c => typeof c === "string" ? (c ? { n: c } : null) : c;
 const deckOf = (m, di) => (m.decks?.[di] || []).map(asCard).filter(Boolean);
 const cardName = c => c?.n || "名前不明のカード";
 function membersOf(s, team) {
-  return [0, 1, 2].map(i => { const m = s.members?.[memberId(team, i)]; return m ? { ...emptyMember(team, i), ...JSON.parse(JSON.stringify(m)) } : emptyMember(team, i); });
+  return Array.from({ length: SETS(s).teamSize }, (_, i) => i).map(i => { const m = s.members?.[memberId(team, i)]; return m ? { ...emptyMember(team, i), ...JSON.parse(JSON.stringify(m)) } : emptyMember(team, i); });
 }
 const whoOf = m => m.name || `メンバー${m.slot + 1}`;
 const memberLabel = (s, m) => `${teamName(s, m.team)}・${whoOf(m)}`;
@@ -1392,14 +1407,16 @@ function learnName(s, mid_, ref) {
     if (keep.length !== (o.nameRefs || []).length) saveMember({ ...emptyMember(o.team, o.slot), ...o, nameRefs: keep });
   }
   const [team, slotS] = [mid_.slice(0, mid_.lastIndexOf("_m")), mid_.slice(mid_.lastIndexOf("_m") + 2)];
-  const m = membersOf(s, team)[+slotS];
+  const m = membersOf(s, team)[+slotS]; if (!m) return;
   m.nameRefs = [...(m.nameRefs || []), ref];
   saveMember(m);
 }
 function identify(s, ref) {
   const R = RD(); if (!R || !ref) return null;
   const per = [];
+  const size = SETS(s).teamSize;
   for (const id in (s.members || {})) {
+    if (!(s.members[id]?.slot < size)) continue;          // members beyond the team size (left from an older setting) are ignored
     let bd = 9;
     for (const r of (s.members[id].nameRefs || [])) { const d = R.nameDist(ref, r) - (r.src === "deck" ? 0.12 : 0); if (d < bd) bd = d; } // names from the deck screen use a looser threshold
     per.push({ id, d: bd });
@@ -1576,7 +1593,7 @@ async function runScan(files) {
   for (const f of files) {
     try {
       const us = await R.readFile(f);
-      if (!us.length) st.errs.push(`${f.name}：6人全員が映っている試合が見つかりませんでした。試合の上から下まで全部が入るようにスクショしてください。`);
+      if (!us.length) st.errs.push(`${f.name}：${SETS().teamSize * 2}人全員が映っている試合が見つかりませんでした。試合の上から下まで全部が入るようにスクショしてください。`);
       st.units.push(...us);
     } catch (e) { st.errs.push(`${f.name}：${e.message || "読み取れませんでした"}`); }
   }
@@ -1652,7 +1669,7 @@ function memPromptView() {
   const t = teamDraft.teams.find(x => x.id === memPrompt); if (!t) { memPrompt = null; return ""; }
   return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mp-t"><div class="modal-box">
     <h3 id="mp-t">「${esc(t.name)}」のメンバーを登録しますか？</h3>
-    <p>メンバー3人それぞれの、ゲーム内のユーザーネーム・ヒーローとメダル・デッキ2つを、提出されたスクショから登録します。登録しておくと、リプレイのスクショから「誰か」を判別して、デッキやメダルのミスを確認できます。</p>
+    <p>メンバー${SETS().teamSize}人それぞれの、ゲーム内のユーザーネーム・ヒーローとメダル・デッキ2つを、提出されたスクショから登録します。登録しておくと、リプレイのスクショから「誰か」を判別して、デッキやメダルのミスを確認できます。</p>
     <p class="muted-s">あとで、このページ下の「メンバーと提出デッキ」からも登録できます。</p>
     <div class="btns"><button class="btn primary" data-act="mem-go" data-id="${esc(t.id)}">メンバーを登録する</button><button class="btn" data-act="mem-later">あとで</button></div>
   </div></div>`;
@@ -1801,7 +1818,7 @@ document.addEventListener("click", async ev => {
     return;
   }
   if (act === "copy") {
-    const set = SETS(s), lines = [`【${s.config?.eventName || "#コンパス 3on3 大会"} ${set.format === "swiss" ? "スイスドロー" : "総当たり"} 順位】`];
+    const set = SETS(s), lines = [`【${s.config?.eventName || defaultEventName(s)} ${set.format === "swiss" ? "スイスドロー" : "総当たり"} 順位】`];
     const add = (title, st) => { lines.push("", `■ ${title}（${st.done}/${st.total} 対戦終了）`); st.rows.forEach(r => lines.push(`${r.rank}位${r.tied ? "(同率)" : ""} ${r.name}　ポータルキー ${r.keys} / 勝率 ${pct(r.w, r.gp)}（${r.w}勝${r.d}分${r.l}敗）${set.ranks.some(k => k[0] === "m") ? ` / 対戦 ${r.mw}勝${r.md}分${r.ml}敗` : ""}${set.ranks.includes("mpts") ? ` / 勝ち点 ${3 * r.mw + r.md}` : set.ranks.includes("gpts") ? ` / 勝ち点 ${3 * r.w + r.d}` : ""}`)); };
     if (set.format === "swiss") add(swissPlan(s).unit, swissTable(s));
     else for (const g of groupsOf(s)) { const st = standings(s, g); if (st.rows.length) add(`グループ${g}`, st); }
@@ -2003,7 +2020,7 @@ function shotReadRow(s, team, opp, i) {
   const sh = repDraft.shots[i], need = SETS(s).requireMedalShot;
   if (sh.games == null) return `<div class="rd-row warn">読み取りの準備ができていませんでした（運営が確認します）</div>`;
   const g = pickGame(sh);
-  if (!g) return `<div class="rd-row warn">試合の結果を読み取れませんでした。6人全員と結果が映るように撮ってください（このまま送ることもできます）</div>`;
+  if (!g) return `<div class="rd-row warn">試合の結果を読み取れませんでした。${SETS(s).teamSize * 2}人全員と結果が映るように撮ってください（このまま送ることもできます）</div>`;
   const side = g.mine || repDraft.side?.[i];
   const sc = side ? `${esc(team.name)} ${side === "b" ? g.b : g.r} - ${side === "b" ? g.r : g.b} ${esc(teamName(s, opp))}` : `青 ${g.b} - ${g.r} 赤`;
   const med = g.med === 0 ? `<b class="bad-t">メダル情報なし</b>` : g.med < g.n ? `<span class="bad-t">メダル情報 ${g.med}/${g.n}人</span>` : `<span class="ok-t">メダル情報あり</span>`;
