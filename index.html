@@ -616,7 +616,7 @@ function SETS(st) {
   // older tournaments only had rankBy (keys first / win rate first)
   const own = (st || S())?.config?.settings || {};
   if (!own.rank1) { x.rank1 = x.rankBy === "wins" ? "grate" : "keys"; x.rank2 = x.rankBy === "wins" ? "keys" : "grate"; x.rank3 = ""; }
-  x.ranks = [x.rank1, x.rank2, x.rank3].filter((k, i, a) => CRIT[k] && a.indexOf(k) === i);
+  x.ranks = (Array.isArray(x.rankList) && x.rankList.length ? x.rankList : [x.rank1, x.rank2, x.rank3]).filter((k, i, a) => CRIT[k] && a.indexOf(k) === i);
   if (!x.ranks.length) x.ranks = ["keys", "grate"];
   x.mode = x.format === "group" ? (+x.advance > 0 ? "group_ko" : "group") : x.format;
   return x;
@@ -1249,9 +1249,9 @@ function settingsForm(set, id) {
       ${+set.games >= 2 ? row("コールド勝ち", chk("cold", "あり"), coldNote(set)) : ""}
     </div>
     <div class="sgroup"><div class="sg-t">順位の決め方</div>
-      ${row("1番目に比べる", sel("rank1", critOpts(true), "1番目に比べるもの"))}
-      ${row("2番目に比べる", sel("rank2", critOpts(false), "2番目に比べるもの"))}
-      ${row("3番目に比べる", sel("rank3", critOpts(false), "3番目に比べるもの"))}
+      ${set.ranks.map((k, i) => row(`${i + 1}番目に比べる`, `<select id="${id}-rank-${i}" data-set="rank" data-ri="${i}" aria-label="${i + 1}番目に比べるもの">${Object.entries(CRIT).map(([c, v]) => `<option value="${c}" ${c === k ? "selected" : ""} ${c !== k && set.ranks.includes(c) ? "disabled" : ""}>${esc(v.ja)}</option>`).join("")}</select>`
+        + (set.ranks.length > 1 ? `<button type="button" class="btn ghost sm" data-act="rank-del" data-ri="${i}" aria-label="${i + 1}番目を消す">消す</button>` : ""))).join("")}
+      ${set.ranks.length < Object.keys(CRIT).length ? `<div class="btns"><button type="button" class="btn sm" data-act="rank-add">＋ 比べる項目を追加</button></div>` : ""}
       <span class="muted-s">上から順に比べて、同じなら次で比べます。それでも並んだら、当該チーム同士の対戦結果 → 引き分けの数 → 順位決定戦／抽選。</span>
       <ul class="crit-help">${Object.values(CRIT).map(c => `<li><b>${esc(c.ja)}</b>：${esc(c.note)}</li>`).join("")}</ul>
     </div>` : ""}
@@ -1263,12 +1263,15 @@ function settingsForm(set, id) {
 }
 function readSet(root, base) {
   const x = { ...base };
+  const ranks = [];
   root.querySelectorAll("[data-set]").forEach(el => {
     const k = el.dataset.set;
+    if (k === "rank") { ranks[+el.dataset.ri] = el.value; return; }
     if (el.type === "radio") { if (el.checked) x[k] = el.value; return; }
     x[k] = el.type === "checkbox" ? el.checked : el.value === "true" ? true : el.value === "false" ? false : (isNaN(+el.value) || el.value === "" ? el.value : +el.value);
   });
   // the four formats map onto the engine's settings
+  if (ranks.length) x.rankList = ranks.filter((k, i, a) => CRIT[k] && a.indexOf(k) === i);
   const m = x.mode; delete x.mode; delete x.ranks;
   if (m === "group_ko") { x.format = "group"; if (!(+x.advance > 0)) x.advance = 2; if (+x.groups % 2) x.groups = +x.groups === 1 ? 2 : 4; }   // even number of groups only
   else if (m === "group") { x.format = "group"; x.advance = 0; }
@@ -1860,6 +1863,15 @@ document.addEventListener("click", async ev => {
     addWarn = false;
   }
   if (act === "t-add-no") { addWarn = false; render(); return; }
+  if (act === "rank-add" || act === "rank-del") {
+    const inDlg = !!el.closest("#create-dlg"), root = inDlg ? $("#create-dlg") : $("#settings-panel"); if (!root) return;
+    const cur = readSet(root, inDlg ? createDlg.set : SETS(s)), list = SETS({ config: { settings: cur } }).ranks.slice();
+    if (act === "rank-add") { const nx = Object.keys(CRIT).find(k => !list.includes(k)); if (nx) list.push(nx); }
+    else list.splice(+el.dataset.ri, 1);
+    const set = { ...cur, rankList: list };
+    if (inDlg) { createDlg.set = set; render(); } else if (role === "admin") saveSettings(s, set);
+    return;
+  }
   if (act === "mode-ok" && modeWarn) { const set = modeWarn; modeWarn = null; saveSettings(s, set); return; }
   if (act === "mode-no") { modeWarn = null; render(); return; }
   if (act === "t-add" || act === "t-add-ok") { teamDraft.teams.push({ id: uid(), name: "", group: "" }); render(); $(`#tn-${teamDraft.teams.at(-1).id}`)?.focus(); return; }
