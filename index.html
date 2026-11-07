@@ -2525,7 +2525,8 @@ async function fbCreate(name, settings) {
   const uid = FB.user.uid, tid = rid(10);
   FB.busy = "作成中…"; render();
   try {
-    await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now(), seenAt: firebase.firestore.FieldValue.serverTimestamp() });
+    try { await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now(), seenAt: firebase.firestore.FieldValue.serverTimestamp() }); }
+    catch (e) { await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now() }); }   // older Firestore rules (before "seenAt")
     await FB.fs.doc("secrets/" + tid).set({ viewCode: rid(12), adminCode: rid(12) });
     await FB.fs.doc(`tournaments/${tid}/data/config`).set({ eventName: name, teams: [], tiebreak: {}, settings: { ...DEF_SET, ...(settings || {}) } });
     FB.busy = ""; toast("大会を作りました"); await fbOpen(tid);
