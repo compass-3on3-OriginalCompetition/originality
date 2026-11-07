@@ -536,6 +536,7 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .stg { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; flex-basis: 100%; }
 .stg img { width: 120px; border-radius: 4px; border: 1px solid var(--line); }
 .stg select { padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: .8rem; }
+.danger-zone { border-color: rgba(255,107,125,.4); }
 .crit-help { margin: 0; padding-left: 1.2em; font-size: .75rem; color: var(--muted); line-height: 1.6; }
 @media (max-width: 600px) { .srow { grid-template-columns: 1fr; } }
 details.spanel > summary { list-style: none; cursor: pointer; }
@@ -1224,7 +1225,7 @@ function viewTeams(s) {
         ${set.format === "swiss" || (set.format === "group" && set.groups === 1) ? "" : `<button class="btn" data-act="t-draw" ${n < 2 ? "disabled" : ""}>${set.format === "knockout" ? "抽選で組み合わせを決める" : "抽選でグループ分け"}</button>`}
         <span class="savest" id="savest" style="margin-left:auto">${esc(saveStatus) || "変更は自動で保存されます"}</span></div>
       <div class="notice">${set.format === "knockout" ? "トーナメントの組み合わせは、この一覧の順番（1番から）で決まります。抽選を押すと順番をランダムに並べ替えます。" : set.format === "swiss" ? "スイスドローの組み合わせは、「対戦表・結果入力」でラウンドごとに作ります。" : `抽選は全チームをランダムに並べ替えて、${G.join("・")}に同数ずつ振り分けます。割り切れないときは、どのグループが多くなるかも抽選です。`}${hasResults ? "<br><strong>結果入力後にチームやグループを変えると、その対戦の結果は順位に反映されなくなります。</strong>" : ""}</div>
-    </div></section>${sharePanel()}${membersPanel(s)}${memPromptView()}`;
+    </div></section>${sharePanel()}${membersPanel(s)}${memPromptView()}${deletePanel(s)}`;
 }
 
 /* ---------- tournament settings form (used when creating a tournament and on the team page) ---------- */
@@ -2635,6 +2636,36 @@ function viewGate() {
       ${FB.user.isAnonymous ? `<span class="muted-s">「参加をやめる」と、この端末の参加情報が消えます。また見るときは、コードを入れ直してください。</span>` : ""}
     </div></section>${createDlgView()}`;
 }
+/* ---------- deleting a whole tournament (the owner only): everything in Firebase goes, for good ---------- */
+function deletePanel(s) {
+  if (!FB.on || !FB.tid || !FB.isOwner || demoMode) return "";
+  const name = s.config?.eventName || FB.t?.name || "";
+  return `<details class="panel danger-zone"><summary class="panel-head"><h2>大会を削除する</h2><span class="meta">主催者だけ</span></summary><div class="panel-body" style="display:grid;gap:10px">
+    <div class="bad-t">この大会のデータ（チーム・メンバーの登録内容・結果・報告とスクショ・コード）を、<b>すべて完全に消します</b>。元に戻せません。運営・選手・観戦者も、誰も見られなくなります。</div>
+    <label class="srow"><span class="sl">確認</span><div class="sc"><input id="del-confirm" placeholder="大会名「${esc(name)}」を入力" autocomplete="off"></div></label>
+    <div class="btns"><button class="btn danger" data-act="t-delete-all" data-name="${esc(name)}">完全に削除する</button></div></div></details>`;
+}
+async function deleteTournament(tid) {
+  const base = `tournaments/${tid}/`, cols = ["reportShots", "reports", "matches", "bracket", "members", "data", "players", "viewers", "admins"];
+  let n = 0;
+  for (const c of cols) {
+    const snap = await FB.fs.collection(base + c).get();
+    for (let i = 0; i < snap.docs.length; i += 400) { const b = FB.fs.batch(); snap.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); n += Math.min(400, snap.docs.length - i); }
+  }
+  for (const p of ["teamcodes/" + tid, "secrets/" + tid, "users/" + FB.user.uid + "/joined/" + tid]) await FB.fs.doc(p).delete().catch(() => {});
+  await FB.fs.doc("tournaments/" + tid).delete();
+  return n;
+}
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest('[data-act="t-delete-all"]'); if (!el || !FB.isOwner || !FB.tid) return;
+  const want = el.dataset.name || "", typed = ($("#del-confirm")?.value || "").trim();
+  if (!want || typed !== want) { toast("確認のため、大会名を正しく入力してください"); return; }
+  if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "本当に消します。もう一度押すと削除"; return; }
+  el.disabled = true; el.textContent = "削除中…";
+  const tid = FB.tid;
+  try { unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = []; const n = await deleteTournament(tid); try { localStorage.removeItem(LAST_TID); } catch (e) {} toast(`大会を削除しました（${n}件のデータ）`); await fbLobby(); }
+  catch (e) { el.disabled = false; el.textContent = "完全に削除する"; toast("削除できませんでした: " + (e.message || e.code)); }
+});
 function sharePanel() {
   if (LOCAL.on && LOCAL.id) return `<div class="notice">この大会は<strong>この端末だけ</strong>に保存されています。ほかの人に見てもらうには、Googleでログインして大会を作ってください（コードで共有できます）。</div>`;
   if (!FB.on || !FB.tid) return "";
