@@ -678,7 +678,8 @@ function gameRes(g) {
 // cold win: from the first half of the match on (ceil(N/2) games played), if the trailing team could not even draw on portal keys
 // by taking every remaining game 5-0 (key difference >= remaining games x 5 + 1), the match ends and each remaining game counts as 5-0
 const coldFrom = set => Math.ceil(set.games / 2);
-const coldNote = set => `${coldFrom(set)}試合目が終わった時点から、対戦の残り試合をすべて取ってもポータルキーの数で引き分け以上にならないとき（差が「残り試合数×5＋1本」以上）、残りの試合を勝っている方のチームの5-0勝ちとして扱います`;
+const coldNote = set => { const k = coldFrom(set), left = set.games - k;
+  return `${k}試合目が終わってから、1試合ごとに確認します。負けている側が残りの試合をすべて5-0で取っても、ポータルキーの合計で追いつけない（同点にもならない）ときは、そこで対戦終了です。残りの試合は、リードしている側の5-0勝ちとして数えます（例：${k}試合目が終わって残り${left}試合なら、${left * 5 + 1}本差以上で終了）`; };
 function evalGroup(m, set) {
   set = set || SETS();
   const N = set.games, raw = (m?.games || []).map(gameRes), out = [];
@@ -1366,7 +1367,7 @@ function viewRules() {
   const set = SETS(), sec = (t, items) => `<section class="panel"><div class="panel-body"><h3>${t}</h3><ul>${items.filter(Boolean).map(x => `<li>${x}</li>`).join("")}</ul></div></section>`;
   const league = [
     `1対戦は${set.games}試合。引き分けはやり直さず、勝ちにも負けにも数えないが、試合数には含める`,
-    set.cold && set.games >= 2 ? `<strong>コールド勝ち</strong>：${coldNote(set)}（ポータルキー合計・勝率に含める）` : "コールド勝ちはなし",
+    set.cold && set.games >= 2 ? `<strong>コールド勝ち</strong>：${coldNote(set)}。5-0として数えた試合も、ポータルキー合計・勝率に含めます` : "コールド勝ちはなし",
     "不戦敗はその試合を0-5、相手を5-0として扱う"];
   const rank = `<section class="panel"><div class="panel-body"><h3>順位の決め方</h3><ol>${set.ranks.map(k => `${CRIT[k].ja}（${CRIT[k].note}）`).concat(["当該チーム同士の対戦結果", "引き分けの数が多いチームが上位", "順位決定戦（BO1、引き分けは決着まで再戦）。3チーム以上なら運営抽選"]).map(x => `<li>${x}</li>`).join("")}</ol>
     <p style="margin-top:8px">順位決定戦・抽選は、1位を決めるときと、${set.format === "swiss" ? "決勝トーナメントに進むかどうか" : "次に進むかどうか"}が分かれるときだけ。それ以外は同順位です。</p></div></section>`;
