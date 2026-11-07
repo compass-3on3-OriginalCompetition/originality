@@ -8,6 +8,8 @@ rules_version = '2';
 //                                   and send result reports (with a replay screenshot) for the operators to approve
 //  - A code only ever opens its own tournament. Reissuing a code shuts out everyone who used the old one.
 //  - Submitted heroes / medals / decks / name samples live under /members and are readable by operators only.
+//  - When the owner finalises a tournament (final: true) nothing in it can be changed any more (it can still be deleted).
+//  - A tournament nobody has opened for 30 days (seenAt) may be deleted by anyone signed in: the site cleans those up.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -32,50 +34,63 @@ service cloud.firestore {
     function isViewer(tid) { return isAdmin(tid) || joinedWith(tid, 'viewers', 'viewCode') || isPlayer(tid); }
     function isTeamId(v) { return v is string && v.matches('^[a-z0-9]{2,20}$'); }
     function isCode(v) { return v is string && v.size() >= 10 && v.size() <= 40; }
+    function tData(tid) { return get(tPath(tid)).data; }
+    // finalised: results are fixed, nothing can be changed
+    function isFinal(tid) { return exists(tPath(tid)) && tData(tid).get('final', false) == true; }
+    function canEdit(tid) { return isAdmin(tid) && !isFinal(tid); }
+    // nobody has opened it for 30 days
+    function staleAt(d) { return d.get('seenAt', request.time) < request.time - duration.value(30, 'd'); }
+    function isStale(tid) { return signedIn() && exists(tPath(tid)) && staleAt(tData(tid)); }
 
     match /tournaments/{tid} {
       allow get: if isViewer(tid);
-      allow list: if signedIn() && resource.data.owner == request.auth.uid;
+      allow list: if signedIn() && (resource.data.owner == request.auth.uid || staleAt(resource.data));
       allow create: if googleUser() && request.resource.data.owner == request.auth.uid
-                    && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt'])
-                    && request.resource.data.name is string && request.resource.data.name.size() <= 60;
-      allow update: if isOwner(tid) && request.resource.data.owner == resource.data.owner
-                    && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt']);
-      allow delete: if isOwner(tid);
+                    && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt', 'seenAt'])
+                    && request.resource.data.name is string && request.resource.data.name.size() <= 60
+                    && request.resource.data.get('seenAt', request.time) == request.time;
+      // the owner may rename it or finalise it (never un-finalise); anyone who can open it only records "opened now"
+      allow update: if (isOwner(tid) && request.resource.data.owner == resource.data.owner
+                       && request.resource.data.keys().hasOnly(['name', 'owner', 'createdAt', 'seenAt', 'final', 'finalAt'])
+                       && !(resource.data.get('final', false) == true && request.resource.data.get('final', false) != true)
+                       && (!isFinal(tid) || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenAt'])))
+                    || (isViewer(tid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenAt'])
+                       && request.resource.data.seenAt == request.time);
+      allow delete: if isOwner(tid) || (signedIn() && staleAt(resource.data));
 
       // people who joined with a code; each person writes only their own entry, and only with the right code
       match /viewers/{uid} {
         allow get: if signedIn() && (request.auth.uid == uid || isAdmin(tid));
-        allow list: if isAdmin(tid);
+        allow list: if isAdmin(tid) || isStale(tid);
         allow create, update: if signedIn() && request.auth.uid == uid && exists(sPath(tid))
                               && request.resource.data.keys().hasOnly(['code', 'at'])
                               && request.resource.data.code == get(sPath(tid)).data.viewCode;
-        allow delete: if isAdmin(tid) || (signedIn() && request.auth.uid == uid);
+        allow delete: if isAdmin(tid) || isStale(tid) || (signedIn() && request.auth.uid == uid);
       }
       match /admins/{uid} {
         allow get: if signedIn() && (request.auth.uid == uid || isAdmin(tid));
-        allow list: if isAdmin(tid);
+        allow list: if isAdmin(tid) || isStale(tid);
         allow create, update: if signedIn() && request.auth.uid == uid && exists(sPath(tid))
                               && request.resource.data.keys().hasOnly(['code', 'at'])
                               && request.resource.data.code == get(sPath(tid)).data.adminCode;
-        allow delete: if isOwner(tid) || (signedIn() && request.auth.uid == uid);
+        allow delete: if isOwner(tid) || isStale(tid) || (signedIn() && request.auth.uid == uid);
       }
 
       // players: each person writes only their own entry, and only with their team's current code
       match /players/{uid} {
         allow get: if signedIn() && (request.auth.uid == uid || isAdmin(tid));
-        allow list: if isAdmin(tid);
+        allow list: if isAdmin(tid) || isStale(tid);
         allow create, update: if signedIn() && request.auth.uid == uid && exists(tcPath(tid))
                               && request.resource.data.keys().hasOnly(['code', 'team', 'at'])
                               && isTeamId(request.resource.data.team)
                               && request.resource.data.code == get(tcPath(tid)).data.codes[request.resource.data.team];
-        allow delete: if isAdmin(tid) || (signedIn() && request.auth.uid == uid);
+        allow delete: if isAdmin(tid) || isStale(tid) || (signedIn() && request.auth.uid == uid);
       }
 
       // result reports from players: they wait for an operator to approve them
       match /reports/{rid} {
-        allow read: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
-        allow create: if isPlayer(tid)
+        allow read: if isAdmin(tid) || isStale(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
+        allow create: if isPlayer(tid) && !isFinal(tid)
                       && request.resource.data.keys().hasOnly(['team', 'by', 'kind', 'mid', 'g', 'a', 'b', 'label', 'games', 'shots', 'note', 'status', 'at'])
                       && request.resource.data.team == playerTeam(tid) && request.resource.data.by == request.auth.uid
                       && (request.resource.data.a == playerTeam(tid) || request.resource.data.b == playerTeam(tid))
@@ -90,15 +105,15 @@ service cloud.firestore {
                       && request.resource.data.shots == request.resource.data.games.size()
                       && request.resource.data.note is string && request.resource.data.note.size() <= 300;
         // operators only decide (approve / reject) or mark the screenshots deleted; the reported content never changes
-        allow update: if isAdmin(tid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'decidedBy', 'decidedAt', 'shotsGone'])
+        allow update: if canEdit(tid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'decidedBy', 'decidedAt', 'shotsGone'])
                       && request.resource.data.status in ['pending', 'approved', 'rejected'];
-        allow delete: if isAdmin(tid) || (isPlayer(tid) && resource.data.by == request.auth.uid && resource.data.status == 'pending');
+        allow delete: if isAdmin(tid) || isStale(tid) || (isPlayer(tid) && !isFinal(tid) && resource.data.by == request.auth.uid && resource.data.status == 'pending');
       }
       // the screenshots of a report: only a re-encoded JPEG (made in the browser from the picture) is accepted
       match /reportShots/{sid} {
-        allow read: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
+        allow read: if isAdmin(tid) || isStale(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid));
         // one screenshot per reported game, written together with its report
-        allow create: if isPlayer(tid)
+        allow create: if isPlayer(tid) && !isFinal(tid)
                       && getAfter(/databases/$(database)/documents/tournaments/$(tid)/reports/$(request.resource.data.rid)).data.by == request.auth.uid
                       && getAfter(/databases/$(database)/documents/tournaments/$(tid)/reports/$(request.resource.data.rid)).data.status == 'pending'
                       && request.resource.data.i < getAfter(/databases/$(database)/documents/tournaments/$(tid)/reports/$(request.resource.data.rid)).data.shots
@@ -111,20 +126,21 @@ service cloud.firestore {
                       && request.resource.data.img.matches('^data:image/jpeg;base64,[A-Za-z0-9+/]+=*$');
         allow update: if false;
         // a player may remove them only while the report is still waiting (withdrawing it); afterwards they are evidence
-        allow delete: if isAdmin(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid)
+        allow delete: if isAdmin(tid) || isStale(tid) || (isPlayer(tid) && resource.data.team == playerTeam(tid)
                       && (!exists(/databases/$(database)/documents/tournaments/$(tid)/reports/$(resource.data.rid))
                           || get(/databases/$(database)/documents/tournaments/$(tid)/reports/$(resource.data.rid)).data.status == 'pending'));
       }
 
       // shared with everyone in this tournament: settings, group results, final tournament
-      match /data/{doc}    { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
-      match /matches/{doc} { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
-      match /bracket/{doc} { allow read: if isViewer(tid); allow write: if isAdmin(tid); }
+      match /data/{doc}    { allow read: if isViewer(tid) || isStale(tid); allow create, update: if canEdit(tid); allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid); }
+      match /matches/{doc} { allow read: if isViewer(tid) || isStale(tid); allow create, update: if canEdit(tid); allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid); }
+      match /bracket/{doc} { allow read: if isViewer(tid) || isStale(tid); allow create, update: if canEdit(tid); allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid); }
       // operators only: submitted heroes, medals, decks and name samples
       // (a player may read only their own team's entries)
       match /members/{doc} {
-        allow read: if isAdmin(tid) || (isPlayer(tid) && (doc.matches('^' + playerTeam(tid) + '_m[0-9]+$') || doc == 'share_' + playerTeam(tid)));
-        allow write: if isAdmin(tid);
+        allow read: if isAdmin(tid) || isStale(tid) || (isPlayer(tid) && (doc.matches('^' + playerTeam(tid) + '_m[0-9]+$') || doc == 'share_' + playerTeam(tid)));
+        allow create, update: if canEdit(tid);
+        allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid);
       }
     }
 
@@ -133,14 +149,14 @@ service cloud.firestore {
       allow read: if isOwner(tid);
       allow create, update: if isOwner(tid) && request.resource.data.keys().hasOnly(['viewCode', 'adminCode'])
                             && isCode(request.resource.data.viewCode) && isCode(request.resource.data.adminCode);
-      allow delete: if isOwner(tid);
+      allow delete: if isOwner(tid) || isStale(tid);
     }
 
     // the per-team player codes: the owner and operators hand them out
     match /teamcodes/{tid} {
       allow read: if isAdmin(tid);
-      allow create, update: if isAdmin(tid) && request.resource.data.keys().hasOnly(['codes']) && request.resource.data.codes is map;
-      allow delete: if isOwner(tid);
+      allow create, update: if canEdit(tid) && request.resource.data.keys().hasOnly(['codes']) && request.resource.data.codes is map;
+      allow delete: if isOwner(tid) || isStale(tid);
     }
 
     // each person's own list of tournaments they joined
