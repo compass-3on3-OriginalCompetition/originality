@@ -982,7 +982,7 @@ function renderMode() {
   const m = mode === "local" ? `<span class="pill">${LOCAL.on ? "この端末だけ" : "この端末に保存"}</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
   if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = fxBtn() + (FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""); return; }
   const fbBtns = FB.on && (FB.user || LOCAL.on) ? `<button class="btn ghost" data-act="${LOCAL.on ? "lc-lobby" : "fb-lobby"}" style="padding:2px 10px;font-size:.78rem">大会一覧</button>` : "";
-  $("#mode").innerHTML = `${m}${fbBtns}<span class="pill ${role === "admin" ? "on" : ""}">${FB.on && FB.isOwner && role === "admin" ? "主催" : role === "player" ? `選手・${esc(teamName(S(), FB.team))}` : labels[role]}</span>
+  $("#mode").innerHTML = `${m}${fbBtns}<span class="pill ${role === "admin" ? "on" : ""}">${LOCAL.on || (mode === "local" && !FB.on) ? (role === "admin" ? "この端末で管理" : "閲覧") : FB.on && FB.isOwner && role === "admin" ? "主催" : role === "player" ? `選手・${esc(teamName(S(), FB.team))}` : labels[role]}</span>
     <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>${fxBtn()}`;
 }
 function noTeams() {
@@ -2607,8 +2607,9 @@ function viewLocalLobby() {
       <div class="notice">この端末の中だけに保存しています。ほかの端末からは見られません。ブラウザのデータを消すと、大会も消えます。</div>
       <div class="glist"><div class="dl">この端末の大会</div>${a.length ? a.map(t => `<div class="trow2"><button class="topen" data-act="lc-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">この端末</span></button>
         <button class="btn ghost sm danger" data-act="lc-del" data-id="${esc(t.id)}" aria-label="${esc(t.name || "")}を削除">削除</button></div>`).join("") : `<span class="muted-s">まだありません</span>`}</div>
-      <div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="lc-create">作成</button></div></div>
-      <div class="gform"><label for="anoncode">主催者からコードを受け取った人（運営・観戦）</label>
+      <div class="gform"><label for="newt">この端末だけで管理する大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="lc-create">この端末だけの大会を作る</button></div></div>
+      <div class="muted-s">ここで作る大会は、この端末の中だけで使う記録用です。ほかの人にコードを渡して参加してもらう大会（主催）は、<b>Googleでログインした人だけ</b>が作れます。</div>
+      <div class="gform"><label for="anoncode">主催者からコードを受け取った人（運営・選手・観戦）</label>
         <div class="btns"><input id="anoncode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-anon-join">コードで参加</button></div>
         <span class="muted-s">ログインせずに、その大会に参加します（結果はみんなと同じものを見られます）。</span></div>
       <div class="btns"><button class="btn primary" data-act="fb-login">Googleでログインする</button><a class="btn" href="#guide">使い方を見る</a></div>
@@ -2642,7 +2643,7 @@ function viewGate() {
       <p>大会の結果入力・順位表・決勝トーナメントを管理します。作った大会は、あなたにしか見えません。ほかの人には、大会ごとに発行するコードを渡して見てもらいます。</p>
       <div class="btns"><button class="btn primary big" data-act="fb-login">Googleでログイン</button><a class="btn" href="#guide">使い方を見る</a></div>
       <div class="local-box"><button class="btn" data-act="lc-start">ログインせずに使う（この端末だけ）</button>
-        <span class="muted-s">ログインしなくても、この端末の中だけで大会を管理できます。ほかの端末からは見られず、コードでの共有もできません。</span></div>
+        <span class="muted-s">ログインしなくても、この端末の中だけで大会の記録をつけられます。ほかの端末からは見られず、コードでの共有もできません。<b>ほかの人が参加する大会を主催するには、Googleでログインしてください。</b></span></div>
       <div class="local-box gform"><label for="anoncode">運営・選手・観戦の人：ログインせずにコードで参加</label>
         <div class="btns"><input id="anoncode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-anon-join">参加</button></div>
         <span class="muted-s">Googleアカウントを使わずに、この端末で参加します。別の端末で見るときは、その端末でもう一度コードを入れてください。</span></div></div></section>`;
@@ -2678,7 +2679,7 @@ const isOwnerHere = () => (FB.on && FB.tid) ? FB.isOwner : (mode === "local");
 function finalPanel(s) {
   if (!isOwnerHere() || demoMode || isLocked(s)) return "";
   const done = tournamentDone(s), pend = (real.reports || []).filter(r => r.status === "pending").length;
-  return `<section class="panel final-zone"><div class="panel-head"><h2>大会の結果を確定する</h2><span class="meta">主催者だけ</span></div><div class="panel-body" style="display:grid;gap:10px">
+  return `<section class="panel final-zone"><div class="panel-head"><h2>大会の結果を確定する</h2><span class="meta">${LOCAL.on ? "この端末の大会" : "主催者だけ"}</span></div><div class="panel-body" style="display:grid;gap:10px">
     <div>大会がすべて終わったら押してください。<b>結果・順位・登録内容が、これ以上変更できなくなります</b>（元に戻せません）。あわせて、<b>報告のスクショをすべて削除</b>して保存容量を空けます。使ったヒーロー・メダル・デッキとポータルキーは、結果として残ります。</div>
     ${done ? "" : `<div class="bad-t">まだ終わっていない対戦があります。すべての対戦が終わると押せます。</div>`}
     ${pend ? `<div class="bad-t">承認待ちの報告が${pend}件あります。確定すると、承認待ちの報告は却下になります。</div>` : ""}
