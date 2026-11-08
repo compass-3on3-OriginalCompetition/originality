@@ -566,6 +566,12 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 /* guide: show only one role */
 .guide-roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .guide-roles .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.demo-bar { display: grid; gap: 8px; }
+.demo-views { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.demo-views select { max-width: 100%; }
+.demo-views .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.ptr { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%; transform: translate(-50%, -60px); z-index: 60; padding: 6px 14px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); font-size: .8rem; font-weight: 700; pointer-events: none; opacity: 0; transition: opacity .15s; }
+.ptr.show { opacity: 1; }
 .installbox { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); font-size: .85rem; margin-bottom: 12px; }
 .rep-group { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
 .rep-gt { font-size: .9rem; }
@@ -630,7 +636,8 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
 /* ---------- state ---------- */
 const real = { config: null, matches: {}, bracket: {}, members: {}, loaded: false };
 let memPrompt = null, scan = null, memTeam = null, renderPending = false;
-let demo = null, demoMode = false, demoRoleBack = null;
+let demo = null, demoMode = false, demoBack = null, demoShots = {};
+const REP = () => demoMode ? (demo?.reports || []) : (real.reports || []);
 let mode = "loading";           // db | local | nodb
 let role = "viewer";            // admin | contributor | viewer
 let db = null, loadNote = "";
@@ -973,6 +980,10 @@ function makeDemo() {
   }
   const bm = bracketModel(d), sf = bm && bm.rounds[0][0];
   if (sf && sf.a && sf.b) d.bracket[sf.key] = { a: sf.a, b: sf.b, games: [{ a: 3, b: 2 }, { a: 1, b: 1 }, { a: 4, b: 2 }] };
+  // one report from a player waiting for the operators (no screenshots in the demo)
+  d.reports = [];
+  const open = teamMatches(d, "d7").find(m => !m.done);
+  if (open) d.reports.push({ id: "demo-r1", team: "d7", by: "demo", kind: open.kind, mid: open.mid, g: open.g, a: open.a, b: open.b, label: open.label, games: [{ a: 3, b: 1 }, { a: 2, b: 2 }, { a: 4, b: 0 }], shots: 0, note: "（デモの報告です）", status: "pending", at: Date.now() - 600000 });
   return d;
 }
 
@@ -1014,7 +1025,7 @@ function renderInner() {
     document.querySelectorAll('#tabs a[href="#bracket"], #bnav a[href="#bracket"]').forEach(a => a.hidden = noKo);
     if (noKo && r === "bracket") { location.replace("#standings"); return; }
     document.querySelectorAll('#tabs a[href="#myteam"], #bnav a[href="#myteam"]').forEach(a => a.hidden = role !== "player");
-    const pend = role === "admin" ? (real.reports || []).filter(x => x.status === "pending").length : 0, mt = $('#tabs a[href="#matches"]');
+    const pend = role === "admin" ? REP().filter(x => x.status === "pending").length : 0, mt = $('#tabs a[href="#matches"]');
     if (mt) mt.innerHTML = `対戦表・結果入力${pend ? ` <span class="badge">${pend}</span>` : ""}`; }
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : `#コンパス <b>${vsJa(SETS(s))}</b> 大会`;
   renderMode();
@@ -1024,17 +1035,27 @@ function renderInner() {
   if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); if (resumeData) setTimeout(() => applyResume(true), 0); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
   const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + outsPanel(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
-  app.innerHTML = (isLocked(s) ? `<div class="notice final-note"><strong>この大会は結果が確定しています。</strong>結果・順位・登録内容は、これ以上変更できません。</div>` : "") + (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? `<div class="notice warn"><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。<button class="btn" data-act="demo-off" style="margin-left:8px">デモを終了</button></div>` : "") + html;
+  app.innerHTML = (isLocked(s) ? `<div class="notice final-note"><strong>この大会は結果が確定しています。</strong>結果・順位・登録内容は、これ以上変更できません。</div>` : "") + (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? demoBar(s) : "") + html;
   if (resumeData) setTimeout(() => applyResume(false), 0);
 }
 const fxBtn = () => `<button class="btn ghost fx-toggle ${fxOn() ? "on" : ""}" data-act="fx-toggle" aria-pressed="${fxOn()}" title="動く背景（稲妻）のオン・オフ" style="padding:2px 10px;font-size:.78rem">⚡ 背景 ${fxOn() ? "オン" : "オフ"}</button>`;
+function demoBar(s) {
+  const v = role === "player" ? "player" : role === "admin" ? "admin" : "viewer";
+  const b = (k, t) => `<button class="btn sm" data-act="demo-view" data-v="${k}" aria-pressed="${v === k}">${t}</button>`;
+  return `<div class="notice warn demo-bar"><div><strong>デモ表示中</strong>：架空のチームと結果で動きを確認できます。ここでの操作は保存されません。</div>
+    <div class="demo-views"><span class="muted-s">見る立場：</span>${b("admin", "運営")}${b("player", "選手")}${b("viewer", "観戦")}
+      ${v === "player" ? `<select data-demoteam aria-label="選手として見るチーム">${(s.config?.teams || []).map(t => `<option value="${esc(t.id)}" ${t.id === FB.team ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>` : ""}
+      <button class="btn" data-act="demo-off">デモを終了</button></div>
+    <div class="muted-s">${v === "admin" ? "運営の画面です。結果の入力、チーム設定、選手からの報告の承認を試せます。" : v === "player" ? "選手の画面です。「マイチーム」で自分のチームの順位・次の対戦を見て、結果を報告できます（スクショも試せます）。" : "観戦者の画面です。順位表・対戦表・トーナメントを見るだけで、変更はできません。"}</div></div>`;
+}
+document.addEventListener("change", ev => { if (ev.target.matches?.("[data-demoteam]") && demoMode) { FB.team = ev.target.value; repDraft = null; render(); } });
 function renderMode() {
   const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "観戦者", player: "選手" };
   const m = mode === "local" ? `<span class="roletag">${LOCAL.on ? "この端末だけ" : "この端末に保存"}</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
-  if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = fxBtn() + (FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""); return; }
+  if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = fxBtn() + reloadBtn() + (FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""); return; }
   const fbBtns = FB.on && (FB.user || LOCAL.on) ? `<button class="btn ghost" data-act="${LOCAL.on ? "lc-lobby" : "fb-lobby"}" style="padding:2px 10px;font-size:.78rem">大会一覧</button>` : "";
   $("#mode").innerHTML = `${m}${fbBtns}<span class="roletag me">${LOCAL.on || (mode === "local" && !FB.on) ? (role === "admin" ? "この端末で管理" : "閲覧") : FB.on && FB.isOwner && role === "admin" ? "主催" : role === "player" ? `選手・${esc(teamName(S(), FB.team))}` : labels[role]}</span>
-    <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>${fxBtn()}`;
+    <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>${fxBtn()}${reloadBtn()}`;
 }
 function noTeams() {
   return `<div class="panel"><div class="empty"><strong>まだチームが登録されていません</strong>
@@ -2084,8 +2105,15 @@ document.addEventListener("click", async ev => {
   if (act === "create-go" && createDlg) { const c = createDlg; c.set = readSet($("#create-dlg"), c.set); createDlg = null; if (c.kind === "fb") fbCreate(c.name, c.set); else lcCreate(c.name, c.set); return; }
   if (act === "create-cancel") { createDlg = null; render(); return; }
   // from the first screen (no tournament open), the demo shows the organiser's view; it never saves anything
-  if (act === "demo-on") { demo = makeDemo(); if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id)) { demoRoleBack = role; role = "admin"; } demoMode = true; openId = null; teamDraft = null; render(); return; }
-  if (act === "demo-off") { demoMode = false; demo = null; if (demoRoleBack) { role = demoRoleBack; demoRoleBack = null; } openId = null; teamDraft = null; render(); return; }
+  // the demo starts as an operator and can switch to a player's or a spectator's view; leaving it puts everything back
+  if (act === "demo-on") { demo = makeDemo(); demoShots = {}; demoBack = { role, team: FB.team, rep: repDraft }; role = "admin"; repDraft = null; demoMode = true; openId = null; teamDraft = null; render(); return; }
+  if (act === "demo-off") { demoMode = false; demo = null; demoShots = {}; if (demoBack) { role = demoBack.role; FB.team = demoBack.team; repDraft = demoBack.rep; demoBack = null; } openId = null; teamDraft = null; if (route() === "myteam" && role !== "player") location.hash = "standings"; render(); return; }
+  if (act === "demo-view" && demoMode) {
+    const v = el.dataset.v; role = v; openId = null; teamDraft = null; repDraft = null;
+    if (v === "player") { FB.team = FB.team && demo.config.teams.some(t => t.id === FB.team) ? FB.team : "d7"; location.hash = "myteam"; }
+    else if (route() === "myteam") location.hash = "standings";
+    render(); return;
+  }
   if (act === "open") return openEditor(el.dataset.id, { kind: "group", group: el.dataset.g, a: el.dataset.a, b: el.dataset.b });
   if (act === "open-b") return openEditor("bracket/" + el.dataset.key, { kind: "bo3", key: el.dataset.key, a: el.dataset.a, b: el.dataset.b });
   if (act === "close") { openId = null; draft = null; scan = null; saveStatus = ""; render(); return; }
@@ -2321,7 +2349,7 @@ function shotReadRow(s, team, opp, i) {
     ${extra.map(t => `<div class="bad-t" style="flex-basis:100%;font-size:.8rem">⚠ ${esc(t)}</div>`).join("")}</div>`;
 }
 function myReports(s) {
-  const rs = (real.reports || []).slice().sort((a, b) => b.at - a.at);
+  const rs = REP().filter(r => !demoMode || r.team === FB.team).slice().sort((a, b) => b.at - a.at);
   if (!rs.length) return "";
   return `<section class="panel"><div class="panel-head"><h2>送った報告</h2></div><div class="panel-body my-list">${rs.map(r => `<div class="my-row"><span class="muted-s">${esc(r.label || "")}</span>
       <span>${esc(teamName(s, r.a))} ${gamesTxt(r.games)} ${esc(teamName(s, r.b))}</span>
@@ -2376,6 +2404,10 @@ async function sendReport(s) {
     games.push(me === "a" ? { a: g.me, b: g.op } : { a: g.op, b: g.me }); shots.push(sh);
   }
   if (!games.length) { toast("試合の結果とスクショを入れてください"); return; }
+  if (demoMode) {   // the demo never sends anything: the report stays in this page
+    const id = "demo" + rid_(); demo.reports = [...(demo.reports || []), { id, team, by: "demo", kind: m.kind, mid: m.mid, g: m.g, a: m.a, b: m.b, label: m.label, games, shots: shots.length, note: (d.note || "").slice(0, 300), status: "pending", at: Date.now() }];
+    demoShots[id] = shots.map(x => x.img); repDraft = null; toast("（デモ）運営に送りました。「運営」の立場に切り替えると、承認する画面を見られます"); render(); return;
+  }
   d.busy = "send"; render();
   const base = `tournaments/${FB.tid}/`, rid = rid_(), batch = FB.fs.batch();
   batch.set(FB.fs.doc(base + "reports/" + rid), { team, by: FB.user.uid, kind: m.kind, mid: m.mid, g: m.g, a: m.a, b: m.b, label: m.label, games, shots: shots.length, note: (d.note || "").slice(0, 300), status: "pending", at: Date.now() });
@@ -2411,8 +2443,8 @@ const gamesTxt = gs => (Array.isArray(gs) ? gs : []).map(g => `${pk_(g?.a) ?? "?
 const rid_ = () => Date.now().toString(36) + rid(6);
 // operators: the queue of reports
 function reportsAdminView(s) {
-  if (!FB.on || role !== "admin") return "";
-  const rs = (real.reports || []).slice().sort((a, b) => a.at - b.at), pend = rs.filter(r => r.status === "pending"), done = rs.filter(r => r.status !== "pending").reverse().slice(0, 20);
+  if ((!FB.on && !demoMode) || role !== "admin") return "";
+  const rs = REP().slice().sort((a, b) => a.at - b.at), pend = rs.filter(r => r.status === "pending"), done = rs.filter(r => r.status !== "pending").reverse().slice(0, 20);
   if (!rs.length) return "";
   const card = r => {
     const exists = r.kind === "group" ? (s.matches[r.mid]?.games || []).length : (s.bracket[r.mid]?.games || []).length, shots = shotCache[r.id];
@@ -2462,8 +2494,8 @@ function adminReadView(s, r) {
   return `<div class="rd-box"><div class="dl">スクショの自動読み取り</div>${rows}${cmp}</div>`;
 }
 async function loadShots(r) {
-  const out = [];
-  for (let i = 0; i < Math.min(15, Number(r.shots) || 0); i++) { try { const d = await FB.fs.doc(`tournaments/${FB.tid}/reportShots/${r.id}_${i}`).get(); if (d.exists && img_(d.data().img)) out.push(d.data().img); } catch (e) {} }
+  const out = demoMode ? (demoShots[r.id] || []).slice() : [];
+  if (!demoMode) for (let i = 0; i < Math.min(15, Number(r.shots) || 0); i++) { try { const d = await FB.fs.doc(`tournaments/${FB.tid}/reportShots/${r.id}_${i}`).get(); if (d.exists && img_(d.data().img)) out.push(d.data().img); } catch (e) {} }
   shotCache[r.id] = out;
   const reads = [];
   for (const u of out) { const f = new File([await (await fetch(u)).blob()], "shot.jpg", { type: "image/jpeg" }); reads.push(await readShotGames(S(), f, null, r.a, r.b)); }
@@ -2488,6 +2520,7 @@ async function approveReport(s, r) {
   const ok = r.kind === "group" ? await write("matches/" + r.mid, { group: r.g, a: r.a, b: r.b, games, updatedAt: now, report: r.id })
     : await write("bracket/" + r.mid, { key: r.mid, a: r.a, b: r.b, games, updatedAt: now, report: r.id });
   if (!ok) return;
+  if (demoMode) { for (const o of REP().filter(o => o.id === r.id || (o.status === "pending" && o.kind === r.kind && o.mid === r.mid && sameRaw(o.games, gs)))) o.status = "approved"; toast("（デモ）承認して結果にしました"); render(); return; }
   try {
     await FB.fs.doc(`tournaments/${FB.tid}/reports/${r.id}`).update({ status: "approved", decidedBy: FB.user.uid, decidedAt: Date.now() });
     // the other team's report of the same match, if it says the same, is settled too
@@ -2544,12 +2577,18 @@ document.addEventListener("click", async ev => {
   if (act === "rep-send" && repDraft && !repDraft.busy) { const n = $('[data-rep="note"]'); if (n) repDraft.note = n.value; return sendReport(s); }
   if (act === "rep-withdraw") {
     if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと取り下げ"; return; }
-    const r = (real.reports || []).find(x => x.id === el.dataset.id); if (!r) return;
+    const r = REP().find(x => x.id === el.dataset.id); if (!r) return;
+    if (demoMode) { demo.reports = demo.reports.filter(x => x.id !== r.id); toast("（デモ）取り下げました"); render(); return; }
     try { for (let i = 0; i < Math.min(15, Number(r.shots) || 0); i++) await FB.fs.doc(`tournaments/${FB.tid}/reportShots/${r.id}_${i}`).delete().catch(() => {}); await FB.fs.doc(`tournaments/${FB.tid}/reports/${r.id}`).delete(); toast("取り下げました"); }
     catch (e) { toast("取り下げられませんでした: " + (e.message || e.code)); }
     return;
   }
-  const r = (real.reports || []).find(x => x.id === el.dataset.id);
+  const r = REP().find(x => x.id === el.dataset.id);
+  if (demoMode && r && role === "admin" && (act === "rep-ng" || act === "rep-shots-del")) {   // the demo keeps its reports in memory only
+    if (act === "rep-ng") { r.status = "rejected"; r.reason = ($(`[data-reason="${CSS.escape(r.id)}"]`)?.value || "").trim().slice(0, 200); toast("（デモ）却下しました"); }
+    else { r.shotsGone = true; delete shotCache[r.id]; delete shotReads[r.id]; toast("（デモ）スクショを削除しました"); }
+    render(); return;
+  }
   if (act === "rep-load" && r) { el.disabled = true; el.textContent = "読み込み中…"; await loadShots(r); render(); return; }
   if (act === "rep-ok" && r && role === "admin") { el.disabled = true; await approveReport(s, r); return; }
   if (act === "rep-shots-del" && r && role === "admin") { // free the space once a report is done with
@@ -2820,7 +2859,7 @@ function tournamentDone(s) {
 const isOwnerHere = () => (FB.on && FB.tid) ? FB.isOwner : (mode === "local");
 function finalPanel(s) {
   if (!isOwnerHere() || demoMode || isLocked(s)) return "";
-  const done = tournamentDone(s), pend = (real.reports || []).filter(r => r.status === "pending").length;
+  const done = tournamentDone(s), pend = REP().filter(r => r.status === "pending").length;
   return `<section class="panel final-zone"><div class="panel-head"><h2>大会の結果を確定する</h2><span class="meta">${LOCAL.on ? "この端末の大会" : "主催者だけ"}</span></div><div class="panel-body" style="display:grid;gap:10px">
     <div>大会がすべて終わったら押してください。<b>結果・順位・登録内容が、これ以上変更できなくなります</b>（元に戻せません）。あわせて、<b>報告のスクショをすべて削除</b>して保存容量を空けます。使ったヒーロー・メダル・デッキとポータルキーは、結果として残ります。</div>
     ${done ? "" : `<div class="bad-t">まだ終わっていない対戦があります。すべての対戦が終わると押せます。</div>`}
@@ -3084,6 +3123,29 @@ function saveResume() {
   }
 }
 function reloadKeeping() { saveResume(); location.reload(); }
+/* ---------- refreshing in the home-screen app (iPhone has no reload button or pull-to-refresh there) ---------- */
+const reloadBtn = () => isStandalone() ? `<button class="btn ghost" data-act="app-reload" style="padding:2px 10px;font-size:.78rem" aria-label="ページを更新">↻ 更新</button>` : "";
+document.addEventListener("click", ev => { if (ev.target.closest('[data-act="app-reload"]')) reloadKeeping(); });
+// pull down from the very top of the page to refresh (only in the installed app; the browser has its own)
+let ptr = null;
+const ptrEl = () => { let e = document.getElementById("ptr"); if (!e) { e = document.createElement("div"); e.id = "ptr"; e.className = "ptr"; e.setAttribute("aria-hidden", "true"); document.body.appendChild(e); } return e; };
+addEventListener("touchstart", e => {
+  ptr = null;
+  if (!isStandalone() || e.touches.length !== 1 || scrollY > 0 || e.target.closest?.(".modal, input, textarea, select, canvas")) return;
+  ptr = { y: e.touches[0].clientY, x: e.touches[0].clientX, d: 0 };
+}, { passive: true });
+addEventListener("touchmove", e => {
+  if (!ptr) return;
+  const t = e.touches[0], d = t.clientY - ptr.y;
+  if (scrollY > 0 || d < 0 || Math.abs(t.clientX - ptr.x) > Math.max(30, d)) { ptr = null; ptrEl().classList.remove("show"); return; }
+  ptr.d = d; const el = ptrEl();
+  if (d > 20) { el.classList.add("show"); el.textContent = d > 110 ? "↻ 離すと更新" : "↓ 引っ張って更新"; el.style.transform = `translate(-50%, ${Math.min(d, 140) * 0.5 - 20}px)`; }
+}, { passive: true });
+addEventListener("touchend", () => {
+  if (!ptr) return; const d = ptr.d; ptr = null; const el = ptrEl();
+  if (d > 110) { el.textContent = "更新中…"; reloadKeeping(); } else { el.classList.remove("show"); el.style.transform = ""; }
+}, { passive: true });
+addEventListener("touchcancel", () => { ptr = null; document.getElementById("ptr")?.classList.remove("show"); }, { passive: true });
 function autoUpdate() {
   if (autoTimer) return;
   autoTimer = setInterval(() => { if (quietNow()) { clearInterval(autoTimer); reloadKeeping(); } }, 3000);
