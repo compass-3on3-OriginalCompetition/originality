@@ -388,6 +388,15 @@ button.bx:hover { border-color: #fff; }
   table.xt td.cell .pk { display: none; }
   table.xt thead th, table.xt td.cell { min-width: 0; }
   table.xt th.team { min-width: 150px; }
+  /* the stats table gets compact headers so it fits sideways without scrolling */
+  table.xt.stats thead th { min-width: 0; }
+  table.xt.stats thead th.sh { white-space: normal; font-size: .62rem; padding: 4px 2px; line-height: 1.2; }
+  table.xt.stats th.team { min-width: 0; width: 30%; padding: 4px 8px; }
+  table.xt.stats th.team .tn { font-size: .78rem; gap: 6px; }
+  table.xt.stats th.team .tn > span:not(.ab) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22vw; }
+  table.xt.stats td.n { min-width: 0; padding: 0 4px; font-size: .85rem; }
+  table.xt.stats td.n.pk { font-size: .95rem; }
+  table.xt td.rk, table.xt th.rkh { min-width: 0; padding: 0 6px; }
   .bracket-stage { padding: 12px 10px 16px; }
   .crown { width: 60px; }
   .bx { min-height: 70px; }
@@ -526,6 +535,37 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .netbar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; padding: 8px 16px; background: #2B2414; color: #F2C14B; border-bottom: 1px solid #5A4A1E; font-size: .85rem; text-align: center; }
 .netbar[hidden] { display: none; }
 .netbar.off { background: #2A1418; color: var(--bad); border-color: #5A2028; }
+.installslot { min-height: 58px; margin-bottom: 12px; display: grid; align-content: center; }
+@media (max-width: 520px) { .installslot { min-height: 96px; } }
+.installslot .installbox { margin-bottom: 0; }
+/* tables wider than the screen: fade the right edge and say it scrolls */
+.grid-wrap.more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), rgba(0,0,0,.25)); mask-image: linear-gradient(to right, #000 calc(100% - 40px), rgba(0,0,0,.25)); }
+.scroll-hint { font-size: .74rem; color: var(--muted); text-align: right; margin: 0 0 4px; }
+/* header: what this device is (text, not a button) */
+.roletag { font-size: .75rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.roletag.me { color: var(--ink); }
+/* first screen: two equal choices */
+.gate-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.gchoice { display: grid; gap: 6px; align-content: center; justify-items: center; text-align: center; padding: 18px 10px; min-height: 96px; border-radius: 12px; border: 1px solid var(--accent); background: var(--surface-2); color: var(--ink); font: inherit; cursor: pointer; }
+.gchoice b { font-size: 1.02rem; line-height: 1.35; }
+.gchoice span { font-size: .74rem; color: var(--muted); }
+.gchoice:hover, .gchoice.on { background: color-mix(in srgb, var(--accent) 16%, var(--surface-2)); }
+.gate-sub { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+/* creating a tournament: question mode */
+.wz-q { font-size: 1.05rem; font-weight: 700; margin: 0; }
+.wz-prog { font-size: .75rem; color: var(--muted); }
+.wz-opts { display: grid; gap: 8px; }
+.wz-opt { display: grid; gap: 4px; text-align: left; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; cursor: pointer; }
+.wz-opt b { font-size: .95rem; }
+.wz-opt span { font-size: .8rem; color: var(--muted); }
+.wz-opt.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.wz-sum { display: grid; gap: 6px; }
+.wz-sum button { display: flex; justify-content: space-between; gap: 10px; text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; font-size: .85rem; cursor: pointer; }
+.wz-sum button span:first-child { color: var(--muted); flex: 0 1 auto; }
+.wz-sum button span:last-child { flex: 1 1 50%; text-align: right; font-weight: 700; }
+/* guide: show only one role */
+.guide-roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.guide-roles .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .installbox { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); font-size: .85rem; margin-bottom: 12px; }
 .rep-group { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
 .rep-gt { font-size: .9rem; }
@@ -590,7 +630,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
 /* ---------- state ---------- */
 const real = { config: null, matches: {}, bracket: {}, members: {}, loaded: false };
 let memPrompt = null, scan = null, memTeam = null, renderPending = false;
-let demo = null, demoMode = false;
+let demo = null, demoMode = false, demoRoleBack = null;
 let mode = "loading";           // db | local | nodb
 let role = "viewer";            // admin | contributor | viewer
 let db = null, loadNote = "";
@@ -948,10 +988,21 @@ document.addEventListener("focusout", () => { if (renderPending) setTimeout(() =
 function render() {
   const keep = { y: scrollY, boxes: [...document.querySelectorAll(".modal, .modal-box")].map(el => el.scrollTop), focus: document.activeElement?.id || null };
   renderInner();
+  markScroll();
   if (Math.abs(scrollY - keep.y) > 1) scrollTo(0, keep.y);
   document.querySelectorAll(".modal, .modal-box").forEach((el, i) => { if (keep.boxes[i] != null) el.scrollTop = keep.boxes[i]; });
   if (keep.focus && !document.activeElement?.id) { const el = document.getElementById(keep.focus); if (el && el.type !== "file") try { el.focus({ preventScroll: true }); } catch (e) {} }
 }
+// tables wider than the screen get a fading right edge and a "scrolls sideways" note
+function markOne(w) {
+  const over = w.scrollWidth - w.clientWidth > 8, h = w.previousElementSibling, has = !!h && h.classList.contains("scroll-hint");
+  w.classList.toggle("more-r", over && w.scrollLeft + w.clientWidth < w.scrollWidth - 4);
+  if (over && !has) w.insertAdjacentHTML("beforebegin", `<div class="scroll-hint">← 表は横にスクロールできます →</div>`);
+  else if (!over && has) h.remove();
+}
+function markScroll() { document.querySelectorAll(".grid-wrap").forEach(markOne); }
+document.addEventListener("scroll", e => { if (e.target.classList?.contains("grid-wrap")) markOne(e.target); }, true);
+addEventListener("resize", () => { clearTimeout(markScroll.t); markScroll.t = setTimeout(markScroll, 150); });
 const isLocked = st => !demoMode && !!(st || S())?.config?.final;
 function renderInner() {
   renderPending = false;
@@ -979,10 +1030,10 @@ function renderInner() {
 const fxBtn = () => `<button class="btn ghost fx-toggle ${fxOn() ? "on" : ""}" data-act="fx-toggle" aria-pressed="${fxOn()}" title="動く背景（稲妻）のオン・オフ" style="padding:2px 10px;font-size:.78rem">⚡ 背景 ${fxOn() ? "オン" : "オフ"}</button>`;
 function renderMode() {
   const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "観戦者", player: "選手" };
-  const m = mode === "local" ? `<span class="pill">${LOCAL.on ? "この端末だけ" : "この端末に保存"}</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
+  const m = mode === "local" ? `<span class="roletag">${LOCAL.on ? "この端末だけ" : "この端末に保存"}</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
   if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = fxBtn() + (FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""); return; }
   const fbBtns = FB.on && (FB.user || LOCAL.on) ? `<button class="btn ghost" data-act="${LOCAL.on ? "lc-lobby" : "fb-lobby"}" style="padding:2px 10px;font-size:.78rem">大会一覧</button>` : "";
-  $("#mode").innerHTML = `${m}${fbBtns}<span class="pill ${role === "admin" ? "on" : ""}">${LOCAL.on || (mode === "local" && !FB.on) ? (role === "admin" ? "この端末で管理" : "閲覧") : FB.on && FB.isOwner && role === "admin" ? "主催" : role === "player" ? `選手・${esc(teamName(S(), FB.team))}` : labels[role]}</span>
+  $("#mode").innerHTML = `${m}${fbBtns}<span class="roletag me">${LOCAL.on || (mode === "local" && !FB.on) ? (role === "admin" ? "この端末で管理" : "閲覧") : FB.on && FB.isOwner && role === "admin" ? "主催" : role === "player" ? `選手・${esc(teamName(S(), FB.team))}` : labels[role]}</span>
     <button class="btn ghost" data-act="${demoMode ? "demo-off" : "demo-on"}" style="padding:2px 10px;font-size:.78rem">${demoMode ? "デモ終了" : "デモを見る"}</button>${fxBtn()}`;
 }
 function noTeams() {
@@ -1271,11 +1322,7 @@ function settingsForm(set, id) {
       ${+set.games >= 2 ? row("コールド勝ち", chk("cold", "あり"), coldNote(set)) : ""}
     </div>
     <div class="sgroup"><div class="sg-t">順位の決め方</div>
-      ${set.ranks.map((k, i) => row(`${i + 1}番目に比べる`, `<select id="${id}-rank-${i}" data-set="rank" data-ri="${i}" aria-label="${i + 1}番目に比べるもの">${Object.entries(CRIT).map(([c, v]) => `<option value="${c}" ${c === k ? "selected" : ""} ${c !== k && set.ranks.includes(c) ? "disabled" : ""}>${esc(v.ja)}</option>`).join("")}</select>`
-        + (set.ranks.length > 1 ? `<button type="button" class="btn ghost sm" data-act="rank-del" data-ri="${i}" aria-label="${i + 1}番目を消す">消す</button>` : ""))).join("")}
-      ${set.ranks.length < Object.keys(CRIT).length ? `<div class="btns"><button type="button" class="btn sm" data-act="rank-add">＋ 比べる項目を追加</button></div>` : ""}
-      <span class="muted-s">上から順に比べて、同じなら次で比べます。それでも並んだら、当該チーム同士の対戦結果 → 引き分けの数 → 順位決定戦／抽選。</span>
-      <ul class="crit-help">${Object.values(CRIT).map(c => `<li><b>${esc(c.ja)}</b>：${esc(c.note)}</li>`).join("")}</ul>
+      ${rankForm(set, id, row)}
     </div>` : ""}
     <div class="sgroup"><div class="sg-t">事前の提出と確認</div>
       ${row("ヒーローとメダル", chk("submitHeroes", "事前に登録して、リプレイで確認する"))}
@@ -1283,6 +1330,13 @@ function settingsForm(set, id) {
       ${row("リプレイのスクショ", chk("requireMedalShot", "メダル情報が表示されたものだけ受け付ける"))}
       ${row("ステージ", chk("stageCheck", "ステージのルールを確認する"), "1試合目と、引き分けの次の試合は「でらクランクストリート」、禁止ステージは使わない。ステージは、運営が一度見本を登録すると見分けられるようになります")}
     </div></div>`;
+}
+function rankForm(set, id, row) {
+  return `${set.ranks.map((k, i) => row(`${i + 1}番目に比べる`, `<select id="${id}-rank-${i}" data-set="rank" data-ri="${i}" aria-label="${i + 1}番目に比べるもの">${Object.entries(CRIT).map(([c, v]) => `<option value="${c}" ${c === k ? "selected" : ""} ${c !== k && set.ranks.includes(c) ? "disabled" : ""}>${esc(v.ja)}</option>`).join("")}</select>`
+        + (set.ranks.length > 1 ? `<button type="button" class="btn ghost sm" data-act="rank-del" data-ri="${i}" aria-label="${i + 1}番目を消す">消す</button>` : ""))).join("")}
+      ${set.ranks.length < Object.keys(CRIT).length ? `<div class="btns"><button type="button" class="btn sm" data-act="rank-add">＋ 比べる項目を追加</button></div>` : ""}
+      <span class="muted-s">上から順に比べて、同じなら次で比べます。それでも並んだら、当該チーム同士の対戦結果 → 引き分けの数 → 順位決定戦／抽選。</span>
+      <ul class="crit-help">${Object.values(CRIT).map(c => `<li><b>${esc(c.ja)}</b>：${esc(c.note)}</li>`).join("")}</ul>`;
 }
 function readSet(root, base) {
   const x = { ...base };
@@ -1296,11 +1350,16 @@ function readSet(root, base) {
   // the four formats map onto the engine's settings
   if (ranks.length) x.rankList = ranks.filter((k, i, a) => CRIT[k] && a.indexOf(k) === i);
   const m = x.mode; delete x.mode; delete x.ranks;
+  applyMode(x, m, base);
+  if (!x.rank1) x.rank1 = "keys";
+  return x;
+}
+// the four formats map onto the engine's settings
+function applyMode(x, m, base) {
   if (m === "group_ko") { x.format = "group"; if (!(+x.advance > 0)) x.advance = 2; if (+x.groups % 2) x.groups = +x.groups === 1 ? 2 : 4; }   // even number of groups only
   else if (m === "group") { x.format = "group"; x.advance = 0; }
   else if (m === "knockout") x.format = "knockout";
   else if (m === "swiss") { x.format = "swiss"; if (base.format !== "swiss") x.swissAdvance = 0; }
-  if (!x.rank1) x.rank1 = "keys";
   return x;
 }
 function settingsPanel(s) {
@@ -1320,25 +1379,94 @@ function modeWarnView() {
     <div class="btns"><button class="btn danger" data-act="mode-ok">大丈夫、変更する</button><button class="btn" data-act="mode-no">やめる</button></div></div>`;
 }
 function pairCount(set, n) { const g = Math.max(1, set.groups), per = Array.from({ length: g }, (_, i) => Math.floor(n / g) + (i < n % g ? 1 : 0)); return per.reduce((a, k) => a + k * (k - 1) / 2, 0); }
-function createDlgView() {
-  if (!createDlg) return "";
-  return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="cd-t"><div class="modal-box wide" id="create-dlg">
-    <h3 id="cd-t">「${esc(createDlg.name)}」の設定</h3>
-    <p>あとから「チーム設定」の「大会の設定」でも変えられます。最初は、元のルール（グループ2つ・各上位2チームが決勝トーナメント・1対戦3試合・コールドあり）になっています。<br><span class="muted-s">30日間、誰も開かなかった大会は自動で削除されます（運営・選手・観戦の誰かが開けば、そこから30日のばされます）。</span></p>
-    ${settingsForm(SETS({ config: { settings: createDlg.set } }), "cd")}
-    <div class="btns"><button class="btn primary" data-act="create-go">この設定で作成</button><button class="btn" data-act="create-cancel">キャンセル</button></div>
-  </div></div>`;
+// creating a tournament: first choose how to set it up — everything on one screen, or one question at a time
+const YN = (y, n, yd, nd) => [[true, y, yd], [false, n, nd]];
+const WIZ = [
+  { id: "teamSize", s: "1チームの人数", q: "1チームは何人ですか？", opts: () => [[3, "3on3", "1チーム3人"], [2, "2on2", "1チーム2人"], [1, "1on1", "1人ずつの個人戦"]] },
+  { id: "mode", s: "形式", q: "どの形式で戦いますか？", opts: () => Object.entries(MODES).map(([k, m]) => [k, m.ja, m.desc.join("")]) },
+  { id: "groups", s: "グループの数", key: "groups", when: x => x.mode === "group_ko", q: "グループはいくつに分けますか？", note: "トーナメントの組み合わせがそろうように、偶数のグループだけ選べます。", opts: () => [[2, "2グループ"], [4, "4グループ"]] },
+  { id: "advance", s: "トーナメントに進む数", when: x => x.mode === "group_ko", q: "各グループから、何チームが決勝トーナメントに進みますか？", opts: () => [[1, "各グループ1位だけ"], [2, "各グループ上位2チーム"], [4, "各グループ上位4チーム"]] },
+  { id: "groupsG", s: "グループ", key: "groups", when: x => x.mode === "group", q: "グループに分けますか？", opts: () => [[1, "分けない", "全チームで総当たり"], [2, "2グループ"], [3, "3グループ"], [4, "4グループ"]] },
+  { id: "swissRounds", s: "ラウンド数", when: x => x.mode === "swiss", q: "何ラウンド行いますか？", custom: true },
+  { id: "swissByeOnce", s: "不戦勝（休み）", when: x => x.mode === "swiss", q: "チーム数が奇数のとき、不戦勝（休み）は1チーム何回までにしますか？", note: "奇数のときは、毎ラウンド順位がいちばん下のチームが休みになり、不戦勝（全試合5-0の勝ち）になります。", opts: () => YN("1チーム1回まで（おすすめ）", "何度でも", "一度不戦勝になったチームは、次からはその次に下のチームが休みます", "毎回いちばん下のチームが休みます") },
+  { id: "games", s: "1対戦の試合数", when: x => x.mode !== "knockout", q: "1対戦で何試合しますか？", note: "奇数（1・3・5試合）がおすすめです。偶数だと引き分けが増えやすく、順位に差がつきにくくなります。", opts: () => [1, 2, 3, 4, 5].map(n => [n, `${n}試合`, n % 2 ? "" : "偶数"]) },
+  { id: "cold", s: "コールド勝ち", when: x => x.mode !== "knockout" && x.games >= 2, q: "コールド勝ちはありにしますか？", opts: x => YN("あり", "なし", coldNote({ ...x, cold: true }), "最後まで全試合を行います") },
+  { id: "rank", s: "順位の決め方", when: x => x.mode !== "knockout", q: "順位は、何を順番に比べて決めますか？", custom: true },
+  { id: "koBest", s: "トーナメントの1試合", when: x => x.mode === "knockout" || x.mode === "group_ko" || (x.mode === "swiss" && +x.swissAdvance > 0), q: "トーナメントの1試合は、どう決めますか？", note: "引き分けは数えず、もう一戦します。", opts: () => [[1, "BO1", "1勝で勝ち抜け"], [3, "BO3", "先に2勝で勝ち抜け"], [5, "BO5", "先に3勝で勝ち抜け"]] },
+  { id: "third", s: "3位決定戦", when: x => x.mode === "knockout" || x.mode === "group_ko" || (x.mode === "swiss" && +x.swissAdvance > 0), q: "3位決定戦を行いますか？", opts: () => YN("行う", "行わない", "準決勝で負けたチーム同士で対戦します", "ベスト4までになります") },
+  { id: "submitHeroes", s: "ヒーロー・メダルの事前登録", q: "ヒーローとメダルを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
+  { id: "submitDecks", s: "デッキの事前登録", q: "デッキを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
+  { id: "requireMedalShot", s: "スクショのメダル情報", q: "リプレイのスクショは、メダル情報が表示されたものだけ受け付けますか？", opts: () => YN("メダル情報があるものだけ受け付ける", "メダル情報がなくても受け付ける") },
+  { id: "stageCheck", s: "ステージの確認", q: "ステージのルールを確認しますか？", note: "1試合目と、引き分けの次の試合は「でらクランクストリート」、禁止ステージは使わない、を確認します。", opts: () => YN("確認する", "確認しない") },
+];
+const wizList = x => WIZ.filter(q => !q.when || q.when(x));
+const wizVal = (q, x) => x[q.key || q.id];
+function wizAnswer(q, x) {
+  if (q.id === "swissRounds") return x.swissRounds === "" ? "全勝者が決まるまで" : `${x.swissRounds}ラウンド`;
+  if (q.id === "rank") return x.ranks.map(k => CRIT[k].ja).join(" → ");
+  const o = q.opts(x).find(([v]) => String(v) === String(wizVal(q, x))); return o ? o[1] : "";
 }
+function createDlgView() {
+  const c = createDlg; if (!c) return "";
+  const x = SETS({ config: { settings: c.set } });
+  const head = `<h3 id="cd-t">「${esc(c.name)}」の設定</h3>`, cancel = `<button class="btn" data-act="create-cancel">キャンセル</button>`;
+  const wrap = body => `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="cd-t"><div class="modal-box wide" id="create-dlg">${head}${body}</div></div>`;
+  if (!c.step) return wrap(`<p>設定のしかたを選んでください。どちらも、あとから「チーム設定」の「大会の設定」で変えられます。<br><span class="muted-s">30日間、誰も開かなかった大会は自動で削除されます（運営・選手・観戦の誰かが開けば、そこから30日のばされます）。</span></p>
+    <div class="wz-opts"><button class="wz-opt" data-act="wz-start" data-how="form"><b>全て自分で設定する</b><span>すべての設定を1つの画面で選びます（今までの設定方法）。</span></button>
+      <button class="wz-opt" data-act="wz-start" data-how="ask"><b>質問に答えて設定する</b><span>1つずつ出てくる質問に答えていくと、設定ができあがります。最後に一覧で確認してから作成します。</span></button></div>
+    <div class="btns">${cancel}</div>`);
+  if (c.step === "form") return wrap(`<p>最初は、元のルール（グループ2つ・各上位2チームが決勝トーナメント・1対戦3試合・コールドあり）になっています。</p>
+    ${settingsForm(x, "cd")}
+    <div class="btns"><button class="btn primary" data-act="create-go">この設定で作成</button><button class="btn" data-act="wz-back">← 設定のしかたを選び直す</button>${cancel}</div>`);
+  const L = wizList(x);
+  if (c.step === "done") return wrap(`<p class="wz-q">この設定で作成しますか？</p><span class="muted-s">直したい項目を押すと、その質問に戻れます。</span>
+    <div class="wz-sum">${L.map(q => `<button data-act="wz-go" data-q="${q.id}"><span>${esc(q.s)}</span><span>${esc(wizAnswer(q, x))}</span></button>`).join("")}</div>
+    <div class="btns"><button class="btn primary" data-act="create-go">この設定で作成</button><button class="btn" data-act="wz-back">← 戻る</button>${cancel}</div>`);
+  const q = L.find(z => z.id === c.step) || L[0], i = L.indexOf(q);
+  const body = q.id === "swissRounds" ? `<div class="gform"><input type="number" inputmode="numeric" min="1" max="30" step="1" id="cd-swissRounds" data-set="swissRounds" value="${esc(String(x.swissRounds))}" placeholder="未記入＝全勝者が決まるまで" class="num-in" aria-label="ラウンド数">
+      <span class="muted-s">整数で入力してください。未記入の場合、全勝者が決定するまで行います（目安：8チームなら3ラウンド、16チームなら4ラウンド）。</span></div>`
+    : q.id === "rank" ? `<div class="sform">${rankForm(x, "cd", (lab, ctrl) => `<div class="srow"><span class="sl">${lab}</span><div class="sc">${ctrl}</div></div>`)}</div>`
+    : `<div class="wz-opts">${q.opts(x).map(([v, t, d]) => `<button class="wz-opt ${String(v) === String(wizVal(q, x)) ? "on" : ""}" data-act="wz-pick" data-v="${esc(String(v))}" aria-pressed="${String(v) === String(wizVal(q, x))}"><b>${esc(t)}</b>${d ? `<span>${esc(d)}</span>` : ""}</button>`).join("")}</div>`;
+  return wrap(`<span class="wz-prog">質問 ${i + 1} / ${L.length}</span><p class="wz-q">${esc(q.q)}</p>${q.note ? `<span class="muted-s">${esc(q.note)}</span>` : ""}${body}
+    <div class="btns">${q.custom ? `<button class="btn primary" data-act="wz-next">次へ</button>` : ""}<button class="btn" data-act="wz-back">← 戻る</button>${cancel}</div>`);
+}
+document.addEventListener("click", ev => {
+  const el = ev.target.closest("[data-act^='wz-']"), c = createDlg; if (!el || !c) return;
+  const act = el.dataset.act, x = () => SETS({ config: { settings: c.set } });
+  c.hist = c.hist || [];
+  const next = () => { const L = wizList(x()), i = L.findIndex(q => q.id === c.step); c.hist.push(c.step); c.step = L[i + 1]?.id || "done"; render(); $("#create-dlg") && ($("#create-dlg").scrollTop = 0); };
+  if (act === "wz-start") { c.hist = []; c.step = el.dataset.how === "form" ? "form" : wizList(x())[0].id; render(); return; }
+  if (act === "wz-back") { if (c.step === "form") { c.set = readSet($("#create-dlg"), c.set); c.step = null; } else c.step = c.hist.pop() || null; render(); return; }
+  if (act === "wz-go") { c.hist.push("done"); c.step = el.dataset.q; render(); return; }
+  if (act === "wz-next") { c.set = readSet($("#create-dlg"), c.set); if (c.hist.at(-1) === "done") { c.step = c.hist.pop(); render(); } else next(); return; }
+  if (act === "wz-pick") {
+    const q = WIZ.find(z => z.id === c.step); if (!q) return;
+    const r = el.dataset.v, v = r === "true" ? true : r === "false" ? false : isNaN(+r) ? r : +r;
+    if (q.id === "mode") c.set = applyMode({ ...c.set }, v, c.set);
+    else c.set = { ...c.set, [q.key || q.id]: v };
+    // coming from the summary: go straight back to it (a new format or game count can open new questions, so walk on from there)
+    if (c.hist.at(-1) === "done") { if (q.id === "mode" || q.id === "games") { c.hist.pop(); next(); } else { c.step = c.hist.pop(); render(); } return; }
+    next(); return;
+  }
+});
+let guideRole = "";
+const GUIDE_ROLES = [["host", "主催の人"], ["staff", "運営の人"], ["player", "選手の人"], ["viewer", "観戦の人"], ["", "すべて"]];
+document.addEventListener("click", ev => { const el = ev.target.closest("[data-guiderole]"); if (!el) return; guideRole = el.dataset.guiderole; render(); });
 function viewGuide(gated) {
-  const sec = (n, t, body) => `<section class="panel guide"><div class="panel-body"><h3><span class="gnum">${n}</span>${t}</h3>${body}</div></section>`;
-  return `<div class="guide-top"><h2>使い方</h2><p>主催・運営・観戦する人、それぞれの使い方です。わからないときは、上から順に読んでください。</p>${gated ? `<a class="btn" href="#">← ログイン画面に戻る</a>` : ""}</div>
+  // each section lists the roles it is for; picking a role shows only those (numbered again from 1)
+  const ALL = ["host", "staff", "player", "viewer"]; let no = 0;
+  const sec = (n, t, body, who = ALL) => guideRole && !who.includes(guideRole) ? "" : `<section class="panel guide"><div class="panel-body"><h3><span class="gnum">${++no}</span>${t}</h3>${body}</div></section>`;
+  return `<div class="guide-top"><h2>使い方</h2><p>あなたの役割を選ぶと、その人に関係する項目だけを表示します。</p>
+    <div class="guide-roles" role="group" aria-label="役割で絞り込む">${GUIDE_ROLES.map(([k, t]) => `<button class="btn sm" data-guiderole="${k}" aria-pressed="${guideRole === k}">${t}</button>`).join("")}</div>
+    ${gated ? `<a class="btn" href="#">← 最初の画面に戻る</a>` : ""}</div>
   <div class="guide-list">
   ${sec(1, "ログインと大会の作成（主催）", `<ol>
-    <li>このサイトを開いて「<b>Googleでログイン</b>」を押します。</li>
+    <li>このサイトを開いて「<b>大会を主催する</b>」を押し、Googleでログインします。</li>
     <li>大会一覧の「新しい大会を作る」に大会名を入れて「<b>作成</b>」を押します。</li>
-    <li>「<b>大会の設定</b>」が開くので、1チームの人数（3on3・2on2・1on1）、形式（総当たり → トーナメント／総当たりのみ／トーナメントのみ／スイスドローのみ。それぞれの特徴も表示されます）、1対戦の試合数、コールドの有無と条件、順位の決め方（取得ポータルキー数・勝利数・勝率・勝ち越しで1勝の対戦勝利数・勝ち点などから3つまで順番に選べます）、決勝トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー・メダル・デッキを事前に提出させるかを選んで「<b>この設定で作成</b>」を押します。</li>
+    <li>設定のしかたを2つから選びます。「<b>全て自分で設定する</b>」は、すべての設定を1つの画面で選びます。「<b>質問に答えて設定する</b>」は、1つずつ出てくる質問に答えていくと設定ができあがり、最後に一覧で確認してから作成します。</li>
+    <li>「全て自分で設定する」では、1チームの人数（3on3・2on2・1on1）、形式（総当たり → トーナメント／総当たりのみ／トーナメントのみ／スイスドローのみ。それぞれの特徴も表示されます）、1対戦の試合数、コールドの有無と条件、順位の決め方（取得ポータルキー数・勝利数・勝率・勝ち越しで1勝の対戦勝利数・勝ち点などから3つまで順番に選べます）、決勝トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー・メダル・デッキを事前に提出させるかを選んで「<b>この設定で作成</b>」を押します。</li>
     <li>設定はあとから「チーム設定」の「<b>大会の設定</b>」で変えられます（結果を入れた後に変えると、数え方も変わります）。「ルール早見表」は設定に合わせて自動で書き変わります。</li>
-    <li>作った大会は、あなたにしか見えません。ほかの人には、手順3のコードを渡して見てもらいます。</li></ol>`)}
+    <li>作った大会は、あなたにしか見えません。ほかの人には、手順3のコードを渡して見てもらいます。</li></ol>`, ["host"])}
   ${sec(2, "チームとメンバーの登録（主催・運営）", `<ol>
     <li>「<b>チーム設定</b>」で「チームを追加」を押し、チーム名と略称（表の見出しに使う短い名前）を入れます。</li>
     <li>チーム名を入れると「<b>メンバーを登録しますか？</b>」と聞かれます。「メンバーを登録する」を押すと、そのチームのメンバー登録に移ります。</li>
@@ -1346,20 +1474,21 @@ function viewGuide(gated) {
     <li>「メンバーと提出デッキ」で、メンバーごとに次を登録します。
       <ul><li><b>ヒーロー</b>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル3つ（種類・色・強化値）が入ります。</li>
       <li><b>デッキ</b>：「カード強化 / デッキ編集」画面のスクショを、デッキ1・2ごとに読み込みます。画面全体のスクショなら、左上のユーザーネームも登録されます。</li></ul></li>
-    <li>チーム内で同じヒーローやカードが重なっていると、警告が出ます。シェアカードは警告から指定できます。</li></ol>`)}
-  ${sec(3, "コードを渡して見てもらう（主催）", `<ul>
+    <li>チーム内で同じヒーローやカードが重なっていると、警告が出ます。シェアカードは警告から指定できます。</li></ol>`, ["host", "staff"])}
+  ${sec(3, "コードを渡す・受け取る", `<ul>
     <li>「チーム設定」の「<b>共有コード</b>」に、コードが2つあります。
       <ul><li><b>観戦コード</b>：結果・順位表・決勝トーナメントを見られます。</li><li><b>選手コード</b>（チームごと）：自分のチームの登録内容・次の対戦相手・現在の順位を見られて、結果とリプレイのスクショを運営に報告できます。</li><li><b>運営コード</b>：結果の入力と、提出内容の登録・確認もできます。運営にだけ渡してください。</li></ul></li>
-    <li>サイトのURLとコードを一緒に渡します。受け取った人は、Googleでログインして「<b>コードで参加する</b>」にコードを入れます。</li>
-    <li>Googleアカウントを使いたくない人は、最初の画面の「<b>ログインせずにコードで参加</b>」か、「ログインせずに使う」を押した先の「<b>コードで参加</b>」にコードを入れれば、その端末で参加できます（運営・観戦どちらも）。別の端末では、もう一度コードを入れます。</li>
+    <li>サイトのURLとコードを一緒に渡します。受け取った人は、最初の画面の「<b>コードを入力して大会に参加する</b>」を押して、コードを入れます（ログインは不要です）。別の端末では、もう一度コードを入れます。</li>
+    <li>Googleでログインしている人は、大会一覧の「<b>コードで参加する</b>」にコードを入れます。</li>
     <li>コードはその大会にしか使えません。知られたくない人に知られたら「<b>作り直す</b>」を押すと、前のコードは使えなくなります。</li></ul>`)}
   ${sec(4, "結果の入力（主催・運営）", `<ol>
     <li>「<b>対戦表・結果入力</b>」で対戦を押します。対戦表の左側のチームがルームを作る側です。</li>
     <li>試合ごとに両チームのポータルキー（0〜5）を選ぶと、その場で自動保存されます。不戦敗は「左/右が不戦敗」を選びます。</li>
     <li>「<b>スクショで読み取り・確認</b>」から、メダル情報を表示したリプレイ画面のスクショを読み込むと、ユーザーネームでメンバーを判別して、ポータルキーの記入と、ヒーロー・メダル・デッキが提出内容と合っているかの確認ができます。問題がある対戦には「要確認」が付きます。</li>
     <li>コールド勝ちは、大会の設定どおりに自動で判定されます。</li>
-    <li>スイスドローでは、運営が「<b>第Nラウンドの組み合わせを作る</b>」を押すと、順位の近いチーム同士で、まだ当たっていない相手と組み合わせます。チーム数が奇数のときは、順位がいちばん下のチームが休みになり<b>不戦勝</b>（全試合5-0）になります。設定の「不戦勝（休み）は1チーム1回まで」がオン（最初からオン）なら、一度不戦勝になったチームはそれ以降休みになりません。</li></ol>`)}
+    <li>スイスドローでは、運営が「<b>第Nラウンドの組み合わせを作る</b>」を押すと、順位の近いチーム同士で、まだ当たっていない相手と組み合わせます。チーム数が奇数のときは、順位がいちばん下のチームが休みになり<b>不戦勝</b>（全試合5-0）になります。設定の「不戦勝（休み）は1チーム1回まで」がオン（最初からオン）なら、一度不戦勝になったチームはそれ以降休みになりません。</li></ol>`, ["host", "staff"])}
   ${sec(5, "順位表と決勝トーナメント（全員）", `<ul>
+    <li>最初の画面の「<b>デモを見る（ログイン不要）</b>」で、架空のチームと結果を使って、順位表や対戦表の動きを先に確認できます（保存はされません）。</li>
     <li>「<b>順位表</b>」は、取得ポータルキー → 勝率（設定で逆にもできます） → 当該チーム同士の対戦結果 → 引き分けの数 の順で自動で並びます。並んだ場合は、主催が順位決定戦・抽選の結果を入れます。</li>
     <li>「<b>決勝トーナメント</b>」は、設定した数の上位チームが自動で入ります（トーナメントのみの大会は、チーム設定の並び順で組み合わせます）。対戦カードを押すと結果を入力できます（主催・運営）。</li>
     <li>「Discord用にコピー」で、順位表を文字で貼り付けられます。</li>
@@ -1371,20 +1500,20 @@ function viewGuide(gated) {
     <li>大会一覧の「<b>削除</b>」（2回押す）で、<b>この端末の一覧から</b>大会を消せます。大会の情報（結果・チーム・提出内容）は消えません。</li>
     <li>消した大会は、一覧の下の「この端末から削除した大会」から「<b>取得し直す</b>」で戻せます。</li>
     <li>上の「大会一覧」ボタンで、いつでも大会を切り替えられます。</li></ul>`)}
-  ${sec(7, "ログインせずに使う（この端末だけ）", `<ul>
-    <li>最初の画面の「<b>ログインせずに使う（この端末だけ）</b>」から、Googleにログインしなくても大会を作って管理できます。</li>
+  ${sec(7, "自分だけで記録をつける（この端末のみで管理する）", `<ul>
+    <li>最初の画面の「<b>自分だけで記録をつける（この端末のみで管理する）</b>」から、Googleにログインしなくても大会を作って管理できます。</li>
     <li>大会はその端末のブラウザの中だけに保存されます。ほかの端末からは見られず、コードでの共有もできません。</li>
     <li>この端末だけの大会を「削除」すると、ほかに保存先がないので<b>元に戻せません</b>。また、ブラウザのデータを消すと大会も消えます。</li>
-    <li>ほかの人と見たいときや、別の端末でも使いたいときは、Googleでログインして大会を作ってください。</li></ul>`)}
+    <li>ほかの人と見たいときや、別の端末でも使いたいときは、Googleでログインして大会を作ってください。</li></ul>`, ["host"])}
   ${sec(8, "選手モード（選手コード）", `<ul>
     <li>主催・運営は「チーム設定」の「<b>選手コード</b>」で、チームごとのコードを発行して、そのチームのメンバーに渡します。</li>
-    <li>選手は、最初の画面の「ログインせずにコードで参加」か、ログイン後の「コードで参加する」に選手コードを入れます。</li>
+    <li>選手は、最初の画面の「<b>コードを入力して大会に参加する</b>」か、ログイン後の「コードで参加する」に選手コードを入れます。</li>
     <li>「<b>マイチーム</b>」で、自分のチームの<b>現在の順位・次の対戦相手・登録内容</b>（ヒーロー・メダル・デッキ）をリアルタイムで見られます。ほかのチームの登録内容は見られません。</li>
     <li>試合が終わったら「<b>結果を運営に報告</b>」で、試合ごとのポータルキーと、<b>その試合のリプレイ画面のスクリーンショットを1試合につき1枚（必須）</b>付けて送ります。送る前なら「外す」で付け直せます。送った後でも、承認される前なら「取り下げる」でスクショごと消せます。スクショを選ぶと、<b>ポータルキーを自動で読み取って結果に入れ</b>、<b>メダル情報が映っているか</b>も確認します（メダル情報が必要な大会で映っていないと送れません）。送れるのは画面のスクショ（PNG・JPEG・WebP）だけで、送る前に端末の中で画像を作り直します。</li>
     <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか・カスタムバトルのリプレイか・映っている人がこの対戦の2チームのメンバーか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。処理が終わった報告は「<b>スクショを削除</b>」で画像を消して、保存容量を空けられます。</li>
     <li>同じ対戦に両チームから報告が届くと、まとめて並び、「<b>両チームの報告が一致しています</b>／<b>食い違っています</b>」と出ます。一致していれば「一致した結果で承認」の1回で両方の報告が確定します。承認すると、スクショから読み取った<b>全員の使用ヒーロー・メダル・デッキ</b>も対戦表に記録され、観戦者も見られるようになります。</li>
     <li>ステージ：運営がスクショ横の「このステージを登録…」で一度登録したステージは、次から見分けられます。1試合目や引き分けの次がでらクランクストリートでないとき、禁止ステージのときに警告が出ます（選手の報告画面にも出ます）。</li>
-    <li>棄権・失格：「対戦表・結果入力」の「<b>棄権・失格</b>」で、チームのまだ結果が入っていない試合をまとめて不戦敗にできます。「解除」で、そこで入れた不戦敗だけを消せます。</li></ul>`)}
+    <li>棄権・失格：「対戦表・結果入力」の「<b>棄権・失格</b>」で、チームのまだ結果が入っていない試合をまとめて不戦敗にできます。「解除」で、そこで入れた不戦敗だけを消せます。</li></ul>`, ["host", "staff", "player"])}
   ${sec(9, "スマホで使う", `<ul>
     <li><b>アプリとしてインストール</b>できます。Android・パソコンのChromeでは、最初の画面や「使い方」に出る「アプリとしてインストール」ボタン（または Chromeの「︙」→「<b>アプリをインストール</b>」/「ホーム画面に追加」）から。iPhone・iPadでは、Safariの共有ボタン（□に↑）→「<b>ホーム画面に追加</b>」から。</li>
     <li>インストールすると、ホーム画面のアイコンから全画面で開けます。結果はそのままリアルタイムで更新されます。サイトが新しくなったときは、入力の切れ目で<b>自動で更新</b>し、入力中の内容（結果報告のポータルキー・スクショ・ひとこと、開いていた対戦、入力欄の文字など）はそのまま戻ります。</li>
@@ -1954,8 +2083,9 @@ document.addEventListener("click", async ev => {
   const act = el.dataset.act, s = S();
   if (act === "create-go" && createDlg) { const c = createDlg; c.set = readSet($("#create-dlg"), c.set); createDlg = null; if (c.kind === "fb") fbCreate(c.name, c.set); else lcCreate(c.name, c.set); return; }
   if (act === "create-cancel") { createDlg = null; render(); return; }
-  if (act === "demo-on") { demo = makeDemo(); demoMode = true; openId = null; teamDraft = null; render(); return; }
-  if (act === "demo-off") { demoMode = false; demo = null; openId = null; teamDraft = null; render(); return; }
+  // from the first screen (no tournament open), the demo shows the organiser's view; it never saves anything
+  if (act === "demo-on") { demo = makeDemo(); if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id)) { demoRoleBack = role; role = "admin"; } demoMode = true; openId = null; teamDraft = null; render(); return; }
+  if (act === "demo-off") { demoMode = false; demo = null; if (demoRoleBack) { role = demoRoleBack; demoRoleBack = null; } openId = null; teamDraft = null; render(); return; }
   if (act === "open") return openEditor(el.dataset.id, { kind: "group", group: el.dataset.g, a: el.dataset.a, b: el.dataset.b });
   if (act === "open-b") return openEditor("bracket/" + el.dataset.key, { kind: "bo3", key: el.dataset.key, a: el.dataset.a, b: el.dataset.b });
   if (act === "close") { openId = null; draft = null; scan = null; saveStatus = ""; render(); return; }
@@ -2052,7 +2182,8 @@ document.addEventListener("change", ev => {
 });
 document.addEventListener("change", ev => {
   const el = ev.target; if (!el.dataset || el.dataset.set == null) return;
-  if (createDlg && el.closest("#create-dlg")) { createDlg.set = readSet($("#create-dlg"), createDlg.set); render(); return; }
+  // a typed number only needs saving (redrawing here would swallow the tap on "次へ"/"作成" that caused the change)
+  if (createDlg && el.closest("#create-dlg")) { createDlg.set = readSet($("#create-dlg"), createDlg.set); if (el.type !== "number") render(); return; }
   if (el.closest("#settings-panel") && role === "admin") {
     const st = S(), set = readSet($("#settings-panel"), SETS(st));
     const nT = (teamDraft ? teamDraft.teams.filter(t => (t.name || "").trim()) : allTeams(st)).length, nb = bigWarnAt(SETS({ config: { settings: set } }));
@@ -2631,6 +2762,12 @@ document.addEventListener("click", ev => {
     render(); toast("削除しました"); return;
   }
 });
+// first screen: the code box opens when "join with a code" is pressed
+let gateJoin = false;
+document.addEventListener("click", ev => {
+  if (!ev.target.closest('[data-act="gate-join"]')) return;
+  gateJoin = !gateJoin; render(); if (gateJoin) setTimeout(() => $("#anoncode")?.focus(), 0);
+});
 // tournaments removed from the list on this device only; the tournament data stays and can be brought back
 const HIDE_KEY = "compass3on3_hidden";
 function hiddenSet() { try { return new Set(JSON.parse(localStorage.getItem(HIDE_KEY) || "[]")); } catch (e) { return new Set(); } }
@@ -2640,13 +2777,18 @@ function viewGate() {
   if (LOCAL.on && !FB.user) return viewLocalLobby();
   if (!FB.user) return `<section class="panel gate"><div class="panel-body">
       <h2>戦闘摂理◆大会システム</h2>
-      <p>大会の結果入力・順位表・決勝トーナメントを管理します。作った大会は、あなたにしか見えません。ほかの人には、大会ごとに発行するコードを渡して見てもらいます。</p>
-      <div class="btns"><button class="btn primary big" data-act="fb-login">Googleでログイン</button><a class="btn" href="#guide">使い方を見る</a></div>
-      <div class="local-box"><button class="btn" data-act="lc-start">ログインせずに使う（この端末だけ）</button>
-        <span class="muted-s">ログインしなくても、この端末の中だけで大会の記録をつけられます。ほかの端末からは見られず、コードでの共有もできません。<b>ほかの人が参加する大会を主催するには、Googleでログインしてください。</b></span></div>
-      <div class="local-box gform"><label for="anoncode">運営・選手・観戦の人：ログインせずにコードで参加</label>
-        <div class="btns"><input id="anoncode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-anon-join">参加</button></div>
-        <span class="muted-s">Googleアカウントを使わずに、この端末で参加します。別の端末で見るときは、その端末でもう一度コードを入れてください。</span></div></div></section>`;
+      <p>大会の結果入力・順位表・決勝トーナメントを管理します。大会を主催する人はGoogleでログインして大会を作り、運営・選手・観戦の人は、主催者から受け取ったコードで参加します。</p>
+      <div class="gate-choice">
+        <button class="gchoice" data-act="fb-login"><b>大会を主催する</b><span>Googleでログインして大会を作ります</span></button>
+        <button class="gchoice ${gateJoin ? "on" : ""}" data-act="gate-join" aria-expanded="${gateJoin}"><b>コードを入力して大会に参加する</b><span>運営・選手・観戦の人（ログイン不要）</span></button>
+      </div>
+      ${gateJoin ? `<div class="gform" style="margin-top:12px"><label for="anoncode">主催者から受け取ったコード</label>
+        <div class="btns"><input id="anoncode" placeholder="コードを入力" autocomplete="off" autocapitalize="off"><button class="btn primary" data-act="fb-anon-join">参加</button></div>
+        <span class="muted-s">Googleアカウントを使わずに、この端末で参加します。別の端末で見るときは、その端末でもう一度コードを入れてください。</span></div>` : ""}
+      <div class="local-box"><button class="btn" data-act="lc-start">自分だけで記録をつける（この端末のみで管理する）</button>
+        <span class="muted-s">ログインしなくても、この端末の中だけで大会の記録をつけられます。ほかの端末からは見られず、コードでの共有もできません。</span></div>
+      <div class="gate-sub"><button class="btn" data-act="demo-on">デモを見る（ログイン不要）</button><a class="btn" href="#guide">使い方を見る</a></div>
+      <span class="muted-s">デモでは、架空のチームと結果で画面の動きを確認できます（保存はされません）。</span></div></section>`;
   const L = FB.lobby;
   const hid = hiddenSet();
   const row = (t, tag) => `<div class="trow2"><button class="topen" data-act="fb-open" data-id="${esc(t.id)}"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span></button>
@@ -2660,7 +2802,7 @@ function viewGate() {
       <div class="glist"><div class="dl">あなたが作った大会</div>${vis(L.owned).length ? vis(L.owned).map(t => row(t, "主催")).join("") : `<span class="muted-s">まだありません</span>`}</div>
       <div class="glist"><div class="dl">コードで参加した大会</div>${vis(L.joined).length ? vis(L.joined).map(t => row(t, (t.kind === "閲覧" ? "観戦" : t.kind || "観戦"))).join("") : `<span class="muted-s">まだありません</span>`}</div>
       ${gone.length ? `<details class="glist"><summary class="dl">この端末から削除した大会（${gone.length}）</summary><span class="muted-s">この端末の一覧から消しただけで、大会の情報（結果・チーム・提出内容）は残っています。「取得し直す」で、また一覧に出せます。</span>${gone.map(([t, tag]) => hrow(t, tag)).join("")}<div class="btns"><button class="btn sm" data-act="fb-unhide-all">すべて取得し直す</button></div></details>` : ""}`}
-      ${FB.user.isAnonymous ? `<div class="muted-s">大会を作るには、Googleでログインしてください（ログインなしで大会を作るときは「ログインせずに使う（この端末だけ）」を使います）。</div>` : `<div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="fb-create">作成</button></div></div>`}
+      ${FB.user.isAnonymous ? `<div class="muted-s">大会を作るには、Googleでログインしてください（ログインなしで記録をつけるときは、最初の画面の「自分だけで記録をつける（この端末のみで管理する）」を使います）。</div>` : `<div class="gform"><label for="newt">新しい大会を作る</label><div class="btns"><input id="newt" placeholder="大会名（例：#コンパス 3on3 大会）" maxlength="60"><button class="btn primary" data-act="fb-create">作成</button></div></div>`}
       <div class="muted-s">30日間、誰も開かなかった大会は自動で削除されます（運営・選手・観戦の誰かが開けば、そこから30日のばされます）。 終わった大会は、チーム設定の「大会の結果を確定する」で確定しておくと、変更できなくなり、スクショも消えて容量が空きます。</div>
       <div class="gform"><label for="joincode">コードで参加する</label><div class="btns"><input id="joincode" placeholder="主催者から受け取ったコード" autocomplete="off" autocapitalize="off"><button class="btn" data-act="fb-join">参加</button></div>
         <span class="muted-s">観戦コードなら結果を見るだけ、選手コードなら自分のチームの確認と結果の報告、運営コードなら結果の入力と、提出デッキ・メダルの確認もできます。コードはその大会にしか使えません。</span></div>
@@ -2982,11 +3124,19 @@ let installEvt = null;
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; softRender(); });
-addEventListener("appinstalled", () => { installEvt = null; toast("アプリとして追加しました。ホーム画面のアイコンから開けます"); softRender(); });
+// the install note always has its own space at the top (no visible frame), so nothing jumps when it appears
+let installDone = false, installWaited = false;
+setTimeout(() => { installWaited = true; if (!installEvt) softRender(); }, 2500);
+addEventListener("appinstalled", () => { installEvt = null; installDone = true; toast("アプリとして追加しました。ホーム画面のアイコンから開けます"); softRender(); });
 function installView() {
-  if (isStandalone()) return "";
+  if (isStandalone() || fileMode) return "";
+  return `<div class="installslot">${installInner()}</div>`;
+}
+function installInner() {
+  if (installDone) return `<div class="installbox"><span>アプリとして追加しました。ホーム画面のアイコンから開けます。</span></div>`;
   if (installEvt) return `<div class="installbox"><span>アプリとして入れると、ホーム画面のアイコンから全画面で開けます。</span><button class="btn primary sm" data-act="pwa-install">アプリとしてインストール</button></div>`;
   if (isIOS()) return `<div class="installbox"><span>iPhone・iPad：Safariの<b>共有ボタン</b>（□に↑）→「<b>ホーム画面に追加</b>」で、アプリとして使えます。</span></div>`;
+  if (installWaited) return `<div class="installbox"><span>ブラウザのメニューから「<b>ホーム画面に追加</b>」（または「<b>アプリをインストール</b>」）を選ぶと、アプリとして使えます。</span></div>`;
   return "";
 }
 document.addEventListener("click", async ev => {
