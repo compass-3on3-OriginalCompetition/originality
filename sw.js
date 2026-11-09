@@ -1,7 +1,7 @@
 // Service worker for installing the site as an app.
 // Always asks the network first, so an open app gets the newest version of the site; the saved copy is used only offline.
 // Results themselves come live from Firebase and are not touched here.
-const CACHE = "compass3on3-v11";
+const CACHE = "compass3on3-v12";
 const SHELL = ["./", "./index.html", "./reader.js", "./firebase-config.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

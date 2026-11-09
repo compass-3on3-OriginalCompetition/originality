@@ -695,7 +695,7 @@ function SETS(st) {
   x.submitHeroes = !!x.submitHeroes; x.submitDecks = !!x.submitDecks; x.requireMedalShot = !!x.requireMedalShot;
   // how many each member may submit: heroes 1-5, medals per hero 1-3, decks 1-5
   const cl = (v, lo, hi, d) => Number.isInteger(+v) && +v >= lo && +v <= hi ? +v : d;
-  x.heroCount = cl(x.heroCount, 1, 5, 2); x.medalCount = cl(x.medalCount, 1, 3, 3); x.deckCount = cl(x.deckCount, 1, 5, 2);
+  x.heroCount = cl(x.heroCount, 1, 5, 2); x.medalCount = 3;   // a slot is one hero with its medals (up to 3, as in the game) x.deckCount = cl(x.deckCount, 1, 5, 2);
   // swiss rounds: a whole number, or "" = keep going until only one team has won every match
   x.swissRounds = x.swissRounds === "" || x.swissRounds == null || !(+x.swissRounds >= 1) ? "" : Math.min(30, Math.floor(+x.swissRounds));
   // older tournaments only had rankBy (keys first / win rate first)
@@ -1368,7 +1368,7 @@ function settingsForm(set, id) {
     </div>` : ""}
     <div class="sgroup"><div class="sg-t">事前の提出と確認</div>
       ${row("ヒーローとメダル", chk("submitHeroes", "事前に登録して、リプレイで確認する"))}
-      ${set.submitHeroes ? row("ヒーローの数", sel("heroCount", nums(1, 5, x => `1人につき${x}体まで`), "ヒーローの数")) + row("メダルの数", sel("medalCount", nums(1, 3, x => `ヒーロー1体につき${x}個まで`), "メダルの数"), "リプレイに、登録した数より多くのメダルや登録していないメダルが映っていると「違う」と表示します") : ""}
+      ${set.submitHeroes ? row("ヒーローの枠", sel("heroCount", nums(1, 5, x => `1人につき${x}枠まで`), "ヒーローの枠"), "1枠＝ヒーロー1体とそのメダル。同じヒーローでもメダルが違えば別の枠（別のキャラ）として登録できます") : ""}
       ${row("デッキ", chk("submitDecks", "事前に登録して、リプレイで確認する"))}
       ${set.submitDecks ? row("デッキの数", sel("deckCount", nums(1, 5, x => `1人につき${x}つまで`), "デッキの数")) : ""}
       ${row("リプレイのスクショ", chk("requireMedalShot", "メダル情報が表示されたものだけ受け付ける"))}
@@ -1439,8 +1439,7 @@ const WIZ = [
   { id: "koBest", s: "トーナメントの1試合", when: x => x.mode === "knockout" || x.mode === "group_ko" || (x.mode === "swiss" && +x.swissAdvance > 0), q: "トーナメントの1試合は、どう決めますか？", note: "引き分けは数えず、もう一戦します。", opts: () => [[1, "BO1", "1勝で勝ち抜け"], [3, "BO3", "先に2勝で勝ち抜け"], [5, "BO5", "先に3勝で勝ち抜け"]] },
   { id: "third", s: "3位決定戦", when: x => x.mode === "knockout" || x.mode === "group_ko" || (x.mode === "swiss" && +x.swissAdvance > 0), q: "3位決定戦を行いますか？", opts: () => YN("行う", "行わない", "準決勝で負けたチーム同士で対戦します", "ベスト4までになります") },
   { id: "submitHeroes", s: "ヒーロー・メダルの事前登録", q: "ヒーローとメダルを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
-  { id: "heroCount", s: "ヒーローの数", when: x => x.submitHeroes, q: "ヒーローは、1人につき何体まで登録できるようにしますか？", opts: () => upTo(5).map(i => [i + 1, `${i + 1}体まで`]) },
-  { id: "medalCount", s: "メダルの数", when: x => x.submitHeroes, q: "メダルは、ヒーロー1体につき何個まで登録できるようにしますか？", note: "リプレイに、登録した数より多くのメダルや登録していないメダルが映っていると「違う」と表示します。", opts: () => upTo(3).map(i => [i + 1, `${i + 1}個まで`]) },
+  { id: "heroCount", s: "ヒーローの枠", when: x => x.submitHeroes, q: "ヒーロー（メダル付き）は、1人につき何枠まで登録できるようにしますか？", note: "1枠＝ヒーロー1体とそのメダルです。同じヒーローでも、メダルが違えば別の枠（別のキャラ）として登録できます。", opts: () => upTo(5).map(i => [i + 1, `${i + 1}枠まで`]) },
   { id: "submitDecks", s: "デッキの事前登録", q: "デッキを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
   { id: "deckCount", s: "デッキの数", when: x => x.submitDecks, q: "デッキは、1人につき何個まで登録できるようにしますか？", opts: () => upTo(5).map(i => [i + 1, `${i + 1}つまで`]) },
   { id: "requireMedalShot", s: "スクショのメダル情報", q: "リプレイのスクショは、メダル情報が表示されたものだけ受け付けますか？", opts: () => YN("メダル情報があるものだけ受け付ける", "メダル情報がなくても受け付ける") },
@@ -1587,7 +1586,7 @@ function viewRules() {
     : set.format === "swiss" ? sec("スイスドロー", [`${set.swissRounds === "" ? "全勝のチームが1チームになるまでラウンドを続ける" : `全${set.swissRounds}ラウンド`}。1ラウンド目はランダム、2ラウンド目からは順位の近いチーム同士で、まだ当たっていない相手と組み合わせる`, `チーム数が奇数のときは、ラウンドごとに1チームが休み。休みのチームは<strong>不戦勝</strong>（全${set.games}試合を5-0の勝ちとして数える）。休みになるのは順位がいちばん下のチーム${set.swissByeOnce ? "（ただし、すでに不戦勝になったチームは2回目の休みにならない）" : "（同じチームが何度休みになってもよい）"}`, ...league]) + rank : "";
   const sub = sec("ヒーロー・デッキ・メダル", [
     set.teamSize === 1 ? "1on1（個人戦）。1人で1チームとして登録する" : `${vsJa(set)}。1チーム${set.teamSize}人`,
-    set.submitHeroes ? `1人につきヒーロー${set.heroCount}体まで（1体につきメダル${set.medalCount}個まで）を事前に提出${set.heroCount > 1 ? "（同じヒーローに別のメダルで複数でもよい）" : ""}。チーム内で、メンバー同士のヒーローはすべて別のキャラクター` : "ヒーローとメダルの事前提出はなし",
+    set.submitHeroes ? `1人につきヒーロー（メダル付き）を${set.heroCount}枠まで事前に提出。同じヒーローでもメダルが違えば別のキャラとして扱う。チーム内で、同じヒーローに同じメダルの組み合わせは1つまで` : "ヒーローとメダルの事前提出はなし",
     set.submitDecks ? `1人につきデッキ${set.deckCount}つまでを事前に提出。試合ごとにどのヒーロー・デッキを組み合わせてもよい` : "デッキの事前提出はなし",
     set.submitHeroes || set.submitDecks ? "提出外のヒーロー・デッキ・メダルの使用は違反行為" : "",
     set.requireMedalShot ? "結果報告のリプレイは、メダル情報を表示させた状態のスクショのみ受理" : ""]);
@@ -1604,6 +1603,8 @@ const img_ = u => typeof u === "string" && /^data:image\/(png|jpeg|webp|gif);bas
 const pk_ = v => Number.isInteger(v) && v >= 0 && v <= 5 ? v : null;
 const memberId = (team, slot) => team + "_m" + slot;
 const emptyMember = (team, slot) => ({ team, slot, name: "", heroes: ["", ""], medals: [[], []], decks: [[], []], nameRefs: [], nameImg: "" });
+// the medals of a slot, order-free (unknown medals and "+?" levels are kept as they are)
+const medalKey = md => (md || []).map(x => `${x.k || "?"}:${x.c || "?"}:${x.lvl || "?"}`).sort().join(",");
 const upTo = n => Array.from({ length: n }, (_, i) => i);
 const HK = st => upTo(SETS(st).heroCount), DK = st => upTo(SETS(st).deckCount);   // hero slots / deck slots in use
 const COLOR_JA = { green: "緑", gold: "金", purple: "紫", silver: "銀", red: "赤", blue: "青" };
@@ -1656,10 +1657,11 @@ function teamIssues(s, team) {
   const ms = membersOf(s, team), out = [], all = [];
   const heroes = {};
   ms.forEach(m => {
-    if (set.submitHeroes) m.heroes.slice(0, set.heroCount).forEach(h => { if (h) (heroes[h] = heroes[h] || []).push(whoOf(m)); });
+    // a "character" is a hero together with its medals: the same hero with different medals counts as a different one
+    if (set.submitHeroes) HK(s).forEach(k => { const h = m.heroes[k]; if (!h) return; const key = h + "|" + medalKey(m.medals?.[k]); (heroes[key] = heroes[key] || []).push(`${whoOf(m)}のヒーロー${k + 1}`); });
     if (set.submitDecks) DK(s).forEach(di => { const d = deckOf(m, di); if (d.length && d.length < 4) out.push({ t: `${whoOf(m)}のデッキ${di + 1}が${d.length}枚しかありません` }); d.forEach((c, k) => all.push({ c, where: `${whoOf(m)}のデッキ${di + 1}`, ref: `${memberId(team, m.slot)}:${di}:${k}` })); });
   });
-  for (const h in heroes) { const who = [...new Set(heroes[h])]; if (who.length > 1) out.push({ t: `同じヒーロー「${h}」を複数のメンバーが提出しています（${who.join("、")}）` }); } // one member may submit the same hero twice with different medals
+  for (const key in heroes) { const who = heroes[key]; if (who.length > 1) out.push({ t: `同じヒーロー「${key.split("|")[0]}」に同じメダルの組み合わせが、複数の枠に登録されています（${who.join("、")}）` }); }
   const same = (a, b) => a.f && b.f ? R.cardDiff(a.f, b.f) < 0.35 : !!a.n && a.n === b.n;
   const used = new Set();
   all.forEach((x, i) => {
@@ -1912,10 +1914,10 @@ async function readHeroFor(ref, file) {
   try {
     const r = await R.readHeroShot(file), s = S(), m = memberById(s, mid_);
     if (r.names[0]) m.heroes[+k] = r.names[0];
-    const mc = SETS().medalCount, got = r.medals.filter(x => x.k), kept = (got.length ? got : r.medals).slice(0, mc);
+    const kept = r.medals;
     m.medals = m.medals || [[], []]; m.medals[+k] = kept.map(x => ({ k: x.k, c: x.c, lvl: x.lvl, img: x.url }));
     saveMember(m); render();
-    toast(`ヒーロー${+k + 1}：${r.names[0] || "名前を読めませんでした（選んでください）"}・メダル${kept.filter(x => x.k).length}個を登録しました${got.length > mc ? `（この大会はメダル${mc}個までなので、左から${mc}個だけ）` : ""}`);
+    toast(`ヒーロー${+k + 1}：${r.names[0] || "名前を読めませんでした（選んでください）"}・メダル${kept.filter(x => x.k).length}個を登録しました`);
   } catch (e) { toast(e.message || "読み取れませんでした"); }
 }
 async function runScan(files) {
@@ -2003,7 +2005,7 @@ function memPromptView() {
   const t = teamDraft.teams.find(x => x.id === memPrompt); if (!t) { memPrompt = null; return ""; }
   return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mp-t"><div class="modal-box">
     <h3 id="mp-t">「${esc(t.name)}」のメンバーを登録しますか？</h3>
-    <p>メンバー${SETS().teamSize}人それぞれの、ゲーム内のユーザーネーム${SETS().submitHeroes ? `・ヒーロー${SETS().heroCount}体とメダル` : ""}${SETS().submitDecks ? `・デッキ${SETS().deckCount}つ` : ""}を、提出されたスクショから登録します。登録しておくと、リプレイのスクショから「誰か」を判別して、デッキやメダルのミスを確認できます。</p>
+    <p>メンバー${SETS().teamSize}人それぞれの、ゲーム内のユーザーネーム${SETS().submitHeroes ? `・ヒーローとメダル${SETS().heroCount}枠` : ""}${SETS().submitDecks ? `・デッキ${SETS().deckCount}つ` : ""}を、提出されたスクショから登録します。登録しておくと、リプレイのスクショから「誰か」を判別して、デッキやメダルのミスを確認できます。</p>
     <p class="muted-s">あとで、このページ下の「メンバーと提出デッキ」からも登録できます。</p>
     <div class="btns"><button class="btn primary" data-act="mem-go" data-id="${esc(t.id)}">メンバーを登録する</button><button class="btn" data-act="mem-later">あとで</button></div>
   </div></div>`;
@@ -2032,7 +2034,7 @@ function membersPanel(s) {
   return `<section class="panel" id="members-panel"><div class="panel-head"><h2>${SETS(s).submitHeroes || SETS(s).submitDecks ? "メンバーと提出デッキ" : "メンバー"}</h2><span class="meta">${SETS(s).submitHeroes || SETS(s).submitDecks ? "提出ミスの確認に使います" : "リプレイで誰かを判別するのに使います"}</span></div>
     <div class="panel-body" style="display:grid;gap:14px">
       <div class="chips">${teams.map(t => `<button class="chip ${t.id === memTeam ? "on" : ""}" data-act="mteam" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
-      <div class="notice"><strong>ヒーロー</strong>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル（この大会は1体につき${SETS(s).medalCount}個まで。種類・枠の色・強化値）を登録します。名前が違うときは選び直してください。${SETS(s).heroCount > 1 ? "同じヒーローに別のメダルをつけて、複数の枠に登録することもできます。" : ""}この大会は1人につき<b>ヒーロー${SETS(s).heroCount}体・デッキ${SETS(s).deckCount}つ</b>までです。<br><strong>デッキ</strong>：提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
+      <div class="notice"><strong>ヒーロー</strong>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル（種類・枠の色・強化値）を、その枠に登録します。名前が違うときは選び直してください。<b>1枠＝ヒーロー1体とそのメダル</b>で、同じヒーローでもメダルが違えば別のキャラとして、別の枠に登録できます。この大会は1人につき<b>ヒーロー${SETS(s).heroCount}枠・デッキ${SETS(s).deckCount}つ</b>までです。<br><strong>デッキ</strong>：提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
       <div class="mgrid">${mcards}</div>
       <div class="share">シェアカード：${shareOf(s, memTeam).shareImg ? `<img src="${img_(shareOf(s, memTeam).shareImg)}" alt=""> <button class="btn ghost sm" data-act="share-clear">解除</button>` : `<span class="muted-s">未指定（重複の警告に出たカードから指定できます）</span>`}</div>
       ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong>${issues.map(x => `<div class="issue-row">${x.img ? `<img src="${img_(x.img)}" alt="">` : ""}<span>${esc(x.t)}</span>${x.ref ? `<button class="btn ghost sm" data-act="set-share" data-ref="${x.ref}">シェアカードにする</button>` : ""}</div>`).join("")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で絵が違うカードは見分けられないので、目で確認してください）</div>`}
