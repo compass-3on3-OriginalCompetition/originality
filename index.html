@@ -566,6 +566,20 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 /* guide: show only one role */
 .guide-roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .guide-roles .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.next-match { border-color: var(--accent); }
+.nm-body { display: grid; gap: 12px; }
+.nm-vs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; font-weight: 700; font-size: 1.05rem; }
+.nm-vs small { color: var(--muted); font-size: .8rem; }
+.nm-host { display: grid; gap: 4px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.nm-host b { font-size: 1.05rem; }
+.nm-host span { font-size: .82rem; color: var(--muted); }
+.nm-host.me { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); }
+.nm-room { display: grid; gap: 6px; }
+.nm-room label { font-size: .78rem; color: var(--muted); font-weight: 700; }
+.room-in { width: 8em; font-family: var(--mono); font-size: 1.3rem; letter-spacing: .15em; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.room-num { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; letter-spacing: .2em; }
+.pill.room { color: var(--ink); border-color: var(--accent); background: transparent; }
+.bx-room { font-size: .62rem; color: var(--muted); font-family: var(--mono); }
 .demo-bar { display: grid; gap: 8px; }
 .demo-views { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .demo-views select { max-width: 100%; }
@@ -637,6 +651,10 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
 const real = { config: null, matches: {}, bracket: {}, members: {}, loaded: false };
 let memPrompt = null, scan = null, memTeam = null, renderPending = false;
 let demo = null, demoMode = false, demoBack = null, demoShots = {};
+// room numbers shared by the room-making team: { "<kind>_<match>_<team>": { kind, mid, a, b, room, by, at } }
+const ROOMS = () => demoMode ? (demo?.rooms || (demo && (demo.rooms = {})) || {}) : (real.rooms || {});
+const roomId = m => `${m.kind}_${m.mid}_${m.a}`;
+const roomOf = m => { const r = ROOMS()[roomId(m)]; return r && r.b === m.b && /^[0-9]{4}$/.test(r.room || "") ? r.room : ""; };
 const REP = () => demoMode ? (demo?.reports || []) : (real.reports || []);
 let mode = "loading";           // db | local | nodb
 let role = "viewer";            // admin | contributor | viewer
@@ -1028,7 +1046,7 @@ function renderInner() {
     const pend = role === "admin" ? REP().filter(x => x.status === "pending").length : 0, mt = $('#tabs a[href="#matches"]');
     if (mt) mt.innerHTML = `対戦表・結果入力${pend ? ` <span class="badge">${pend}</span>` : ""}`; }
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : `#コンパス <b>${vsJa(SETS(s))}</b> 大会`;
-  renderMode();
+  renderMode(); syncRoomSubs(s);
   const app = $("#app");
   const gated = FB.on && !demoMode && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id);
   document.body.classList.toggle("gated", gated);
@@ -1172,7 +1190,7 @@ function matchCard(s, g, a, b) {
     <span class="t ${winA ? "win" : ""}">${esc(teamName(s, A))}<span class="host">ルーム作成</span></span>
     <span class="score">${score}</span>
     <span class="t r ${winB ? "win" : ""}">${esc(teamName(s, B))}</span>
-    <span class="mstate">${stateBadge(doc, e.done)}${(doc?.games || []).some(x => x?.check?.issues?.length) ? ` <span class="pill bad">要確認</span>` : ""}</span></button>
+    <span class="mstate">${stateBadge(doc, e.done)}${role === "admin" && !e.done && roomOf({ kind: "group", mid: id, a: A, b: B }) ? ` <span class="pill room">ルーム ${roomOf({ kind: "group", mid: id, a: A, b: B })}</span>` : ""}${(doc?.games || []).some(x => x?.check?.issues?.length) ? ` <span class="pill bad">要確認</span>` : ""}</span></button>
     ${open ? editor(s, "group") : ""}</div>`;
 }
 function scoreSel(i, side, v, dis) {
@@ -1231,7 +1249,7 @@ function viewBracket(s) {
   const box = (m, side, label) => {
     const id = side === "a" ? m.a : m.b, bye = side === "a" ? m.byeA : m.byeB, w = side === "a" ? m.e.wa : m.e.wb, won = m.w && m.w === id, lost = m.w && id && m.w !== id;
     const seed = side === "a" ? m.seedA : m.seedB, ready = m.a && m.b && !m.byeA && !m.byeB, open = openId === "bracket/" + m.key;
-    const inner = bye ? `<span class="bx-name">不戦</span>` : `<span class="bx-name">${id ? esc(teamName(s, id)) : esc(seed || label)}</span>${id ? `<span class="bx-seed">${esc(seed)}</span>` : ""}${m.doc && id && ready ? `<span class="bx-w">${w}</span>` : ""}`;
+    const inner = bye ? `<span class="bx-name">不戦</span>` : `<span class="bx-name">${id ? esc(teamName(s, id)) : esc(seed || label)}</span>${id ? `<span class="bx-seed">${esc(seed)}</span>` : ""}${m.doc && id && ready ? `<span class="bx-w">${w}</span>` : ""}${role === "admin" && id === m.a && !m.w && m.a && m.b && roomOf({ kind: "bracket", mid: m.key, a: m.a, b: m.b }) ? `<span class="bx-room">ルーム ${roomOf({ kind: "bracket", mid: m.key, a: m.a, b: m.b })}</span>` : ""}`;
     return ready ? `<button class="bx ${won ? "won" : ""} ${lost ? "lost" : ""} ${open ? "sel" : ""}" data-act="open-b" data-key="${m.key}" data-a="${m.a}" data-b="${m.b}" aria-label="${esc(m.label)}の結果">${inner}</button>`
       : `<div class="bx ${id ? (won ? "won" : "") : "tbd"}">${inner}</div>`;
   };
@@ -1479,7 +1497,7 @@ function viewGuide(gated) {
   const sec = (n, t, body, who = ALL) => guideRole && !who.includes(guideRole) ? "" : `<section class="panel guide"><div class="panel-body"><h3><span class="gnum">${++no}</span>${t}</h3>${body}</div></section>`;
   return `<div class="guide-top"><h2>使い方</h2><p>あなたの役割を選ぶと、その人に関係する項目だけを表示します。</p>
     <div class="guide-roles" role="group" aria-label="役割で絞り込む">${GUIDE_ROLES.map(([k, t]) => `<button class="btn sm" data-guiderole="${k}" aria-pressed="${guideRole === k}">${t}</button>`).join("")}</div>
-    ${gated ? `<a class="btn" href="#">← 最初の画面に戻る</a>` : ""}</div>
+    <div class="btns">${demoMode ? "" : `<button class="btn primary" data-act="demo-on">デモを見る（ログイン不要・保存されません）</button>`}${gated ? `<a class="btn" href="#">← 最初の画面に戻る</a>` : ""}</div></div>
   <div class="guide-list">
   ${sec(1, "ログインと大会の作成（主催）", `<ol>
     <li>このサイトを開いて「<b>大会を主催する</b>」を押し、Googleでログインします。</li>
@@ -1507,6 +1525,7 @@ function viewGuide(gated) {
     <li>試合ごとに両チームのポータルキー（0〜5）を選ぶと、その場で自動保存されます。不戦敗は「左/右が不戦敗」を選びます。</li>
     <li>「<b>スクショで読み取り・確認</b>」から、メダル情報を表示したリプレイ画面のスクショを読み込むと、ユーザーネームでメンバーを判別して、ポータルキーの記入と、ヒーロー・メダル・デッキが提出内容と合っているかの確認ができます。問題がある対戦には「要確認」が付きます。</li>
     <li>コールド勝ちは、大会の設定どおりに自動で判定されます。</li>
+    <li>選手がルーム番号を共有すると、まだ終わっていない対戦に「<b>ルーム 1234</b>」のように表示されます（決勝トーナメントは対戦カードの中）。</li>
     <li>スイスドローでは、運営が「<b>第Nラウンドの組み合わせを作る</b>」を押すと、順位の近いチーム同士で、まだ当たっていない相手と組み合わせます。チーム数が奇数のときは、順位がいちばん下のチームが休みになり<b>不戦勝</b>（全試合5-0）になります。設定の「不戦勝（休み）は1チーム1回まで」がオン（最初からオン）なら、一度不戦勝になったチームはそれ以降休みになりません。</li></ol>`, ["host", "staff"])}
   ${sec(5, "順位表と決勝トーナメント（全員）", `<ul>
     <li>最初の画面の「<b>デモを見る（ログイン不要）</b>」で、架空のチームと結果を使って、順位表や対戦表の動きを先に確認できます（保存はされません）。</li>
@@ -1530,6 +1549,7 @@ function viewGuide(gated) {
     <li>主催・運営は「チーム設定」の「<b>選手コード</b>」で、チームごとのコードを発行して、そのチームのメンバーに渡します。</li>
     <li>選手は、最初の画面の「<b>コードを入力して大会に参加する</b>」か、ログイン後の「コードで参加する」に選手コードを入れます。</li>
     <li>「<b>マイチーム</b>」で、自分のチームの<b>現在の順位・次の対戦相手・登録内容</b>（ヒーロー・メダル・デッキ）をリアルタイムで見られます。ほかのチームの登録内容は見られません。</li>
+    <li>「<b>次の対戦</b>」に、相手チームと<b>どちらのチームがルームを作るか</b>が大きく出ます。ルームを作る側のチームは、カスタムバトルのルームを作ったら<b>ルーム番号（半角の数字4桁）</b>を入れて「相手チームと運営に共有」を押します。数字4桁以外は入れられません。共有した番号は、相手チームの「次の対戦」と、運営の「対戦表・結果入力」に表示されます。</li>
     <li>試合が終わったら「<b>結果を運営に報告</b>」で、試合ごとのポータルキーと、<b>その試合のリプレイ画面のスクリーンショットを1試合につき1枚（必須）</b>付けて送ります。送る前なら「外す」で付け直せます。送った後でも、承認される前なら「取り下げる」でスクショごと消せます。スクショを選ぶと、<b>ポータルキーを自動で読み取って結果に入れ</b>、<b>メダル情報が映っているか</b>も確認します（メダル情報が必要な大会で映っていないと送れません）。送れるのは画面のスクショ（PNG・JPEG・WebP）だけで、送る前に端末の中で画像を作り直します。</li>
     <li>運営には「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。スクショを見て「<b>承認して結果にする</b>」を押すと結果になります。「スクショを見る」を押すと自動で読み取り、<b>報告と読み取り結果が一致しているか・メダル情報があるか・カスタムバトルのリプレイか・映っている人がこの対戦の2チームのメンバーか</b>を表示します。違うときは「<b>読み取った結果で承認</b>」も使えます。「スクショで読み取り・確認」でデッキやメダルの中身の確認もできます。違うときは理由を書いて「却下」します。処理が終わった報告は「<b>スクショを削除</b>」で画像を消して、保存容量を空けられます。</li>
     <li>同じ対戦に両チームから報告が届くと、まとめて並び、「<b>両チームの報告が一致しています</b>／<b>食い違っています</b>」と出ます。一致していれば「一致した結果で承認」の1回で両方の報告が確定します。承認すると、スクショから読み取った<b>全員の使用ヒーロー・メダル・デッキ</b>も対戦表に記録され、観戦者も見られるようになります。</li>
@@ -2106,7 +2126,7 @@ document.addEventListener("click", async ev => {
   if (act === "create-cancel") { createDlg = null; render(); return; }
   // from the first screen (no tournament open), the demo shows the organiser's view; it never saves anything
   // the demo starts as an operator and can switch to a player's or a spectator's view; leaving it puts everything back
-  if (act === "demo-on") { demo = makeDemo(); demoShots = {}; demoBack = { role, team: FB.team, rep: repDraft }; role = "admin"; repDraft = null; demoMode = true; openId = null; teamDraft = null; render(); return; }
+  if (act === "demo-on") { if (route() === "guide") location.hash = "standings"; demo = makeDemo(); demoShots = {}; demoBack = { role, team: FB.team, rep: repDraft }; role = "admin"; repDraft = null; demoMode = true; openId = null; teamDraft = null; render(); return; }
   if (act === "demo-off") { demoMode = false; demo = null; demoShots = {}; if (demoBack) { role = demoBack.role; FB.team = demoBack.team; repDraft = demoBack.rep; demoBack = null; } openId = null; teamDraft = null; if (route() === "myteam" && role !== "player") location.hash = "standings"; render(); return; }
   if (act === "demo-view" && demoMode) {
     const v = el.dataset.v; role = v; openId = null; teamDraft = null; repDraft = null;
@@ -2301,9 +2321,7 @@ function viewMyTeam(s) {
   const head = `<section class="panel"><div class="panel-head"><h2>${esc(team.name)}</h2><span class="meta">選手モード</span></div><div class="panel-body my-top">
       <div class="my-box"><div class="dl">現在の順位</div>${st ? `<div class="my-big">${ORD(st.r.rank)}${st.r.tied ? "<small>（同率）</small>" : ""}</div><div class="muted-s">${esc(st.where)} ・ ${st.of}チーム中 ・ ${st.r.w}勝${st.r.l}敗${st.r.d}分 ・ ポータルキー ${st.r.keys}${st.complete ? " ・ 確定" : ""}</div>` : ko ? "" : `<div class="muted-s">まだ順位はありません</div>`}
         ${ko ? `<div class="my-big sm">${esc(ko)}</div><div class="muted-s">${set.format === "knockout" ? "トーナメント" : "決勝トーナメント"}</div>` : ""}</div>
-      <div class="my-box"><div class="dl">次の対戦</div>${next ? `<div class="my-big sm">vs ${esc(teamName(s, opp(next)))}</div><div class="muted-s">${esc(next.label)}${next.a === team.id ? " ・ <b>あなたのチームがルームを作成</b>" : " ・ 相手がルームを作成"}${next.started ? " ・ 対戦中" : ""}</div>`
-        : `<div class="muted-s">${ms.length ? "今決まっている対戦はすべて終わりました" : "まだ組み合わせがありません"}</div>`}</div>
-    </div></section>`;
+    </div></section>${nextMatchView(s, team, next, ms)}`;
   // own matches
   const list = ms.length ? `<section class="panel"><div class="panel-head"><h2>自分たちの対戦</h2></div><div class="panel-body my-list">${ms.map(m => {
       const e = m.kind === "group" ? evalGroup(s.matches[m.mid]) : evalBo3(s.bracket[m.mid]), me = m.a === team.id ? "a" : "b";
@@ -2311,6 +2329,48 @@ function viewMyTeam(s) {
       const score = (m.kind === "group" ? e.games.length : (s.bracket[m.mid]?.games || []).length) ? `${me === "a" ? t.wa : t.wb}-${me === "a" ? t.wb : t.wa}` : "—";
       return `<div class="my-row"><span class="muted-s">${esc(m.label)}</span><span>vs <b>${esc(teamName(s, opp(m)))}</b></span><span class="mono">${score}</span><span class="pill ${m.done ? "" : "bad"}">${m.done ? "終了" : m.started ? "対戦中" : "これから"}</span></div>`; }).join("")}</div></section>` : "";
   return head + (isLocked(s) ? "" : reportForm(s, team, ms)) + myReports(s) + list + myMembers(s, team);
+}
+// the next match, made obvious: who makes the room, and the room number shared between the two teams and the operators
+function nextMatchView(s, team, next, ms) {
+  if (!next) return `<section class="panel next-match"><div class="panel-head"><h2>次の対戦</h2></div><div class="panel-body"><div class="muted-s">${ms.length ? "今決まっている対戦はすべて終わりました。次の組み合わせが決まると、ここに出ます。" : "まだ組み合わせがありません。"}</div></div></section>`;
+  const host = next.a === team.id, other = host ? next.b : next.a, room = roomOf(next), locked = isLocked(s);
+  const hostBox = host
+    ? `<div class="nm-host me"><b>あなたのチームがルームを作ります</b><span>カスタムバトルのルームを作ったら、ルーム番号（数字4桁）を下に入れて共有してください。</span></div>
+       ${locked ? "" : `<div class="nm-room"><label for="room-in">ルーム番号（数字4桁）</label><div class="btns"><input id="room-in" class="room-in" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="例：1234" value="${esc(room)}" aria-describedby="room-note"><button class="btn primary" data-act="room-share" data-mid="${esc(next.mid)}" data-kind="${next.kind}">${room ? "ルーム番号を変える" : "相手チームと運営に共有"}</button></div>
+         <span class="muted-s" id="room-note">${room ? `<b class="ok-t">共有中：${esc(room)}</b>（相手チームと運営の画面に出ています）` : "数字4桁だけ入れられます。共有すると、相手チームと運営の画面に表示されます。"}</span></div>`}`
+    : `<div class="nm-host"><b>${esc(teamName(s, other))} がルームを作ります</b><span>あなたのチームは、相手から届くルーム番号で入ってください。</span></div>
+       <div class="nm-room">${room ? `<div class="dl">ルーム番号</div><div class="room-num">${esc(room)}</div>` : `<div class="muted-s">まだルーム番号が届いていません。相手チームが共有すると、ここに表示されます（自動で更新されます）。</div>`}</div>`;
+  return `<section class="panel next-match"><div class="panel-head"><h2>次の対戦</h2><span class="meta">${esc(next.label)}${next.started ? " ・ 対戦中" : ""}</span></div><div class="panel-body nm-body">
+    <div class="nm-vs"><span>${esc(team.name)}</span><small>vs</small><span>${esc(teamName(s, other))}</span></div>${hostBox}</div></section>`;
+}
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest('[data-act="room-share"]'); if (!el || role !== "player" || !FB.team) return;
+  const v = ($("#room-in")?.value || "").trim();
+  if (!/^[0-9]{4}$/.test(v)) { toast("ルーム番号は、半角の数字4桁で入れてください（例：1234）"); $("#room-in")?.focus(); return; }
+  const s = S(), m = teamMatches(s, FB.team).find(x => x.mid === el.dataset.mid && x.kind === el.dataset.kind && !x.done);
+  if (!m || m.a !== FB.team) { toast("この対戦では、あなたのチームはルームを作る側ではありません"); return; }
+  const doc = { kind: m.kind, mid: m.mid, a: m.a, b: m.b, room: v, by: demoMode ? "demo" : FB.user.uid, at: Date.now() };
+  if (demoMode) { ROOMS()[roomId(m)] = doc; toast("（デモ）ルーム番号を共有しました。「運営」に切り替えると、対戦表にも出ています"); render(); return; }
+  el.disabled = true;
+  try { await FB.fs.doc(`tournaments/${FB.tid}/rooms/${roomId(m)}`).set(doc); real.rooms = { ...(real.rooms || {}), [roomId(m)]: doc }; toast("ルーム番号を共有しました"); }
+  catch (e) { toast(e.code === "permission-denied" ? "共有できませんでした。主催者に、Firestoreのルールを最新のものに更新してもらってください" : "共有できませんでした: " + (e.message || e.code)); }
+  el.disabled = false; render();
+});
+// keep only digits as they are typed (anything else is refused)
+document.addEventListener("input", ev => { const el = ev.target; if (el.id !== "room-in") return; const v = el.value.replace(/[^0-9]/g, "").slice(0, 4); if (v !== el.value) { el.value = v; toast("ルーム番号は数字4桁だけです"); } });
+// players: listen to the room entries of their own unfinished matches (only those documents can be read)
+let roomSubs = {};
+function syncRoomSubs(s) {
+  if (demoMode || !FB.on || !FB.tid || role !== "player" || !FB.team) return;
+  for (const m of teamMatches(s, FB.team).filter(x => !x.done)) {
+    const id = roomId(m); if (roomSubs[id]) continue;
+    roomSubs[id] = true;
+    unsubs.push(FB.fs.doc(`tournaments/${FB.tid}/rooms/${id}`).onSnapshot(x => { real.rooms = { ...(real.rooms || {}) }; if (x.exists) real.rooms[id] = x.data(); else delete real.rooms[id]; softRender(); }, () => {}));
+  }
+}
+function subscribeRooms() {   // operators see every room number
+  if (!FB.on || !FB.tid || role !== "admin") return;
+  unsubs.push(FB.fs.collection(`tournaments/${FB.tid}/rooms`).onSnapshot(snap => { const o = {}; snap.docs.forEach(d => o[d.id] = d.data()); real.rooms = o; softRender(); }, () => {}));
 }
 function reportForm(s, team, ms) {
   const open = ms.filter(m => !m.done);
@@ -2631,7 +2691,7 @@ function fsWrap(tid) {
     collection: p => { const r = FB.fs.collection(map(p)); return { onSnapshot: (n, e) => r.onSnapshot(x => n({ docs: x.docs.map(d => ({ id: d.id, data: () => fsDec(d.data()) })), metadata: x.metadata }), er => e && e(er)) }; },
   };
 }
-function resetData() { unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = []; Object.assign(real, { config: null, matches: {}, bracket: {}, members: {}, reports: [], loaded: false }); repDraft = null; openId = null; draft = null; teamDraft = null; scan = null; }
+function resetData() { unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = []; Object.assign(real, { config: null, matches: {}, bracket: {}, members: {}, reports: [], rooms: {}, loaded: false }); roomSubs = {}; repDraft = null; openId = null; draft = null; teamDraft = null; scan = null; }
 async function fbBoot(cfg) {
   mode = "fb"; FB.on = true; role = "viewer"; loadNote = "ログインを確認しています…"; render();
   try {
@@ -2697,7 +2757,7 @@ async function fbOpen(tid, quiet) {
     const k = "compass3on3_seen_" + tid; let last = 0; try { last = +localStorage.getItem(k) || 0; } catch (e) {}
     if (Date.now() - last > 12 * 3600 * 1000) FB.fs.doc("activity/" + tid).set({ seenAt: firebase.firestore.FieldValue.serverTimestamp() }).then(() => { try { localStorage.setItem(k, String(Date.now())); } catch (e) {} }).catch(() => {}); }
   if (role === "player") { subscribeOwnTeam(); if (!location.hash || location.hash === "#standings") location.hash = "myteam"; }
-  subscribeReports();
+  subscribeReports(); subscribeRooms();
 }
 async function fbCreate(name, settings) {
   const uid = FB.user.uid, tid = rid(10);
@@ -2895,10 +2955,10 @@ function deletePanel(s) {
     <div class="btns"><button class="btn danger" data-act="t-delete-all" data-name="${esc(name)}">完全に削除する</button></div></div></details>`;
 }
 async function deleteTournament(tid) {
-  const base = `tournaments/${tid}/`, cols = ["reportShots", "reports", "matches", "bracket", "members", "data", "players", "viewers", "admins"];
+  const base = `tournaments/${tid}/`, cols = ["rooms", "reportShots", "reports", "matches", "bracket", "members", "data", "players", "viewers", "admins"];
   let n = 0;
   for (const c of cols) {
-    const snap = await FB.fs.collection(base + c).get();
+    let snap; try { snap = await FB.fs.collection(base + c).get(); } catch (e) { if (c === "rooms") continue; throw e; }   // older rules have no room numbers
     for (let i = 0; i < snap.docs.length; i += 400) { const b = FB.fs.batch(); snap.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); n += Math.min(400, snap.docs.length - i); }
   }
   for (const p of ["teamcodes/" + tid, "secrets/" + tid, "users/" + FB.user.uid + "/joined/" + tid]) await FB.fs.doc(p).delete().catch(() => {});

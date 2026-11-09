@@ -131,6 +131,24 @@ service cloud.firestore {
                           || get(/databases/$(database)/documents/tournaments/$(tid)/reports/$(resource.data.rid)).data.status == 'pending'));
       }
 
+      // room numbers: the team that makes the room shares its 4-digit number with the other team and the operators
+      //  - the document id is "<kind>_<match>_<room-making team>", so a team can only write its own entries
+      match /rooms/{rid} {
+        allow read: if isAdmin(tid) || isStale(tid)
+                    || (isPlayer(tid) && (resource == null || resource.data.a == playerTeam(tid) || resource.data.b == playerTeam(tid)));
+        allow list: if isAdmin(tid) || isStale(tid);
+        allow create, update: if !isFinal(tid)
+                      && request.resource.data.keys().hasOnly(['kind', 'mid', 'a', 'b', 'room', 'by', 'at'])
+                      && request.resource.data.room is string && request.resource.data.room.matches('^[0-9]{4}$')
+                      && request.resource.data.kind in ['group', 'bracket']
+                      && request.resource.data.mid is string && request.resource.data.mid.matches('^[A-Za-z0-9_]{1,80}$')
+                      && isTeamId(request.resource.data.a) && isTeamId(request.resource.data.b) && request.resource.data.a != request.resource.data.b
+                      && rid == request.resource.data.kind + '_' + request.resource.data.mid + '_' + request.resource.data.a
+                      && request.resource.data.by == request.auth.uid && request.resource.data.at is int
+                      && (canEdit(tid) || (isPlayer(tid) && request.resource.data.a == playerTeam(tid)));
+        allow delete: if isAdmin(tid) || isStale(tid) || (isPlayer(tid) && resource.data.a == playerTeam(tid));
+      }
+
       // shared with everyone in this tournament: settings, group results, final tournament
       match /data/{doc}    { allow read: if isViewer(tid) || isStale(tid); allow create, update: if canEdit(tid); allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid); }
       match /matches/{doc} { allow read: if isViewer(tid) || isStale(tid); allow create, update: if canEdit(tid); allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid); }
