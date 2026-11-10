@@ -437,6 +437,8 @@ details.glist summary { cursor: pointer; }
 .gnum { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-family: var(--display); font-size: .85rem; flex: 0 0 auto; }
 .guide ol, .guide ul { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: .92rem; max-width: 70ch; }
 .guide ul ul { margin-top: 4px; }
+.guide p { margin: 0; font-size: .92rem; max-width: 70ch; }
+.guide li .btn.sm { margin-left: 6px; }
 
 a.btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; }
 a.btn.primary { color: var(--accent-ink); }
@@ -565,8 +567,6 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .wz-sum button span:last-child { flex: 1 1 50%; text-align: right; font-weight: 700; }
 /* guide: show only one role */
 .guide-roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
-.guide-roles .btn.grole { display: grid; gap: 2px; text-align: center; padding: 12px 16px; min-width: 120px; }
-.guide-roles .btn.grole small { font-size: .7rem; color: var(--muted); font-weight: 400; }
 .guide-roles .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .next-match { border-color: var(--accent); }
 .nm-body { display: grid; gap: 12px; }
@@ -1500,7 +1500,7 @@ document.addEventListener("click", ev => {
 // the guide is written separately for each side: operators (organiser + staff), players and spectators
 const GUIDE_KEY = "compass3on3_guide";
 let guideRole = (() => { try { return localStorage.getItem(GUIDE_KEY) || ""; } catch (e) { return ""; } })();
-const GUIDE_ROLES = [["admin", "運営側", "主催・運営の人"], ["player", "選手側", "選手コードで参加した人"], ["viewer", "観戦側", "観戦コードで参加した人"]];
+const GUIDE_ROLES = [["intro", "はじめに", "このサイトについて"], ["admin", "運営側", "主催・運営の人"], ["player", "選手側", "選手コードで参加した人"], ["viewer", "観戦側", "観戦コードで参加した人"]];
 document.addEventListener("click", ev => { const el = ev.target.closest("[data-guiderole]"); if (!el) return; guideRole = el.dataset.guiderole; try { localStorage.setItem(GUIDE_KEY, guideRole); } catch (e) {} render(); scrollTo(0, 0); });
 const GUIDE_PHONE = `<ul>
     <li><b>アプリとしてインストール</b>できます。iPhone・iPadは、Safariの共有ボタン（□に↑）→「<b>ホーム画面に追加</b>」。Androidは、最初の画面に出る「アプリとしてインストール」ボタンか、Chromeの「︙」→「<b>アプリをインストール</b>」。</li>
@@ -1509,6 +1509,27 @@ const GUIDE_PHONE = `<ul>
     <li>スマホでは、画面の下のボタンでページを切り替えます。表が画面より広いときは「表は横にスクロールできます」と出るので、横にスライドして見てください。</li>
     <li>画面の上の「<b>⚡ 背景</b>」で、動く背景のオン・オフを切り替えられます（最初はオフ）。</li></ul>`;
 const GUIDE = {
+  intro: [
+    ["このサイトについて", `<p>戦闘摂理◆大会システム（大会摂理）は、<b>#コンパスの大会</b>（3on3・2on2・1on1）を運営するためのサイトです。結果の入力、順位表、トーナメントの組み合わせを自動でまとめて、主催・運営・選手・観戦する人が、それぞれのスマホから同じ大会をリアルタイムで見られます。</p>`],
+    ["できること", `<ul>
+    <li><b>大会の形式</b>：総当たり → トーナメント、総当たりのみ、トーナメントのみ、スイスドローのみから選べます。試合数・コールド・順位の決め方も大会ごとに決められます。</li>
+    <li><b>順位表とトーナメントの自動作成</b>：結果を入れるだけで、順位の計算とトーナメントの組み合わせが自動で進みます。</li>
+    <li><b>リプレイのスクショの読み取り</b>：ポータルキーの自動入力と、登録したヒーロー・メダル・デッキと合っているかの確認ができます。</li>
+    <li><b>選手からの結果報告</b>：選手がスクショを付けて結果を送り、運営が確認して承認します。</li>
+    <li><b>ルーム番号の共有</b>：どちらのチームがルームを作るかを表示し、ルーム番号を相手チームと運営に届けます。</li></ul>`],
+    ["大会の流れ", `<ol>
+    <li><b>主催</b>がGoogleでログインして大会を作り、チームとメンバーを登録します。</li>
+    <li>主催が、運営・選手・観戦の人に<b>コード</b>を配ります（受け取った人はログインなしで参加できます）。</li>
+    <li><b>選手</b>は「マイチーム」で次の対戦を確認し、ルームを作る側のチームがルーム番号を共有して対戦します。</li>
+    <li>試合が終わったら、選手がリプレイのスクショを付けて結果を報告し、<b>運営</b>が確認して承認します（運営が直接入力することもできます）。</li>
+    <li>順位表とトーナメントが自動で更新され、<b>観戦</b>する人もリアルタイムで見られます。</li>
+    <li>すべて終わったら、主催が結果を確定します。</li></ol>`],
+    ["立場ごとの使い方", `<ul>
+    <li><b>運営側</b>（主催・運営）：大会の作成、チームの登録、結果の入力、報告の承認など。<button class="btn sm" data-guiderole="admin">運営側の使い方へ</button></li>
+    <li><b>選手側</b>（選手コードで参加）：自分のチームの順位・次の対戦の確認、ルーム番号の共有、結果の報告。<button class="btn sm" data-guiderole="player">選手側の使い方へ</button></li>
+    <li><b>観戦側</b>（観戦コードで参加）：順位表・対戦表・トーナメントを見るだけ。<button class="btn sm" data-guiderole="viewer">観戦側の使い方へ</button></li>
+    <li>まずは上の「<b>デモを見る</b>」で、架空の大会を使って運営・選手・観戦それぞれの画面を試せます（ログイン不要・保存されません）。</li></ul>`],
+  ],
   admin: [
     ["主催と運営のちがい", `<ul>
     <li><b>主催</b>：Googleでログインして大会を作った人です。</li>
@@ -1616,12 +1637,12 @@ const GUIDE = {
 function viewGuide(gated) {
   const sec = (n, t, body) => `<section class="panel guide"><div class="panel-body"><h3><span class="gnum">${n}</span>${t}</h3>${body}</div></section>`;
   // inside a tournament, start with the guide for the side this person is on
-  const gr = guideRole || (!gated && !demoMode ? ({ player: "player", admin: "admin", viewer: "viewer" })[role] || "" : "");
+  const gr = (GUIDE[guideRole] && guideRole) || (!gated && !demoMode ? ({ player: "player", admin: "admin", viewer: "viewer" })[role] : "") || "intro";
   const list = GUIDE[gr];
-  return `<div class="guide-top"><h2>使い方</h2><p>${list ? "ほかの立場の使い方は、下のボタンで切り替えられます。" : "あなたの立場を選んでください。その人に必要な使い方だけを表示します。"}</p>
-    <div class="guide-roles" role="group" aria-label="立場を選ぶ">${GUIDE_ROLES.map(([k, t, d]) => `<button class="btn ${list ? "sm" : "grole"}" data-guiderole="${k}" aria-pressed="${gr === k}">${t}${list ? "" : `<small>${d}</small>`}</button>`).join("")}</div>
+  return `<div class="guide-top"><h2>使い方</h2><p>${gr === "intro" ? "このサイトの紹介です。立場ごとの使い方は、下のボタンで切り替えられます。" : "ほかの立場の使い方は、下のボタンで切り替えられます。"}</p>
+    <div class="guide-roles" role="group" aria-label="立場を選ぶ">${GUIDE_ROLES.map(([k, t]) => `<button class="btn sm" data-guiderole="${k}" aria-pressed="${gr === k}">${t}</button>`).join("")}</div>
     <div class="btns">${demoMode ? "" : `<button class="btn primary" data-act="demo-on">デモを見る（ログイン不要・保存されません）</button>`}${gated ? `<a class="btn" href="#">← 最初の画面に戻る</a>` : ""}</div></div>
-  ${list ? `<div class="guide-list">${list.map(([t, b], i) => sec(i + 1, t, b)).join("")}</div>` : ""}`;
+  <div class="guide-list">${list.map(([t, b], i) => sec(i + 1, t, b)).join("")}</div>`;
 }
 function viewRules() {
   const set = SETS(), sec = (t, items) => `<section class="panel"><div class="panel-body"><h3>${t}</h3><ul>${items.filter(Boolean).map(x => `<li>${x}</li>`).join("")}</ul></div></section>`;
