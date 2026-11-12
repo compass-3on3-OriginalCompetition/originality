@@ -1128,10 +1128,10 @@ function renderInner() {
     const noKo = !ko && (set.format === "group" ? !(+set.advance > 0) : !(+set.swissAdvance > 0));
     document.querySelectorAll('#tabs a[href="#bracket"], #bnav a[href="#bracket"]').forEach(a => a.hidden = noKo);
     if (noKo && r === "bracket") { location.replace("#standings"); return; }
-    document.querySelectorAll('#tabs a[href="#myteam"], #bnav a[href="#myteam"], #tabs a[href="#notice"], #bnav a[href="#notice"]').forEach(a => a.hidden = role !== "player");
+    document.querySelectorAll('#tabs a[href="#myteam"], #bnav a[href="#myteam"], #tabs a[href="#notice"], #bnav a[href="#notice"]').forEach(a => a.hidden = a.getAttribute("href") === "#notice" ? !notesOn() : role !== "player");
     document.querySelectorAll('#bnav a[href="#teams"]').forEach(a => a.hidden = role === "player");   // room for the notices tab on phones
-    if (role === "player") syncNotes(s);
-    const un = role === "player" ? notesUnread() : 0;
+    if (notesOn()) syncNotes(s);
+    const un = notesOn() ? notesUnread() : 0;
     document.querySelectorAll('#tabs a[href="#notice"], #bnav a[href="#notice"]').forEach(a => { let bd = a.querySelector(".badge"); if (un && !bd) { bd = document.createElement("span"); bd.className = "badge"; a.appendChild(bd); } if (bd) { if (un) bd.textContent = un; else bd.remove(); } });
     const pend = role === "admin" ? REP().filter(x => x.status === "pending").length : 0, mt = $('#tabs a[href="#matches"]');
     if (mt) mt.innerHTML = `対戦表・結果入力${pend ? ` <span class="badge">${pend}</span>` : ""}`; }
@@ -1667,6 +1667,10 @@ const GUIDE = {
     <li>同じ対戦に両チームから報告が届くと「<b>両チームの報告が一致しています／食い違っています</b>」と出ます。一致していれば「一致した結果で承認」の1回で両方が確定します。</li>
     <li>承認すると、スクショから読み取った全員の使用ヒーロー・メダル・デッキも対戦表に記録されます。</li>
     <li>処理が終わった報告は「<b>スクショを削除</b>」で画像を消して、保存容量を空けられます。</li></ul>`],
+    ["通知", `<ul>
+    <li>「<b>通知</b>」タブに、<b>選手から結果報告が届いたとき</b>、<b>両チームの報告が食い違ったとき</b>、<b>ラウンドの対戦がすべて終わったとき</b>（運営がラウンドを進める大会）のお知らせが届きます。</li>
+    <li>アプリを開いているときは、画面の下にもお知らせが出ます（振動はしません）。まだ見ていない通知があると、タブに数字が出ます。</li>
+    <li>通知はこの端末に保存されます。アプリを閉じているときは届きません（次に開いたときに「通知」タブに入ります）。</li></ul>`],
     ["棄権・失格とステージ", `<ul>
     <li>「対戦表・結果入力」の「<b>棄権・失格</b>」で、そのチームのまだ結果が入っていない試合をまとめて不戦敗にできます。「解除」で、そこで入れた不戦敗だけを消せます。</li>
     <li>ステージは、スクショ横の「このステージを登録…」で一度登録すると、次から見分けられます。1試合目や引き分けの次がでらクランクストリートでないとき、禁止ステージのときに警告が出ます。</li></ul>`],
@@ -1699,7 +1703,7 @@ const GUIDE = {
     <li><b>相手チームが作る側のとき</b>：相手が共有すると、ルーム番号が大きく表示されます（自動で更新されます）。その番号のルームに入ってください。</li></ul>`],
     ["通知", `<ul>
     <li>「<b>通知</b>」タブに、<b>次の対戦が決まったとき</b>と、<b>相手チームからルーム番号が届いたとき</b>（変わったときも）のお知らせが届きます。</li>
-    <li>アプリを開いているときは、画面の下にもお知らせが出て、スマホが振動します（振動しない機種もあります）。まだ見ていない通知があると、タブに数字が出ます。</li>
+    <li>アプリを開いているときは、画面の下にもお知らせが出ます（プレー中のじゃまにならないよう、振動はしません）。まだ見ていない通知があると、タブに数字が出ます。</li>
     <li>通知はこの端末に保存されます。アプリを閉じているときは届きません（次に開いたときに「通知」タブに入ります）。</li></ul>`],
     ["結果を報告する", `<ol>
     <li>試合が終わったら、マイチームの「<b>結果を運営に報告</b>」で対戦を選びます。</li>
@@ -2505,7 +2509,9 @@ const repStatusJa = { pending: "承認待ち", approved: "承認済み", rejecte
 /* ---------- notices for players: the next match is set / a room number arrived (kept on this device) ---------- */
 let notesMem = null, notesKey = "", notesSince = 0, notesFlash = new Set();   // flash: unread when this visit to the tab began
 addEventListener("hashchange", () => { if (route() !== "notice") notesFlash.clear(); });
-const notesStoreKey = () => demoMode ? "demo:" + FB.team : `compass3on3_notes_${FB.tid || LOCAL.id || ""}_${FB.team || ""}`;
+const noteWho = () => role === "player" ? FB.team || "" : "admin";   // players: their team / operators: one list
+const notesOn = () => (role === "player" && !!FB.team) || role === "admin";
+const notesStoreKey = () => demoMode ? "demo:" + noteWho() : `compass3on3_notes_${FB.tid || LOCAL.id || ""}_${noteWho()}`;
 function notesLoad() {
   const k = notesStoreKey(); if (notesMem && notesKey === k) return notesMem;
   notesKey = k; notesSince = 0;
@@ -2516,10 +2522,43 @@ function notesLoad() {
 function notesSave() { if (demoMode || !notesMem) return; try { localStorage.setItem(notesKey, JSON.stringify({ list: notesMem.list.slice(0, 60), seen: notesMem.seen })); } catch (e) {} }
 const notesUnread = () => (notesMem && notesKey === notesStoreKey() ? notesMem.list.filter(n => !n.read).length : 0);
 function syncNotes(s) {
-  if (!FB.team || !s.loaded || !s.config) return;
+  if (!notesOn() || !s.loaded || !s.config) return;
   const N = notesLoad();
   if (!notesSince) { notesSince = Date.now(); return; }          // let everything arrive first (results, room numbers)
   if (Date.now() - notesSince < 2500) { setTimeout(() => softRender(), 2600 - (Date.now() - notesSince)); return; }
+  const add = role === "admin" ? adminFacts(s, N) : playerFacts(s, N);
+  if (!add.length) { if (N.fresh) { N.fresh = false; notesSave(); } return; }
+  const now = Date.now();
+  for (const n of add) { N.seen[n.k] = 1; N.list.unshift({ ...n, at: now, read: N.fresh || route() === "notice" }); }
+  // the first time on this device: what is already there is listed, but not announced (and never a vibration: it may be mid-game)
+  if (!N.fresh && route() !== "notice") { const last = add[add.length - 1]; toast(`🔔 ${last.t}：${last.b}`); }
+  N.fresh = false; notesSave();
+}
+function adminFacts(s, N) {
+  const add = [], rs = REP().filter(r => r.status === "pending");
+  for (const r of rs.slice().sort((a, b) => a.at - b.at)) {
+    const k = "rep:" + r.id; if (N.seen[k]) continue;
+    add.push({ k, t: "結果報告が届きました", b: `${teamName(s, r.team)}から：${r.label || ""}（${teamName(s, r.a)} ${gamesTxt(r.games)} ${teamName(s, r.b)}）` });
+  }
+  const groups = {}; rs.forEach(r => (groups[r.kind + "|" + r.mid] = groups[r.kind + "|" + r.mid] || []).push(r));
+  for (const list of Object.values(groups)) {
+    const r0 = list[0], latest = t => list.filter(x => x.team === t).sort((x, y) => y.at - x.at)[0], ra = latest(r0.a), rb = latest(r0.b);
+    if (!ra || !rb || sameRaw(ra.games, rb.games)) continue;
+    const k = `diff:${ra.id}:${rb.id}`; if (N.seen[k]) continue;
+    add.push({ k, t: "両チームの報告が食い違っています", b: `${r0.label || ""}：${teamName(s, r0.a)}の報告 ${gamesTxt(ra.games)} ／ ${teamName(s, r0.b)}の報告 ${gamesTxt(rb.games)}` });
+  }
+  const G = GATE(s);
+  for (const w of ["lg", "ko"]) {
+    if (!G[w]) continue;
+    const b = w === "ko" ? bracketModel(s) : null; if (w === "ko" && !b) continue;
+    const n = w === "lg" ? lgOpen(s) : koOpen(s, b), Nr = w === "lg" ? lgRounds(s) : b.R;
+    if (n >= Nr || openUnfinished(s, w).length) continue;
+    const name = w === "lg" ? `ROUND ${n}` : koRoundName(b, n - 1), k = `rdone:${w}:${n}`; if (N.seen[k]) continue;
+    add.push({ k, t: `${name}の対戦がすべて終わりました`, b: `「ラウンドの進行」で次のラウンド（${w === "lg" ? `ROUND ${n + 1}` : koRoundName(b, n)}）に進めます。` });
+  }
+  return add;
+}
+function playerFacts(s, N) {
   const team = FB.team, ms = teamMatches(s, team), add = [];
   const next = ms.find(m => !m.done && matchStarted(s, m));
   if (next) {
@@ -2532,23 +2571,19 @@ function syncNotes(s) {
     const k = `room:${m.kind}:${m.mid}:${room}`, changed = Object.keys(N.seen).some(x => x.startsWith(`room:${m.kind}:${m.mid}:`));
     if (!N.seen[k]) add.push({ k, t: changed ? "ルーム番号が変わりました" : "ルーム番号が届きました", b: `${room}（${m.label}・vs ${teamName(s, m.a)}）`, room });
   }
-  if (!add.length) { if (N.fresh) { N.fresh = false; notesSave(); } return; }
-  const now = Date.now();
-  for (const n of add) { N.seen[n.k] = 1; N.list.unshift({ ...n, at: now, read: N.fresh || route() === "notice" }); }
-  // the first time on this device: what is already there is listed, but not announced
-  if (!N.fresh && route() !== "notice") { const last = add[add.length - 1]; toast(`🔔 ${last.t}：${last.b}`); try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} }
-  N.fresh = false; notesSave();
+  return add;
 }
 function viewNotices(s) {
-  if (role !== "player" || !FB.team) return `<div class="notice">このページは選手コードで参加した人だけが使えます。</div>`;
+  if (!notesOn()) return `<div class="notice">通知は、選手と運営の人だけが使えます。</div>`;
+  const admin = role === "admin";
   const N = notesLoad(), list = N.list.map(n => ({ ...n }));   // shown with the unread marks of this visit
   list.forEach(n => { if (!n.read) notesFlash.add(n.k); });
   if (list.some(n => !n.read)) { N.list.forEach(n => n.read = true); notesSave(); setTimeout(() => softRender(), 0); }
   const when = t => new Date(t).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  return `<section class="panel"><div class="panel-head"><h2>通知</h2><span class="meta">${esc(teamName(s, FB.team))}</span></div><div class="panel-body" style="display:grid;gap:8px">
-    <div class="muted-s">次の対戦が決まったときと、相手チームからルーム番号が届いたときに、ここにお知らせが届きます。アプリを開いているときは、画面の下にも表示されます。</div>
+  return `<section class="panel"><div class="panel-head"><h2>通知</h2><span class="meta">${admin ? "運営" : esc(teamName(s, FB.team))}</span></div><div class="panel-body" style="display:grid;gap:8px">
+    <div class="muted-s">${admin ? "選手から結果報告が届いたとき、両チームの報告が食い違ったとき、ラウンドの対戦がすべて終わったとき（運営がラウンドを進める大会）" : "次の対戦が決まったときと、相手チームからルーム番号が届いたとき"}に、ここにお知らせが届きます。アプリを開いているときは、画面の下にも表示されます（振動はしません）。</div>
     ${list.length ? list.map(n => `<div class="note-row ${n.read && !notesFlash.has(n.k) ? "" : "new"}"><div class="note-h"><b>${esc(n.t)}</b><span class="muted-s">${when(n.at)}</span></div><div>${n.room ? `<span class="note-room">${esc(n.room)}</span> ` : ""}${esc(n.room ? n.b.slice(n.room.length) : n.b)}</div></div>`).join("") : `<div class="muted-s">まだ通知はありません。</div>`}
-    <div class="btns"><a class="btn" href="#myteam">マイチームを見る</a>${list.length ? `<button class="btn ghost sm" data-act="notes-clear">通知を消す</button>` : ""}</div></div></section>`;
+    <div class="btns"><a class="btn" href="${admin ? "#matches" : "#myteam"}">${admin ? "対戦表・結果入力を見る" : "マイチームを見る"}</a>${list.length ? `<button class="btn ghost sm" data-act="notes-clear">通知を消す</button>` : ""}</div></div></section>`;
 }
 document.addEventListener("click", ev => {
   const el = ev.target.closest('[data-act="notes-clear"]'); if (!el) return;
