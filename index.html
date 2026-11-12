@@ -2320,8 +2320,8 @@ document.addEventListener("click", async ev => {
   if (act === "create-cancel") { createDlg = null; render(); return; }
   // from the first screen (no tournament open), the demo shows the organiser's view; it never saves anything
   // the demo starts as an operator and can switch to a player's or a spectator's view; leaving it puts everything back
-  if (act === "demo-on") { if (route() === "guide") location.hash = "standings"; demo = makeDemo(); demoShots = {}; demoBack = { role, team: FB.team, rep: repDraft }; role = "admin"; repDraft = null; demoMode = true; openId = null; teamDraft = null; render(); return; }
-  if (act === "demo-off") { demoMode = false; demo = null; demoShots = {}; if (demoBack) { role = demoBack.role; FB.team = demoBack.team; repDraft = demoBack.rep; demoBack = null; } openId = null; teamDraft = null; if (route() === "myteam" && role !== "player") location.hash = "standings"; render(); return; }
+  if (act === "demo-on") { if (route() === "guide") location.hash = "standings"; demoNotesReset(); demo = makeDemo(); demoShots = {}; demoBack = { role, team: FB.team, rep: repDraft }; role = "admin"; repDraft = null; demoMode = true; openId = null; teamDraft = null; render(); return; }
+  if (act === "demo-off") { demoNotesReset(); demoMode = false; demo = null; demoShots = {}; if (demoBack) { role = demoBack.role; FB.team = demoBack.team; repDraft = demoBack.rep; demoBack = null; } openId = null; teamDraft = null; if (route() === "myteam" && role !== "player") location.hash = "standings"; render(); return; }
   if (act === "demo-view" && demoMode) {
     const v = el.dataset.v; role = v; openId = null; teamDraft = null; repDraft = null;
     if (v === "player") { FB.team = FB.team && demo.config.teams.some(t => t.id === FB.team) ? FB.team : "d7"; location.hash = "myteam"; }
@@ -2509,6 +2509,8 @@ const repStatusJa = { pending: "承認待ち", approved: "承認済み", rejecte
 /* ---------- notices for players: the next match is set / a room number arrived (kept on this device) ---------- */
 let notesMem = null, notesKey = "", notesSince = 0, notesFlash = new Set();   // flash: unread when this visit to the tab began
 addEventListener("hashchange", () => { if (route() !== "notice") notesFlash.clear(); });
+// the demo keeps its notices in memory only: leaving or re-entering the demo starts them over
+function demoNotesReset() { if (notesKey.startsWith("demo:")) { notesMem = null; notesKey = ""; } notesFlash.clear(); }
 const noteWho = () => role === "player" ? FB.team || "" : "admin";   // players: their team / operators: one list
 const notesOn = () => (role === "player" && !!FB.team) || role === "admin";
 const notesStoreKey = () => demoMode ? "demo:" + noteWho() : `compass3on3_notes_${FB.tid || LOCAL.id || ""}_${noteWho()}`;
@@ -2524,7 +2526,7 @@ const notesUnread = () => (notesMem && notesKey === notesStoreKey() ? notesMem.l
 function syncNotes(s) {
   if (!notesOn() || !s.loaded || !s.config) return;
   const N = notesLoad();
-  if (!notesSince) { notesSince = Date.now(); return; }          // let everything arrive first (results, room numbers)
+  if (!notesSince) { notesSince = Date.now(); setTimeout(() => softRender(), 2600); return; }   // let everything arrive first (results, room numbers), then look again
   if (Date.now() - notesSince < 2500) { setTimeout(() => softRender(), 2600 - (Date.now() - notesSince)); return; }
   const add = role === "admin" ? adminFacts(s, N) : playerFacts(s, N);
   if (!add.length) { if (N.fresh) { N.fresh = false; notesSave(); } return; }
