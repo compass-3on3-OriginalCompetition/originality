@@ -569,6 +569,10 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .guide-roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .guide-roles .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .next-match { border-color: var(--accent); }
+.note-row { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-size: .9rem; }
+.note-row.new { border-color: var(--accent); }
+.note-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.note-room { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; letter-spacing: .12em; }
 .nm-host.wait { border-style: dashed; }
 .round.not-yet { opacity: .7; }
 .round-ctl .gate-ok { color: var(--good); }
@@ -625,6 +629,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
     </div>
     <nav class="tabs" id="tabs" aria-label="ページ切り替え">
       <a href="#myteam" hidden>マイチーム</a>
+      <a href="#notice" hidden>通知</a>
       <a href="#standings">順位表</a>
       <a href="#matches">対戦表・結果入力</a>
       <a href="#bracket">決勝トーナメント</a>
@@ -636,6 +641,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
 </header>
 <nav class="bnav" id="bnav" aria-label="ページ切り替え">
   <a href="#myteam" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>マイチーム</a>
+  <a href="#notice" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>通知</a>
   <a href="#standings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>順位表</a>
   <a href="#matches"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14M14 14l6 6M4 14l-1 4 4-1M20 4l-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>対戦</a>
   <a href="#bracket"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L3 7l5 4 4-6 4 6 5-4-1 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>決勝</a>
@@ -1086,7 +1092,7 @@ function makeDemo() {
 }
 
 /* ---------- render ---------- */
-const route = () => { const h = location.hash.slice(1); return ["myteam", "standings", "matches", "bracket", "teams", "rules", "guide"].includes(h) ? h : "standings"; };
+const route = () => { const h = location.hash.slice(1); return ["myteam", "notice", "standings", "matches", "bracket", "teams", "rules", "guide"].includes(h) ? h : "standings"; };
 function softRender() {
   const a = document.activeElement;
   if (a && a.closest && a.closest("#app") && a.matches("input:not([type=file]), textarea")) { renderPending = true; return; }
@@ -1122,7 +1128,11 @@ function renderInner() {
     const noKo = !ko && (set.format === "group" ? !(+set.advance > 0) : !(+set.swissAdvance > 0));
     document.querySelectorAll('#tabs a[href="#bracket"], #bnav a[href="#bracket"]').forEach(a => a.hidden = noKo);
     if (noKo && r === "bracket") { location.replace("#standings"); return; }
-    document.querySelectorAll('#tabs a[href="#myteam"], #bnav a[href="#myteam"]').forEach(a => a.hidden = role !== "player");
+    document.querySelectorAll('#tabs a[href="#myteam"], #bnav a[href="#myteam"], #tabs a[href="#notice"], #bnav a[href="#notice"]').forEach(a => a.hidden = role !== "player");
+    document.querySelectorAll('#bnav a[href="#teams"]').forEach(a => a.hidden = role === "player");   // room for the notices tab on phones
+    if (role === "player") syncNotes(s);
+    const un = role === "player" ? notesUnread() : 0;
+    document.querySelectorAll('#tabs a[href="#notice"], #bnav a[href="#notice"]').forEach(a => { let bd = a.querySelector(".badge"); if (un && !bd) { bd = document.createElement("span"); bd.className = "badge"; a.appendChild(bd); } if (bd) { if (un) bd.textContent = un; else bd.remove(); } });
     const pend = role === "admin" ? REP().filter(x => x.status === "pending").length : 0, mt = $('#tabs a[href="#matches"]');
     if (mt) mt.innerHTML = `対戦表・結果入力${pend ? ` <span class="badge">${pend}</span>` : ""}`; }
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : `#コンパス <b>${vsJa(SETS(s))}</b> 大会`;
@@ -1132,7 +1142,7 @@ function renderInner() {
   document.body.classList.toggle("gated", gated);
   if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); if (resumeData) setTimeout(() => applyResume(true), 0); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
-  const html = { myteam: viewMyTeam, standings: viewStandings, matches: s => reportsAdminView(s) + outsPanel(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
+  const html = { myteam: viewMyTeam, notice: viewNotices, standings: viewStandings, matches: s => reportsAdminView(s) + outsPanel(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
   app.innerHTML = (isLocked(s) ? `<div class="notice final-note"><strong>この大会は結果が確定しています。</strong>結果・順位・登録内容は、これ以上変更できません。</div>` : "") + (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? demoBar(s) : "") + html;
   if (resumeData) setTimeout(() => applyResume(false), 0);
 }
@@ -1687,6 +1697,10 @@ const GUIDE = {
     <li><b>あなたのチームが作る側のとき</b>：カスタムバトルのルームを作ったら、ルーム番号（<b>半角の数字4桁</b>）を入れて「<b>相手チームと運営に共有</b>」を押します。間違えたら、入れ直して「ルーム番号を変える」を押します。</li>
     <li>運営がラウンドを進める大会では、自分の対戦が終わっても、運営が次のラウンドを始めるまで「<b>運営が次のラウンドを始めるまでお待ちください</b>」と出ます。始まると自動で切り替わります。</li>
     <li><b>相手チームが作る側のとき</b>：相手が共有すると、ルーム番号が大きく表示されます（自動で更新されます）。その番号のルームに入ってください。</li></ul>`],
+    ["通知", `<ul>
+    <li>「<b>通知</b>」タブに、<b>次の対戦が決まったとき</b>と、<b>相手チームからルーム番号が届いたとき</b>（変わったときも）のお知らせが届きます。</li>
+    <li>アプリを開いているときは、画面の下にもお知らせが出て、スマホが振動します（振動しない機種もあります）。まだ見ていない通知があると、タブに数字が出ます。</li>
+    <li>通知はこの端末に保存されます。アプリを閉じているときは届きません（次に開いたときに「通知」タブに入ります）。</li></ul>`],
     ["結果を報告する", `<ol>
     <li>試合が終わったら、マイチームの「<b>結果を運営に報告</b>」で対戦を選びます。</li>
     <li>試合ごとに、<b>その試合のリプレイ画面のスクショを1枚</b>（必須）付けます。スクショを選ぶと、ポータルキーを自動で読み取って入れます。違っていたら直してください。</li>
@@ -2488,6 +2502,59 @@ function koStatus(s, team) {
   return "勝ち残り中";
 }
 const repStatusJa = { pending: "承認待ち", approved: "承認済み", rejected: "却下" };
+/* ---------- notices for players: the next match is set / a room number arrived (kept on this device) ---------- */
+let notesMem = null, notesKey = "", notesSince = 0, notesFlash = new Set();   // flash: unread when this visit to the tab began
+addEventListener("hashchange", () => { if (route() !== "notice") notesFlash.clear(); });
+const notesStoreKey = () => demoMode ? "demo:" + FB.team : `compass3on3_notes_${FB.tid || LOCAL.id || ""}_${FB.team || ""}`;
+function notesLoad() {
+  const k = notesStoreKey(); if (notesMem && notesKey === k) return notesMem;
+  notesKey = k; notesSince = 0;
+  let d = null; if (!demoMode) try { d = JSON.parse(localStorage.getItem(k) || "null"); } catch (e) {}
+  notesMem = d && Array.isArray(d.list) ? { list: d.list, seen: d.seen || {}, fresh: false } : { list: [], seen: {}, fresh: true };
+  return notesMem;
+}
+function notesSave() { if (demoMode || !notesMem) return; try { localStorage.setItem(notesKey, JSON.stringify({ list: notesMem.list.slice(0, 60), seen: notesMem.seen })); } catch (e) {} }
+const notesUnread = () => (notesMem && notesKey === notesStoreKey() ? notesMem.list.filter(n => !n.read).length : 0);
+function syncNotes(s) {
+  if (!FB.team || !s.loaded || !s.config) return;
+  const N = notesLoad();
+  if (!notesSince) { notesSince = Date.now(); return; }          // let everything arrive first (results, room numbers)
+  if (Date.now() - notesSince < 2500) { setTimeout(() => softRender(), 2600 - (Date.now() - notesSince)); return; }
+  const team = FB.team, ms = teamMatches(s, team), add = [];
+  const next = ms.find(m => !m.done && matchStarted(s, m));
+  if (next) {
+    const opp = teamName(s, next.a === team ? next.b : next.a), host = next.a === team;
+    const k = `start:${next.kind}:${next.mid}:${next.a}:${next.b}`;
+    if (!N.seen[k]) add.push({ k, t: "次の対戦が決まりました", b: `${next.label}：vs ${opp}。${host ? "あなたのチームがルームを作ります。" : `${opp}がルームを作ります。`}` });
+  }
+  for (const m of ms.filter(x => !x.done && x.a !== team && matchStarted(s, x))) {
+    const room = roomOf(m); if (!room) continue;
+    const k = `room:${m.kind}:${m.mid}:${room}`, changed = Object.keys(N.seen).some(x => x.startsWith(`room:${m.kind}:${m.mid}:`));
+    if (!N.seen[k]) add.push({ k, t: changed ? "ルーム番号が変わりました" : "ルーム番号が届きました", b: `${room}（${m.label}・vs ${teamName(s, m.a)}）`, room });
+  }
+  if (!add.length) { if (N.fresh) { N.fresh = false; notesSave(); } return; }
+  const now = Date.now();
+  for (const n of add) { N.seen[n.k] = 1; N.list.unshift({ ...n, at: now, read: N.fresh || route() === "notice" }); }
+  // the first time on this device: what is already there is listed, but not announced
+  if (!N.fresh && route() !== "notice") { const last = add[add.length - 1]; toast(`🔔 ${last.t}：${last.b}`); try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} }
+  N.fresh = false; notesSave();
+}
+function viewNotices(s) {
+  if (role !== "player" || !FB.team) return `<div class="notice">このページは選手コードで参加した人だけが使えます。</div>`;
+  const N = notesLoad(), list = N.list.map(n => ({ ...n }));   // shown with the unread marks of this visit
+  list.forEach(n => { if (!n.read) notesFlash.add(n.k); });
+  if (list.some(n => !n.read)) { N.list.forEach(n => n.read = true); notesSave(); setTimeout(() => softRender(), 0); }
+  const when = t => new Date(t).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return `<section class="panel"><div class="panel-head"><h2>通知</h2><span class="meta">${esc(teamName(s, FB.team))}</span></div><div class="panel-body" style="display:grid;gap:8px">
+    <div class="muted-s">次の対戦が決まったときと、相手チームからルーム番号が届いたときに、ここにお知らせが届きます。アプリを開いているときは、画面の下にも表示されます。</div>
+    ${list.length ? list.map(n => `<div class="note-row ${n.read && !notesFlash.has(n.k) ? "" : "new"}"><div class="note-h"><b>${esc(n.t)}</b><span class="muted-s">${when(n.at)}</span></div><div>${n.room ? `<span class="note-room">${esc(n.room)}</span> ` : ""}${esc(n.room ? n.b.slice(n.room.length) : n.b)}</div></div>`).join("") : `<div class="muted-s">まだ通知はありません。</div>`}
+    <div class="btns"><a class="btn" href="#myteam">マイチームを見る</a>${list.length ? `<button class="btn ghost sm" data-act="notes-clear">通知を消す</button>` : ""}</div></div></section>`;
+}
+document.addEventListener("click", ev => {
+  const el = ev.target.closest('[data-act="notes-clear"]'); if (!el) return;
+  if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消す"; return; }
+  const N = notesLoad(); N.list = []; notesSave(); render();
+});
 function viewMyTeam(s) {
   if (role !== "player" || !FB.team) return `<div class="notice">このページは選手コードで参加した人だけが使えます。</div>`;
   const team = (s.config?.teams || []).find(t => t.id === FB.team);
