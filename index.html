@@ -569,6 +569,11 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .guide-roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .guide-roles .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .next-match { border-color: var(--accent); }
+.nm-host.wait { border-style: dashed; }
+.round.not-yet { opacity: .7; }
+.round-ctl .gate-ok { color: var(--good); }
+.gate-left { display: grid; gap: 6px; margin: 8px 0; }
+.gl-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; font-size: .85rem; }
 .nm-body { display: grid; gap: 12px; }
 .nm-vs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; font-weight: 700; font-size: 1.05rem; }
 .nm-vs small { color: var(--muted); font-size: .8rem; }
@@ -680,7 +685,7 @@ const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
 const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
-  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, stageCheck: true, submitHeroes: true, submitDecks: true, requireMedalShot: true, heroCount: 2, medalCount: 3, deckCount: 2 };
+  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, stageCheck: true, submitHeroes: true, submitDecks: true, requireMedalShot: true, heroCount: 2, medalCount: 3, deckCount: 2, roundGate: false, koGate: false };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -697,6 +702,8 @@ function SETS(st) {
   x.submitHeroes = !!x.submitHeroes; x.submitDecks = !!x.submitDecks; x.requireMedalShot = !!x.requireMedalShot;
   // how many each member may submit: heroes 1-5, medals per hero 1-3, decks 1-5
   const cl = (v, lo, hi, d) => Number.isInteger(+v) && +v >= lo && +v <= hi ? +v : d;
+  // rounds started by the operators ("次のラウンドに進む") instead of players moving on by themselves
+  x.roundGate = x.roundGate === true || x.roundGate === "true"; x.koGate = x.koGate === true || x.koGate === "true";
   x.heroCount = cl(x.heroCount, 1, 5, 2); x.medalCount = 3;   // a slot is one hero with its medals (up to 3, as in the game) x.deckCount = cl(x.deckCount, 1, 5, 2);
   // swiss rounds: a whole number, or "" = keep going until only one team has won every match
   x.swissRounds = x.swissRounds === "" || x.swissRounds == null || !(+x.swissRounds >= 1) ? "" : Math.min(30, Math.floor(+x.swissRounds));
@@ -925,6 +932,74 @@ function swissNextPairs(s) {
 }
 /* knockout bracket for any number of teams (byes fill the bracket up to a power of two) */
 const KO_KEY = ["final", "sf", "qf", "r16", "r32", "r64"], KO_JA = ["決勝", "準決勝", "準々決勝", "ベスト16", "ベスト32", "ベスト64"];
+/* ---------- rounds started by the operators ---------- */
+// lg: the round robin (all groups together), ko: the (final) tournament
+function GATE(st) {
+  const set = SETS(st), on = set.roundGate;
+  return { lg: on && set.format === "group", ko: on && (set.format === "knockout" || (set.format === "group" && +set.advance > 0 && set.koGate)) };
+}
+const lgRounds = st => Math.max(0, ...groupsOf(st).map(g => standings(st, g).rounds.length));
+const lgOpen = st => Math.max(1, Math.min(lgRounds(st) || 1, +(st || S()).config?.roundOpen || 1));
+const koRoundName = (b, r) => r === b.R - 1 ? (b.third ? "決勝・3位決定戦" : "決勝") : KO_JA[b.R - 1 - r];
+const koRoundOf = (b, key) => key === "third" ? b.R - 1 : b.rounds.findIndex(rd => rd.some(x => x.key === key));
+const koOpen = (st, b) => Math.max(1, Math.min(b ? b.R : 1, +(st || S()).config?.koOpen || 1));
+// a player's match (from teamMatches) that has been started
+function matchStarted(st, m) {
+  const G = GATE(st);
+  if (m.kind === "group") return !G.lg || m.g?.startsWith("S") || m.ri < lgOpen(st);
+  if (m.kind === "bracket") return !G.ko || m.ri < koOpen(st, bracketModel(st));
+  return true;
+}
+// the matches of the started rounds that are not finished yet
+function openUnfinished(st, which) {
+  const out = [];
+  if (which === "lg") { const n = lgOpen(st);
+    for (const g of groupsOf(st)) standings(st, g).rounds.forEach((r, i) => { if (i < n) r.pairs.forEach(([a, b]) => { const id = mid(g, a, b), d = st.matches[id]; if (!evalGroup(d).done) out.push({ kind: "group", id, g, a: d?.a || a, b: d?.b || b, label: `${groupsOf(st).length > 1 ? `グループ${g} ・ ` : ""}ROUND ${i + 1}` }); }); }); }
+  else { const b = bracketModel(st); if (!b) return out; const n = koOpen(st, b);
+    for (const m of b.all) if (koRoundOf(b, m.key) < n && !m.w && !(m.byeA || m.byeB)) out.push({ kind: "bracket", key: m.key, a: m.a, b: m.b, label: m.label, ready: !!(m.a && m.b) }); }
+  return out;
+}
+let gateWarn = null;   // "lg" | "ko": the "not finished yet" warning is open
+function roundCtl(st, which) {
+  const G = GATE(st); if (!G[which]) return "";
+  const b = which === "ko" ? bracketModel(st) : null; if (which === "ko" && !b) return "";
+  const n = which === "lg" ? lgOpen(st) : koOpen(st, b), N = which === "lg" ? lgRounds(st) : b.R;
+  const name = r => which === "lg" ? `ROUND ${r + 1}` : koRoundName(b, r);
+  const left = openUnfinished(st, which), admin = role === "admin" && !isLocked(st);
+  const head = `<div class="panel-head"><h2>ラウンドの進行</h2><span class="meta">現在：${esc(name(n - 1))}${N ? `（全${N}ラウンド中 ${n}）` : ""}</span></div>`;
+  if (!admin) return `<section class="panel round-ctl">${head}<div class="panel-body"><div class="muted-s">運営が「次のラウンドに進む」を押すと、次のラウンドの対戦が始まります。</div></div></section>`;
+  const warn = gateWarn === which && left.length ? `<div class="bigwarn" role="alert"><p><strong>まだ終わっていない対戦が${left.length}件あります。進みますか？</strong></p>
+      <div class="gate-left">${left.map(x => `<div class="gl-row"><span>${esc(x.label)}：${esc(x.a ? teamName(st, x.a) : "未定")} vs ${esc(x.b ? teamName(st, x.b) : "未定")}</span>${x.kind === "group" || x.ready ? `<button class="btn sm" data-act="gate-jump" data-kind="${x.kind}" data-id="${esc(x.id || x.key)}" data-g="${esc(x.g || "")}" data-a="${esc(x.a || "")}" data-b="${esc(x.b || "")}">記録画面へ</button>` : ""}</div>`).join("")}</div>
+      <div class="btns"><button class="btn danger" data-act="gate-next" data-w="${which}" data-force="1">それでも${esc(name(n))}に進む</button><button class="btn" data-act="gate-cancel">やめる</button></div></div>` : "";
+  return `<section class="panel round-ctl">${head}<div class="panel-body" style="display:grid;gap:10px">
+    ${n >= N ? `<div class="muted-s">最後のラウンドまで始まっています。</div>` : !left.length ? `<div class="gate-ok"><b>${esc(name(n - 1))}までの対戦がすべて終わりました。</b>次のラウンドに進めます。</div>` : `<div class="muted-s">${esc(name(n - 1))}までで、まだ終わっていない対戦が${left.length}件あります。</div>`}
+    <div class="btns">${n < N ? `<button class="btn primary" data-act="gate-next" data-w="${which}">次のラウンド（${esc(name(n))}）に進む</button>` : ""}${n > 1 ? `<button class="btn ghost" data-act="gate-back" data-w="${which}">1つ前のラウンドに戻す</button>` : ""}</div>
+    ${warn}</div></section>`;
+}
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act^='gate-']"); if (!el || el.dataset.act === "gate-join") return;
+  const act = el.dataset.act, st = S();
+  if (act === "gate-cancel") { gateWarn = null; render(); return; }
+  if (act === "gate-jump") {   // open that match's result form and scroll to it
+    const k = el.dataset.kind, id = el.dataset.id;
+    if (k === "group") { if (route() !== "matches") location.hash = "matches"; if (openId !== id) openEditor(id, { kind: "group", group: el.dataset.g, a: el.dataset.a, b: el.dataset.b }); }
+    else { const want = SETS(st).format === "knockout" ? "matches" : "bracket"; if (route() !== want) location.hash = want; if (openId !== "bracket/" + id) openEditor("bracket/" + id, { kind: "bo3", key: id, a: el.dataset.a, b: el.dataset.b }); }
+    setTimeout(() => { const t = k === "group" ? document.querySelector(`[data-act="open"][data-id="${CSS.escape(id)}"]`) : document.querySelector(".bpanel"); t?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80);
+    return;
+  }
+  if (role !== "admin" || isLocked(st)) return;
+  const w = el.dataset.w, key = w === "lg" ? "roundOpen" : "koOpen", b = w === "ko" ? bracketModel(st) : null;
+  const n = w === "lg" ? lgOpen(st) : koOpen(st, b), N = w === "lg" ? lgRounds(st) : (b ? b.R : 1);
+  if (act === "gate-next") {
+    if (n >= N) return;
+    if (!el.dataset.force && openUnfinished(st, w).length) { gateWarn = w; render(); return; }
+    gateWarn = null; if (await write("t/config", { ...(st.config || {}), [key]: n + 1 })) toast(`${w === "lg" ? `ROUND ${n + 1}` : koRoundName(b, n)}を始めました`); return;
+  }
+  if (act === "gate-back") {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと戻す"; return; }
+    gateWarn = null; if (n > 1 && await write("t/config", { ...(st.config || {}), [key]: n - 1 })) toast("1つ前のラウンドに戻しました"); return;
+  }
+});
 function seedOrder(size) { let a = [1]; while (a.length < size) { const m = a.length * 2 + 1; a = a.flatMap(x => [x, m - x]); } return a; }
 function koEntrants(s) {
   const set = SETS(s), out = [];
@@ -1164,6 +1239,8 @@ function viewMatches(s) {
   const set = SETS(s);
   const intro = `<div class="notice">対戦表の<strong>左側のチーム</strong>がカスタムバトルを作成します。${canWrite() ? "対戦をタップしてポータルキーを選ぶと、その場で自動保存されます。" : "結果の入力は運営が行います。"}</div>`;
   if (set.format === "knockout") return `<div class="notice">この大会は<strong>トーナメントのみ</strong>の形式です。対戦カードを押して結果を入力します。</div>` + viewBracket(s);
+  const G = GATE(s), nOpen = G.lg ? lgOpen(s) : 0;
+  const rtag = i => !G.lg ? "" : i < nOpen - 1 ? "" : i === nOpen - 1 ? ` <span class="pill ok">進行中</span>` : ` <span class="pill">まだ始まっていません</span>`;
   if (set.format === "swiss") {
     const rs = swissRounds(s), n = rs.length, last = n ? swissRoundDone(s, n - 1) : true;
     const plan = swissPlan(s), canNext = role === "admin" && !plan.over && last && allTeams(s).length >= 2;
@@ -1175,10 +1252,10 @@ function viewMatches(s) {
   }
   const panels = groupsOf(s).filter(g => teamsOf(s, g).length).map(g => {
     const st = standings(s, g);
-    const rounds = st.rounds.map((r, i) => `<div class="round"><h3>ROUND ${i + 1}${r.bye ? ` ・ 休み：${esc(teamName(s, r.bye))}` : ""}</h3><div class="mlist">${r.pairs.map(([a, b]) => matchCard(s, g, a, b)).join("")}</div></div>`).join("");
+    const rounds = st.rounds.map((r, i) => `<div class="round ${G.lg && i >= nOpen ? "not-yet" : ""}"><h3>ROUND ${i + 1}${r.bye ? ` ・ 休み：${esc(teamName(s, r.bye))}` : ""}${rtag(i)}</h3><div class="mlist">${r.pairs.map(([a, b]) => matchCard(s, g, a, b)).join("")}</div></div>`).join("");
     return `<section class="panel"><div class="panel-head">${gtitle(g)}<span class="meta">${st.done}/${st.total} 対戦終了</span></div><div class="panel-body">${rounds || "<div class='empty'>2チーム以上で対戦表が作られます</div>"}</div></section>`;
   }).join("");
-  return intro + `<div class="groups two">${panels}</div>`;
+  return intro + roundCtl(s, "lg") + `<div class="groups two">${panels}</div>`;
 }
 function stateBadge(doc, done) {
   if (!doc || !evalGroup(doc).games.length) return `<span class="pill">未入力</span>`;
@@ -1259,6 +1336,7 @@ function viewBracket(s) {
       : `<div class="bx ${id ? (won ? "won" : "") : "tbd"}">${inner}</div>`;
   };
   const pair = (m, a, bb) => `<div class="pair">${a}${bb}</div>`;
+  const ctl = roundCtl(s, "ko");
   const champ = b.fin.w, fin = b.fin, third = b.third;
   const crown = `<svg class="crown" viewBox="0 0 120 80" aria-hidden="true"><path d="M10 58 L4 18 L32 40 L60 4 L88 40 L116 18 L110 58 Z" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><path d="M14 66 H106 M18 74 H102" stroke="currentColor" stroke-width="4"/><path d="M60 22 L52 40 H68 Z" fill="currentColor"/></svg>`;
   const champHTML = `${crown}<div class="champ-name ${champ ? "" : "tbd"}">${champ ? esc(teamName(s, champ)) : "優勝"}</div>`;
@@ -1300,7 +1378,7 @@ function viewBracket(s) {
       ${editor(s, "bo3")}</section>` : `<div class="notice">対戦カードを押すと、試合ごとの結果を入力・確認できます。${rule}</div>`;
   const sfLosers = b.R >= 2 ? b.rounds[b.R - 2].map(m => m.l) : [];
   const places = [["優勝", fin.w, "p1"], ["準優勝", fin.l, ""]].concat(third ? [["3位", third.w, ""], ["4位", third.l, ""]] : b.R >= 2 ? [["ベスト4", sfLosers[0], ""], ["ベスト4", sfLosers[1], ""]] : []);
-  return `${body}${panel}
+  return `${ctl}${body}${panel}
     <div class="podium">${places.map(([p, id, c]) => `<div class="place ${c}"><div class="p">${p}</div><div class="n ${id ? "" : "tbd"}">${id ? esc(teamName(s, id)) : "未定"}</div></div>`).join("")}</div>`;
 }
 function viewTeams(s) {
@@ -1367,6 +1445,10 @@ function settingsForm(set, id) {
     </div>
     <div class="sgroup"><div class="sg-t">順位の決め方</div>
       ${rankForm(set, id, row)}
+    </div>` : ""}
+    ${["group", "group_ko", "knockout"].includes(mode) ? `<div class="sgroup"><div class="sg-t">ラウンドの進め方</div>
+      ${row("次の対戦へ", sel("roundGate", [["false", "選手のタイミングで進む"], ["true", "運営が「次のラウンドに進む」を押して進める"]], "ラウンドの進め方"), "運営が進めるときは、今のラウンドが始まっている対戦だけが選手の「次の対戦」に出ます。次のラウンドは、運営が押すまで始まりません")}
+      ${set.roundGate && mode === "group_ko" ? row("決勝トーナメント", sel("koGate", [["false", "運営が進めない（対戦が決まりしだい進む）"], ["true", "運営が進める（準決勝 → 決勝なども押して進める）"]], "決勝トーナメントの進め方")) : ""}
     </div>` : ""}
     <div class="sgroup"><div class="sg-t">事前の提出と確認</div>
       ${row("ヒーローとメダル", chk("submitHeroes", "事前に登録して、リプレイで確認する"))}
@@ -1440,6 +1522,8 @@ const WIZ = [
   { id: "rank", s: "順位の決め方", when: x => x.mode !== "knockout", q: "順位は、何を順番に比べて決めますか？", custom: true },
   { id: "koBest", s: "トーナメントの1試合", when: x => x.mode === "knockout" || x.mode === "group_ko" || (x.mode === "swiss" && +x.swissAdvance > 0), q: "トーナメントの1試合は、どう決めますか？", note: "引き分けは数えず、もう一戦します。", opts: () => [[1, "BO1", "1勝で勝ち抜け"], [3, "BO3", "先に2勝で勝ち抜け"], [5, "BO5", "先に3勝で勝ち抜け"]] },
   { id: "third", s: "3位決定戦", when: x => x.mode === "knockout" || x.mode === "group_ko" || (x.mode === "swiss" && +x.swissAdvance > 0), q: "3位決定戦を行いますか？", opts: () => YN("行う", "行わない", "準決勝で負けたチーム同士で対戦します", "ベスト4までになります") },
+  { id: "roundGate", s: "ラウンドの進め方", when: x => ["group", "group_ko", "knockout"].includes(x.mode), q: "次のラウンドの対戦は、どう始めますか？", opts: () => YN("運営が「次のラウンドに進む」を押して始める", "選手のタイミングで進む", "運営が押すまで、選手の「次の対戦」に次のラウンドは出ません", "自分の対戦が終わったら、すぐ次の対戦に進めます").reverse() },
+  { id: "koGate", s: "決勝トーナメントの進め方", when: x => x.roundGate && x.mode === "group_ko", q: "決勝トーナメントも、運営が押して次のラウンドに進めますか？", opts: () => YN("運営が押して進める", "運営が進めない", "準決勝 → 決勝なども、運営が押すまで始まりません", "対戦が決まりしだい進めます") },
   { id: "submitHeroes", s: "ヒーロー・メダルの事前登録", q: "ヒーローとメダルを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
   { id: "heroCount", s: "ヒーローの枠", when: x => x.submitHeroes, q: "ヒーロー（メダル付き）は、1人につき何枠まで登録できるようにしますか？", note: "1枠＝ヒーロー1体とそのメダルです。同じヒーローでも、メダルが違えば別の枠（別のキャラ）として登録できます。", opts: () => upTo(5).map(i => [i + 1, `${i + 1}枠まで`]) },
   { id: "submitDecks", s: "デッキの事前登録", q: "デッキを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
@@ -1493,7 +1577,7 @@ document.addEventListener("click", ev => {
     if (q.id === "mode") c.set = applyMode({ ...c.set }, v, c.set);
     else c.set = { ...c.set, [q.key || q.id]: v };
     // coming from the summary: go straight back to it (a new format or game count can open new questions, so walk on from there)
-    if (c.hist.at(-1) === "done") { if (["mode", "games", "submitHeroes", "submitDecks"].includes(q.id)) { c.hist.pop(); next(); } else { c.step = c.hist.pop(); render(); } return; }
+    if (c.hist.at(-1) === "done") { if (["mode", "games", "submitHeroes", "submitDecks", "roundGate"].includes(q.id)) { c.hist.pop(); next(); } else { c.step = c.hist.pop(); render(); } return; }
     next(); return;
   }
 });
@@ -1564,7 +1648,8 @@ const GUIDE = {
     <li>「<b>スクショで読み取り・確認</b>」でリプレイ画面のスクショを読み込むと、ポータルキーの記入と、ヒーロー・メダル・デッキが登録内容と合っているかの確認ができます。問題がある対戦には「要確認」が付きます。</li>
     <li>コールド勝ちは、設定どおりに自動で判定されます。</li>
     <li>スイスドローでは「<b>第Nラウンドの組み合わせを作る</b>」を押すと、順位の近いチーム同士で、まだ当たっていない相手と組み合わせます。</li>
-    <li>選手がルーム番号を共有すると、まだ終わっていない対戦に「<b>ルーム 1234</b>」のように出ます（決勝トーナメントは対戦カードの中）。</li></ol>`],
+    <li>選手がルーム番号を共有すると、まだ終わっていない対戦に「<b>ルーム 1234</b>」のように出ます（決勝トーナメントは対戦カードの中）。</li>
+    <li>大会の設定で「ラウンドの進め方」を「<b>運営が進める</b>」にしたときは、「対戦表・結果入力」の上の「<b>ラウンドの進行</b>」で「次のラウンドに進む」を押すまで、選手の「次の対戦」に次のラウンドは出ません（全グループいっしょに進みます）。終わっていない対戦があると警告が出て、「<b>記録画面へ</b>」でその対戦の入力画面に移れます。決勝トーナメントでも使うかは、設定で選べます（決勝トーナメントの画面の上に出ます）。</li></ol>`],
     ["選手からの結果報告", `<ul>
     <li>選手が報告を送ると、「対戦表・結果入力」の上に「<b>選手からの結果報告</b>」が出ます。</li>
     <li>「スクショを見る」を押すと自動で読み取り、報告と読み取り結果が一致しているか、メダル情報があるか、カスタムバトルのリプレイか、映っている人がこの対戦の2チームのメンバーかを表示します。</li>
@@ -1600,6 +1685,7 @@ const GUIDE = {
     ["次の対戦とルーム番号", `<ul>
     <li>「次の対戦」に、相手チームと、<b>どちらのチームがルームを作るか</b>が大きく出ます。</li>
     <li><b>あなたのチームが作る側のとき</b>：カスタムバトルのルームを作ったら、ルーム番号（<b>半角の数字4桁</b>）を入れて「<b>相手チームと運営に共有</b>」を押します。間違えたら、入れ直して「ルーム番号を変える」を押します。</li>
+    <li>運営がラウンドを進める大会では、自分の対戦が終わっても、運営が次のラウンドを始めるまで「<b>運営が次のラウンドを始めるまでお待ちください</b>」と出ます。始まると自動で切り替わります。</li>
     <li><b>相手チームが作る側のとき</b>：相手が共有すると、ルーム番号が大きく表示されます（自動で更新されます）。その番号のルームに入ってください。</li></ul>`],
     ["結果を報告する", `<ol>
     <li>試合が終わったら、マイチームの「<b>結果を運営に報告</b>」で対戦を選びます。</li>
@@ -1649,7 +1735,8 @@ function viewRules() {
   const league = [
     `1対戦は${set.games}試合。引き分けはやり直さず、勝ちにも負けにも数えないが、試合数には含める`,
     set.cold && set.games >= 2 ? `<strong>コールド勝ち</strong>：${coldNote(set)}。5-0として数えた試合も、ポータルキー合計・勝率に含めます` : "コールド勝ちはなし",
-    "不戦敗はその試合を0-5、相手を5-0として扱う"];
+    "不戦敗はその試合を0-5、相手を5-0として扱う",
+    set.roundGate && set.format === "group" ? "各ラウンドは、運営の合図（「次のラウンドに進む」）で全グループいっしょに始める" : ""];
   const rank = `<section class="panel"><div class="panel-body"><h3>順位の決め方</h3><ol>${set.ranks.map(k => `${CRIT[k].ja}（${CRIT[k].note}）`).concat(["当該チーム同士の対戦結果", "引き分けの数が多いチームが上位", "順位決定戦（BO1、引き分けは決着まで再戦）。3チーム以上なら運営抽選"]).map(x => `<li>${x}</li>`).join("")}</ol>
     <p style="margin-top:8px">順位決定戦・抽選は、1位を決めるときと、${set.format === "swiss" ? "決勝トーナメントに進むかどうか" : "次に進むかどうか"}が分かれるときだけ。それ以外は同順位です。</p></div></section>`;
   const koOn = set.format === "knockout" || (set.format === "group" ? set.advance > 0 : set.swissAdvance > 0);
@@ -2376,12 +2463,12 @@ const shotReads = {};          // rid -> games read from those screenshots
 // every match a team plays: league / swiss matches and tournament matches
 function teamMatches(s, team) {
   const set = SETS(s), out = [];
-  const lg = (g, x, y, label) => { const id = mid(g, x, y), m = s.matches[id], e = evalGroup(m); out.push({ kind: "group", mid: id, g, a: m?.a || x, b: m?.b || y, label, done: e.done, started: e.games.length > 0, n: set.games }); };
-  if (set.format === "group") for (const g of groupsOf(s)) standings(s, g).rounds.forEach((r, ri) => r.pairs.forEach(([x, y]) => { if (x === team || y === team) lg(g, x, y, `${set.groups > 1 ? `グループ${g} ・ ` : ""}ROUND ${ri + 1}`); }));
-  if (set.format === "swiss") swissRounds(s).forEach((r, ri) => (r.pairs || []).forEach(([x, y]) => { if (x === team || y === team) lg("S" + (ri + 1), x, y, `スイスドロー ROUND ${ri + 1}`); }));
+  const lg = (g, x, y, label, ri) => { const id = mid(g, x, y), m = s.matches[id], e = evalGroup(m); out.push({ kind: "group", mid: id, g, a: m?.a || x, b: m?.b || y, label, done: e.done, started: e.games.length > 0, n: set.games, ri }); };
+  if (set.format === "group") for (const g of groupsOf(s)) standings(s, g).rounds.forEach((r, ri) => r.pairs.forEach(([x, y]) => { if (x === team || y === team) lg(g, x, y, `${set.groups > 1 ? `グループ${g} ・ ` : ""}ROUND ${ri + 1}`, ri); }));
+  if (set.format === "swiss") swissRounds(s).forEach((r, ri) => (r.pairs || []).forEach(([x, y]) => { if (x === team || y === team) lg("S" + (ri + 1), x, y, `スイスドロー ROUND ${ri + 1}`, ri); }));
   const b = bracketModel(s);
   if (b) for (const m of b.all) if (m.a && m.b && !m.byeA && !m.byeB && (m.a === team || m.b === team))
-    out.push({ kind: "bracket", mid: m.key, g: "", a: m.a, b: m.b, label: (set.format === "knockout" ? "トーナメント " : "決勝トーナメント ") + m.label, done: !!m.w, started: (m.doc?.games || []).length > 0, n: set.koBest });
+    out.push({ kind: "bracket", mid: m.key, g: "", a: m.a, b: m.b, label: (set.format === "knockout" ? "トーナメント " : "決勝トーナメント ") + m.label, done: !!m.w, started: (m.doc?.games || []).length > 0, n: set.koBest, ri: koRoundOf(b, m.key) });
   return out;
 }
 function teamStanding(s, team) {
@@ -2423,6 +2510,9 @@ function viewMyTeam(s) {
 function nextMatchView(s, team, next, ms) {
   if (!next) return `<section class="panel next-match"><div class="panel-head"><h2>次の対戦</h2></div><div class="panel-body"><div class="muted-s">${ms.length ? "今決まっている対戦はすべて終わりました。次の組み合わせが決まると、ここに出ます。" : "まだ組み合わせがありません。"}</div></div></section>`;
   const host = next.a === team.id, other = host ? next.b : next.a, room = roomOf(next), locked = isLocked(s);
+  if (!matchStarted(s, next)) return `<section class="panel next-match"><div class="panel-head"><h2>次の対戦</h2><span class="meta">${esc(next.label)} ・ まだ始まっていません</span></div><div class="panel-body nm-body">
+    <div class="nm-vs"><span>${esc(team.name)}</span><small>vs</small><span>${esc(teamName(s, other))}</span></div>
+    <div class="nm-host wait"><b>運営が次のラウンドを始めるまでお待ちください</b><span>始まると、ここにルームを作るチームとルーム番号が表示されます（自動で更新されます）。${host ? "このラウンドでは、あなたのチームがルームを作る側です。" : ""}</span></div></div></section>`;
   const hostBox = host
     ? `<div class="nm-host me"><b>あなたのチームがルームを作ります</b><span>カスタムバトルのルームを作ったら、ルーム番号（数字4桁）を下に入れて共有してください。</span></div>
        ${locked ? "" : `<div class="nm-room"><label for="room-in">ルーム番号（数字4桁）</label><div class="btns"><input id="room-in" class="room-in" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="例：1234" value="${esc(room)}" aria-describedby="room-note"><button class="btn primary" data-act="room-share" data-mid="${esc(next.mid)}" data-kind="${next.kind}">${room ? "ルーム番号を変える" : "相手チームと運営に共有"}</button></div>
@@ -2438,6 +2528,7 @@ document.addEventListener("click", async ev => {
   if (!/^[0-9]{4}$/.test(v)) { toast("ルーム番号は、半角の数字4桁で入れてください（例：1234）"); $("#room-in")?.focus(); return; }
   const s = S(), m = teamMatches(s, FB.team).find(x => x.mid === el.dataset.mid && x.kind === el.dataset.kind && !x.done);
   if (!m || m.a !== FB.team) { toast("この対戦では、あなたのチームはルームを作る側ではありません"); return; }
+  if (!matchStarted(s, m)) { toast("このラウンドはまだ始まっていません"); return; }
   const doc = { kind: m.kind, mid: m.mid, a: m.a, b: m.b, room: v, by: demoMode ? "demo" : FB.user.uid, at: Date.now() };
   if (demoMode) { ROOMS()[roomId(m)] = doc; toast("（デモ）ルーム番号を共有しました。「運営」に切り替えると、対戦表にも出ています"); render(); return; }
   el.disabled = true;
@@ -2462,7 +2553,7 @@ function subscribeRooms() {   // operators see every room number
   unsubs.push(FB.fs.collection(`tournaments/${FB.tid}/rooms`).onSnapshot(snap => { const o = {}; snap.docs.forEach(d => o[d.id] = d.data()); real.rooms = o; softRender(); }, () => {}));
 }
 function reportForm(s, team, ms) {
-  const open = ms.filter(m => !m.done);
+  const open = ms.filter(m => !m.done && matchStarted(s, m));
   if (!open.length) return "";
   if (!repDraft || !open.some(m => m.mid === repDraft.mid)) repDraft = { mid: open[0].mid, games: [], shots: [], note: "", busy: false };
   const m = open.find(x => x.mid === repDraft.mid), me = m.a === team.id ? "a" : "b", opp = me === "a" ? m.b : m.a;
