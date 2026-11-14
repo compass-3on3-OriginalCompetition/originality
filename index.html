@@ -438,6 +438,10 @@ details.glist summary { cursor: pointer; }
 .guide ol, .guide ul { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: .92rem; max-width: 70ch; }
 .guide ul ul { margin-top: 4px; }
 .guide p { margin: 0; font-size: .92rem; max-width: 70ch; }
+.guide-foot .panel-body { display: grid; gap: 10px; }
+.support { display: grid; gap: 6px; justify-items: start; padding-top: 10px; border-top: 1px dashed var(--line); }
+.support-code { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; letter-spacing: .08em; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--surface-2); color: var(--ink); cursor: pointer; }
+.support-thanks { color: var(--good); font-weight: 700; }
 .guide li .btn.sm { margin-left: 6px; }
 
 a.btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; }
@@ -1738,6 +1742,14 @@ const GUIDE = {
     ["スマホで使う", GUIDE_PHONE],
   ],
 };
+// feedback goes to the developer's X account; the support code is copied with one tap
+const FEEDBACK_URL = "https://x.com/ywhBqaUjT9aoanq", SUPPORT_CODE = "";
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest('[data-act="support-copy"]'); if (!el) return;
+  let ok = false; try { await navigator.clipboard.writeText(SUPPORT_CODE); ok = true; } catch (e) {
+    const r = document.createRange(); r.selectNodeContents(el); getSelection().removeAllRanges(); getSelection().addRange(r); try { ok = document.execCommand("copy"); } catch (e2) {} }
+  const t = $("#support-thanks"); if (t) { t.hidden = false; t.textContent = ok ? "コピーしました。ありがとうございます！" : "ありがとうございます！（選択された文字をコピーしてください）"; }
+});
 function viewGuide(gated) {
   const sec = (n, t, body) => `<section class="panel guide"><div class="panel-body"><h3><span class="gnum">${n}</span>${t}</h3>${body}</div></section>`;
   // inside a tournament, start with the guide for the side this person is on
@@ -1746,7 +1758,12 @@ function viewGuide(gated) {
   return `<div class="guide-top"><h2>使い方</h2><p>${gr === "intro" ? "このサイトの紹介です。立場ごとの使い方は、下のボタンで切り替えられます。" : "ほかの立場の使い方は、下のボタンで切り替えられます。"}</p>
     <div class="guide-roles" role="group" aria-label="立場を選ぶ">${GUIDE_ROLES.map(([k, t]) => `<button class="btn sm" data-guiderole="${k}" aria-pressed="${gr === k}">${t}</button>`).join("")}</div>
     <div class="btns">${demoMode ? "" : `<button class="btn primary" data-act="demo-on">デモを見る（ログイン不要・保存されません）</button>`}${gated ? `<a class="btn" href="#">← 最初の画面に戻る</a>` : ""}</div></div>
-  <div class="guide-list">${list.map(([t, b], i) => sec(i + 1, t, b)).join("")}</div>`;
+  <div class="guide-list">${list.map(([t, b], i) => sec(i + 1, t, b)).join("")}</div>
+  <section class="panel guide guide-foot"><div class="panel-body">
+    <p>ご意見・ご要望・不具合のフィードバックは、<b>XのDM</b>までお送りください。</p>
+    <div class="btns"><a class="btn primary" href="${FEEDBACK_URL}" target="_blank" rel="noopener noreferrer">Xのページを開く</a></div>
+    ${SUPPORT_CODE ? `<div class="support"><div class="dl">開発者の応援コード</div><button class="support-code" data-act="support-copy" aria-label="応援コードをコピー">${esc(SUPPORT_CODE)}</button><span class="muted-s">タップするとコピーされます</span><div class="support-thanks" id="support-thanks" hidden>ありがとうございます！</div></div>` : ""}
+  </div></section>`;
 }
 function viewRules() {
   const set = SETS(), sec = (t, items) => `<section class="panel"><div class="panel-body"><h3>${t}</h3><ul>${items.filter(Boolean).map(x => `<li>${x}</li>`).join("")}</ul></div></section>`;
