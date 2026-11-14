@@ -1743,7 +1743,7 @@ const GUIDE = {
   ],
 };
 // feedback goes to the developer's X account; the support code is copied with one tap
-const FEEDBACK_URL = "https://x.com/ywhBqaUjT9aoanq", SUPPORT_CODE = "";
+const FEEDBACK_URL = "https://x.com/ywhBqaUjT9aoanq", SUPPORT_CODE = "C-sEuU";
 document.addEventListener("click", async ev => {
   const el = ev.target.closest('[data-act="support-copy"]'); if (!el) return;
   let ok = false; try { await navigator.clipboard.writeText(SUPPORT_CODE); ok = true; } catch (e) {
