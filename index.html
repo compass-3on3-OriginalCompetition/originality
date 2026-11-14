@@ -439,6 +439,9 @@ details.glist summary { cursor: pointer; }
 .guide ul ul { margin-top: 4px; }
 .guide p { margin: 0; font-size: .92rem; max-width: 70ch; }
 .guide-foot .panel-body { display: grid; gap: 10px; }
+.host-support { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center; font-size: .78rem; color: var(--muted); padding: 6px 0 2px; }
+.hs-code { font-family: var(--mono); font-size: .85rem; font-weight: 700; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); cursor: pointer; }
+.host-support span { font-size: .7rem; }
 .support { display: grid; gap: 6px; justify-items: start; padding-top: 10px; border-top: 1px dashed var(--line); }
 .support-code { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; letter-spacing: .08em; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--surface-2); color: var(--ink); cursor: pointer; }
 .support-thanks { color: var(--good); font-weight: 700; }
@@ -1147,7 +1150,7 @@ function renderInner() {
   if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); if (resumeData) setTimeout(() => applyResume(true), 0); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
   const html = { myteam: viewMyTeam, notice: viewNotices, standings: viewStandings, matches: s => reportsAdminView(s) + outsPanel(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
-  app.innerHTML = (isLocked(s) ? `<div class="notice final-note"><strong>この大会は結果が確定しています。</strong>結果・順位・登録内容は、これ以上変更できません。</div>` : "") + (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? demoBar(s) : "") + html;
+  app.innerHTML = (isLocked(s) ? `<div class="notice final-note"><strong>この大会は結果が確定しています。</strong>結果・順位・登録内容は、これ以上変更できません。</div>` : "") + (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? demoBar(s) : "") + html + hostSupportView(s);
   if (resumeData) setTimeout(() => applyResume(false), 0);
 }
 const fxBtn = () => `<button class="btn ghost fx-toggle ${fxOn() ? "on" : ""}" data-act="fx-toggle" aria-pressed="${fxOn()}" title="動く背景（稲妻）のオン・オフ" style="padding:2px 10px;font-size:.78rem">⚡ 背景 ${fxOn() ? "オン" : "オフ"}</button>`;
@@ -2977,7 +2980,7 @@ document.addEventListener("click", async ev => {
 });
 
 /* ---------- Google login + per-tournament codes (Firebase; used when firebase-config.js is filled in) ---------- */
-const FB = { on: false, auth: null, fs: null, user: null, tid: null, t: null, isOwner: false, codes: null, tcodes: null, team: null, lobby: null, busy: "" };
+const FB = { on: false, auth: null, fs: null, user: null, tid: null, t: null, isOwner: false, codes: null, tcodes: null, team: null, lobby: null, busy: "", profile: null, myPage: false };
 const FB_VER = "10.14.1";
 const LAST_TID = "compass3on3_tid";
 function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => rej(new Error("読み込めませんでした: " + src)); document.head.appendChild(el); }); }
@@ -3006,7 +3009,7 @@ async function fbBoot(cfg) {
   } catch (e) { loadNote = navigator.onLine === false ? "オフラインです。インターネットにつながってから開き直してください。" : "ログインの仕組みを読み込めませんでした。通信状況を確認して、開き直してください。"; render(); paintNet(); return; }
   FB.auth.getRedirectResult().catch(e => toast("ログインできませんでした: " + (e.message || e.code)));
   FB.auth.onAuthStateChanged(async u => {
-    FB.user = u; resetData(); FB.tid = null;
+    FB.user = u; FB.profile = null; FB.myPage = false; resetData(); FB.tid = null;
     if (!u) { let pref = null; try { pref = localStorage.getItem(LOCAL_PREF); } catch (e) {} if (pref === "1") return lcLobby(true); render(); return; }
     LOCAL.on = false; LOCAL.id = null; mode = "fb"; try { localStorage.removeItem(LOCAL_PREF); } catch (e) {}
     if (FB.pendingJoin) { const c = FB.pendingJoin; FB.pendingJoin = null; await fbLobby(); await fbJoin(c); return; }
@@ -3014,13 +3017,61 @@ async function fbBoot(cfg) {
     if (last) await fbOpen(last); else await fbLobby();
   });
 }
+/* ---------- my page: the organiser's own support code (optional) ---------- */
+const SUPPORT_RE = /^[A-Za-z0-9-]{1,20}$/;
+async function loadProfile() {
+  if (!FB.user || FB.user.isAnonymous) { FB.profile = null; return; }
+  try { const d = await FB.fs.doc(`users/${FB.user.uid}/profile/main`).get(); FB.profile = { supportCode: d.exists ? String(d.data().supportCode || "") : "" }; }
+  catch (e) { FB.profile = { supportCode: "", failed: true }; }
+}
+function viewMyPage() {
+  const code = FB.profile?.supportCode || "";
+  return `<section class="panel gate"><div class="panel-head"><h2>マイページ</h2><span class="meta">${esc(FB.user.email || FB.user.displayName || "")}</span></div>
+    <div class="panel-body" style="display:grid;gap:14px">
+      <div class="gform"><label for="my-support">あなたの応援コード（任意）</label>
+        <div class="btns"><input id="my-support" value="${esc(code)}" placeholder="例：C-xxxx" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" data-act="mypage-save">保存</button>${code ? `<button class="btn ghost danger" data-act="mypage-clear">消す</button>` : ""}</div>
+        <span class="muted-s">あなたが主催する大会で<b>すべての対戦が終わると</b>、運営・選手・観戦の人の画面の下に「主催者の応援コード」として小さく表示されます（タップでコピーできます）。入力しなくても大丈夫です。半角の英数字と「-」だけ、20文字まで。</span>
+        ${FB.profile?.failed ? `<span class="bad-t">マイページを読み込めませんでした。主催者のFirestoreのルールが古い可能性があります。</span>` : ""}</div>
+      <div class="btns"><button class="btn" data-act="mypage-close">← 大会一覧に戻る</button></div>
+    </div></section>`;
+}
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act^='mypage-']"); if (!el || !FB.user || FB.user.isAnonymous) return;
+  const act = el.dataset.act;
+  if (act === "mypage-open") { FB.myPage = true; if (!FB.profile) await loadProfile(); render(); return; }
+  if (act === "mypage-close") { FB.myPage = false; render(); return; }
+  const v = act === "mypage-clear" ? "" : ($("#my-support")?.value || "").trim();
+  if (v && !SUPPORT_RE.test(v)) { toast("応援コードは、半角の英数字と「-」だけ、20文字までで入れてください"); return; }
+  el.disabled = true;
+  try {
+    await FB.fs.doc(`users/${FB.user.uid}/profile/main`).set({ supportCode: v, at: Date.now() });
+    FB.profile = { supportCode: v };
+    // every tournament this person organises carries the code, so participants can see it
+    for (const t of FB.lobby?.owned || []) if ((t.hostCode || "") !== v) { try { await FB.fs.doc("tournaments/" + t.id).update({ hostCode: v }); t.hostCode = v; } catch (e) {} }
+    toast(v ? "応援コードを保存しました" : "応援コードを消しました");
+  } catch (e) { toast(e.code === "permission-denied" ? "保存できませんでした。Firestoreのルールを最新のものに更新してください" : "保存できませんでした: " + (e.message || e.code)); }
+  el.disabled = false; render();
+});
+// shown to everyone (but the organiser) once every match is over
+function hostSupportView(s) {
+  const c = FB.on && FB.tid && !demoMode && !FB.isOwner ? String(FB.t?.hostCode || "") : "";
+  if (!SUPPORT_RE.test(c) || !tournamentDone(s)) return "";
+  return `<div class="host-support">主催者の応援コード：<button class="hs-code" data-act="host-copy">${esc(c)}</button><span>タップでコピー</span></div>`;
+}
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest('[data-act="host-copy"]'); if (!el) return;
+  const c = el.textContent;
+  try { await navigator.clipboard.writeText(c); toast("コピーしました。ありがとうございます！"); }
+  catch (e) { const r = document.createRange(); r.selectNodeContents(el); getSelection().removeAllRanges(); getSelection().addRange(r); toast("ありがとうございます！（選択された文字をコピーしてください）"); }
+});
 async function fbLobby() {
-  resetData(); FB.tid = null; FB.t = null; FB.codes = null; FB.lobby = null; render();
+  FB.myPage = false; resetData(); FB.tid = null; FB.t = null; FB.codes = null; FB.lobby = null; render();
   try { localStorage.removeItem(LAST_TID); } catch (e) {}
   const uid = FB.user.uid, out = { owned: [], joined: [] };
   try { (await FB.fs.collection("tournaments").where("owner", "==", uid).get()).forEach(d => out.owned.push({ id: d.id, ...d.data() })); } catch (e) {}
   try { (await FB.fs.collection(`users/${uid}/joined`).get()).forEach(d => { if (!out.owned.some(x => x.id === d.id)) out.joined.push({ id: d.id, ...d.data() }); }); } catch (e) {}
   out.owned.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  await loadProfile();
   FB.lobby = out; softRender(); // don't wipe what is being typed
   sweepStale();
 }
@@ -3050,7 +3101,10 @@ async function fbOpen(tid, quiet) {
   if (!admin) { try { await FB.fs.collection(`tournaments/${tid}/members`).limit(1).get(); admin = true; } catch (e) {} }
   role = admin ? "admin" : "viewer"; FB.team = null; FB.tcodes = null;
   if (!admin) { try { const p = await FB.fs.doc(`tournaments/${tid}/players/${uid}`).get(); if (p.exists && p.data().team) { role = "player"; FB.team = p.data().team; } } catch (e) {} }
-  if (FB.isOwner) { try { FB.codes = (await FB.fs.doc("secrets/" + tid).get()).data() || null; } catch (e) {} }
+  if (FB.isOwner) { try { FB.codes = (await FB.fs.doc("secrets/" + tid).get()).data() || null; } catch (e) {}
+    if (!FB.profile) await loadProfile();
+    const hc = FB.profile && !FB.profile.failed ? FB.profile.supportCode : null;
+    if (hc != null && (FB.t.hostCode || "") !== hc) FB.fs.doc("tournaments/" + tid).update({ hostCode: hc }).then(() => { FB.t.hostCode = hc; }).catch(() => {}); }
   if (admin) { try { FB.tcodes = (await FB.fs.doc("teamcodes/" + tid).get()).data()?.codes || {}; } catch (e) { FB.tcodes = {}; } }
   try { localStorage.setItem(LAST_TID, tid); } catch (e) {}
   db = fsWrap(tid); subscribeAll(db, admin);
@@ -3064,8 +3118,11 @@ async function fbCreate(name, settings) {
   const uid = FB.user.uid, tid = rid(10);
   FB.busy = "作成中…"; render();
   try {
-    try { await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now(), seenAt: firebase.firestore.FieldValue.serverTimestamp() }); }
-    catch (e) { await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now() }); }   // older Firestore rules (before "seenAt")
+    const hc = FB.profile?.supportCode || "";
+    try { await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now(), seenAt: firebase.firestore.FieldValue.serverTimestamp(), ...(hc ? { hostCode: hc } : {}) }); }
+    catch (e) {
+      try { await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now(), seenAt: firebase.firestore.FieldValue.serverTimestamp() }); }   // older rules (before the support code)
+      catch (e2) { await FB.fs.doc("tournaments/" + tid).set({ name, owner: uid, createdAt: Date.now() }); } }   // older rules (before "seenAt")
     await FB.fs.doc("secrets/" + tid).set({ viewCode: rid(12), adminCode: rid(12) });
     await FB.fs.doc(`tournaments/${tid}/data/config`).set({ eventName: name, teams: [], tiebreak: {}, settings: { ...DEF_SET, ...(settings || {}) } });
     FB.busy = ""; toast("大会を作りました"); await fbOpen(tid);
@@ -3195,7 +3252,8 @@ function viewGate() {
       <button class="btn ghost sm" data-act="fb-hide" data-id="${esc(t.id)}" aria-label="${esc(t.name || "")}をこの端末の一覧から削除">削除</button></div>`;
   const hrow = (t, tag) => `<div class="trow2 hidden-row"><span class="tn2">${esc(t.name || "（名前なし）")}</span><span class="pill">${tag}</span><button class="btn sm" data-act="fb-unhide" data-id="${esc(t.id)}">取得し直す</button></div>`;
   const vis = a => a.filter(t => !hid.has(t.id)), gone = L ? [...L.owned.filter(t => hid.has(t.id)).map(t => [t, "主催"]), ...L.joined.filter(t => hid.has(t.id)).map(t => [t, (t.kind === "閲覧" ? "観戦" : t.kind || "観戦")])] : [];
-  return `<section class="panel gate"><div class="panel-head"><h2>大会一覧</h2><span class="meta">${FB.user.isAnonymous ? "ログインなし（この端末）" : esc(FB.user.email || FB.user.displayName || "")}</span></div>
+  if (FB.myPage && !FB.user.isAnonymous) return viewMyPage();
+  return `<section class="panel gate"><div class="panel-head"><h2>大会一覧</h2><span class="meta">${FB.user.isAnonymous ? "ログインなし（この端末）" : `${esc(FB.user.email || FB.user.displayName || "")} <button class="btn sm" data-act="mypage-open">マイページ</button>`}</span></div>
     <div class="panel-body" style="display:grid;gap:16px">
       ${FB.busy ? `<div class="notice">${esc(FB.busy)}</div>` : ""}
       ${!L ? `<div class="muted-s">読み込み中…</div>` : `
