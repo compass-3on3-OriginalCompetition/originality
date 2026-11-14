@@ -2632,7 +2632,7 @@ function viewMyTeam(s) {
 }
 // the next match, made obvious: who makes the room, and the room number shared between the two teams and the operators
 function nextMatchView(s, team, next, ms) {
-  if (!next) return `<section class="panel next-match"><div class="panel-head"><h2>次の対戦</h2></div><div class="panel-body"><div class="muted-s">${ms.length ? "今決まっている対戦はすべて終わりました。次の組み合わせが決まると、ここに出ます。" : "まだ組み合わせがありません。"}</div></div></section>`;
+  if (!next) return `<section class="panel next-match"><div class="panel-head"><h2>次の対戦</h2></div><div class="panel-body"><div class="muted-s">${tournamentDone(s) ? "大会のすべての対戦が終わりました。" : ms.length ? "今決まっている対戦はすべて終わりました。次の組み合わせが決まると、ここに出ます。" : "まだ組み合わせがありません。"}</div></div></section>`;
   const host = next.a === team.id, other = host ? next.b : next.a, room = roomOf(next), locked = isLocked(s);
   if (!matchStarted(s, next)) return `<section class="panel next-match"><div class="panel-head"><h2>次の対戦</h2><span class="meta">${esc(next.label)} ・ まだ始まっていません</span></div><div class="panel-body nm-body">
     <div class="nm-vs"><span>${esc(team.name)}</span><small>vs</small><span>${esc(teamName(s, other))}</span></div>
