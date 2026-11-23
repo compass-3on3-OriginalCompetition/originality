@@ -698,7 +698,7 @@ const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
 const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
-  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, stageCheck: true, submitHeroes: true, submitDecks: true, requireMedalShot: true, heroCount: 2, medalCount: 3, deckCount: 2, roundGate: false, koGate: false };
+  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, stageCheck: true, stageRule: "dera_first", submitHeroes: true, submitDecks: true, requireMedalShot: true, heroCount: 2, medalCount: 3, deckCount: 2, roundGate: false, koGate: false };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -711,7 +711,10 @@ function SETS(st) {
   x.advance = [0, 1, 2, 4].includes(+x.advance) ? +x.advance : 2;
   x.swissAdvance = [0, 2, 4, 8].includes(+x.swissAdvance) ? +x.swissAdvance : 0;
   x.cold = !!x.cold; x.third = x.third !== false && x.third !== "false"; x.swissByeOnce = x.swissByeOnce !== false && x.swissByeOnce !== "false";
-  x.stageCheck = x.stageCheck !== false && x.stageCheck !== "false";
+  // how stages are chosen (older tournaments only had "check the stage rule" on/off)
+  { const own = (st || S())?.config?.settings || {};
+    x.stageRule = STAGE_RULES[own.stageRule] ? own.stageRule : (x.stageCheck === false || x.stageCheck === "false" ? "free" : "dera_first"); }
+  x.stageCheck = x.stageRule !== "free";
   x.submitHeroes = !!x.submitHeroes; x.submitDecks = !!x.submitDecks; x.requireMedalShot = !!x.requireMedalShot;
   // how many each member may submit: heroes 1-5, medals per hero 1-3, decks 1-5
   const cl = (v, lo, hi, d) => Number.isInteger(+v) && +v >= lo && +v <= hi ? +v : d;
@@ -1467,13 +1470,15 @@ function settingsForm(set, id) {
       ${row("次の対戦へ", sel("roundGate", [["false", "選手のタイミングで進む"], ["true", "運営が「次のラウンドに進む」を押して進める"]], "ラウンドの進め方"), "運営が進めるときは、今のラウンドが始まっている対戦だけが選手の「次の対戦」に出ます。次のラウンドは、運営が押すまで始まりません")}
       ${set.roundGate && mode === "group_ko" ? row("決勝トーナメント", sel("koGate", [["false", "運営が進めない（対戦が決まりしだい進む）"], ["true", "運営が進める（準決勝 → 決勝なども押して進める）"]], "決勝トーナメントの進め方")) : ""}
     </div>` : ""}
+    <div class="sgroup"><div class="sg-t">ステージの決め方</div>
+      ${row("ステージ", sel("stageRule", Object.entries(STAGE_RULES).map(([k, v]) => [k, v.ja]), "ステージの決め方"), set.stageRule === "free" ? "" : `禁止ステージ（${STAGE_BANNED_JA()}）は使えません。リプレイのスクショからステージを確認して、決まりと違うときは警告を出します（ステージは、運営が一度見本を登録すると見分けられるようになります）`)}
+    </div>
     <div class="sgroup"><div class="sg-t">事前の提出と確認</div>
       ${row("ヒーローとメダル", chk("submitHeroes", "事前に登録して、リプレイで確認する"))}
       ${set.submitHeroes ? row("ヒーローの枠", sel("heroCount", nums(1, 5, x => `1人につき${x}枠まで`), "ヒーローの枠"), "1枠＝ヒーロー1体とそのメダル。同じヒーローでもメダルが違えば別の枠（別のキャラ）として登録できます") : ""}
       ${row("デッキ", chk("submitDecks", "事前に登録して、リプレイで確認する"))}
       ${set.submitDecks ? row("デッキの数", sel("deckCount", nums(1, 5, x => `1人につき${x}つまで`), "デッキの数")) : ""}
       ${row("リプレイのスクショ", chk("requireMedalShot", "メダル情報が表示されたものだけ受け付ける"))}
-      ${row("ステージ", chk("stageCheck", "ステージのルールを確認する"), "1試合目と、引き分けの次の試合は「でらクランクストリート」、禁止ステージは使わない。ステージは、運営が一度見本を登録すると見分けられるようになります")}
     </div></div>`;
 }
 function rankForm(set, id, row) {
@@ -1546,7 +1551,7 @@ const WIZ = [
   { id: "submitDecks", s: "デッキの事前登録", q: "デッキを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
   { id: "deckCount", s: "デッキの数", when: x => x.submitDecks, q: "デッキは、1人につき何個まで登録できるようにしますか？", opts: () => upTo(5).map(i => [i + 1, `${i + 1}つまで`]) },
   { id: "requireMedalShot", s: "スクショのメダル情報", q: "リプレイのスクショは、メダル情報が表示されたものだけ受け付けますか？", opts: () => YN("メダル情報があるものだけ受け付ける", "メダル情報がなくても受け付ける") },
-  { id: "stageCheck", s: "ステージの確認", q: "ステージのルールを確認しますか？", note: "1試合目と、引き分けの次の試合は「でらクランクストリート」、禁止ステージは使わない、を確認します。", opts: () => YN("確認する", "確認しない") },
+  { id: "stageRule", s: "ステージの決め方", q: "ステージは、どう決めますか？", note: "「決めない」以外では、禁止ステージは使えません。リプレイのスクショからステージを確認して、決まりと違うときは警告を出します。", opts: () => Object.entries(STAGE_RULES).map(([k, v]) => [k, v.ja]) },
 ];
 const wizList = x => WIZ.filter(q => !q.when || q.when(x));
 const wizVal = (q, x) => x[q.key || q.id];
@@ -1643,7 +1648,7 @@ const GUIDE = {
     <li>設定のしかたを選びます。
       <ul><li>「<b>全て自分で設定する</b>」：すべての設定を1つの画面で選びます。</li>
       <li>「<b>質問に答えて設定する</b>」：1つずつ出てくる質問に答えていきます。最後に一覧で確認でき、項目を押すとその質問に戻って直せます。</li></ul></li>
-    <li>決めるのは、1チームの人数（3on3・2on2・1on1）、形式（総当たり → トーナメント／総当たりのみ／トーナメントのみ／スイスドローのみ）、1対戦の試合数、コールドの有無、順位の決め方、トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー（メダル付き）とデッキの事前登録と、それぞれ1人何枠まで登録できるか、スクショのメダル情報、ステージの確認です。</li>
+    <li>決めるのは、1チームの人数（3on3・2on2・1on1）、形式（総当たり → トーナメント／総当たりのみ／トーナメントのみ／スイスドローのみ）、1対戦の試合数、コールドの有無、順位の決め方、トーナメントの試合数（BO1/BO3/BO5）と3位決定戦、ヒーロー（メダル付き）とデッキの事前登録と、それぞれ1人何枠まで登録できるか、スクショのメダル情報、ステージの決め方です。</li>
     <li>設定は、あとから「チーム設定」の「<b>大会の設定</b>」で変えられます（結果を入れた後に変えると、数え方も変わります）。「ルール早見表」は設定に合わせて自動で書き変わります。</li></ol>`],
     ["コードを渡す", `<ul>
     <li>「チーム設定」の「<b>共有コード</b>」（主催だけ）と「<b>選手コード</b>」に、渡すコードがあります。
@@ -1680,7 +1685,7 @@ const GUIDE = {
     <li>通知はこの端末に保存されます。アプリを閉じているときは届きません（次に開いたときに「通知」タブに入ります）。</li></ul>`],
     ["棄権・失格とステージ", `<ul>
     <li>「対戦表・結果入力」の「<b>棄権・失格</b>」で、そのチームのまだ結果が入っていない試合をまとめて不戦敗にできます。「解除」で、そこで入れた不戦敗だけを消せます。</li>
-    <li>ステージは、スクショ横の「このステージを登録…」で一度登録すると、次から見分けられます。1試合目や引き分けの次がでらクランクストリートでないとき、禁止ステージのときに警告が出ます。</li></ul>`],
+    <li><b>ステージの決め方</b>は、大会の設定で選べます（1試合目と引き分けの後はでらクランクストリート・残りは負けた方が決める／全試合でらクランクストリートのみ／1試合目だけでらクランクストリート・残りは負けた方が決める／決めない）。ステージは、スクショ横の「このステージを登録…」で一度登録すると、次から見分けられます。決まりと違うステージや禁止ステージのときに警告が出ます（選手の報告画面にも出ます）。</li></ul>`],
     ["順位表と決勝トーナメント", `<ul>
     <li>「<b>順位表</b>」は、設定した順位の決め方で自動で並びます。並んだ場合は、順位決定戦・抽選の結果を入れます。</li>
     <li>「<b>決勝トーナメント</b>」には、設定した数の上位チームが自動で入ります。対戦カードを押すと結果を入力できます。</li>
@@ -1790,9 +1795,10 @@ function viewRules() {
     set.submitDecks ? `1人につきデッキ${set.deckCount}つまでを事前に提出。試合ごとにどのヒーロー・デッキを組み合わせてもよい` : "デッキの事前提出はなし",
     set.submitHeroes || set.submitDecks ? "提出外のヒーロー・デッキ・メダルの使用は違反行為" : "",
     set.requireMedalShot ? "結果報告のリプレイは、メダル情報を表示させた状態のスクショのみ受理" : ""]);
+  const stg = sec("ステージ", STAGE_RULES[set.stageRule].rule.concat(set.stageRule === "free" ? [] : [`禁止ステージ：${STAGE_BANNED_JA()}`]));
   const input = sec("このサイトでの入力", ["各試合の両チームのポータルキー（0〜5）を入力。不戦敗は「左/右が不戦敗」を選ぶと0-5で記録",
     set.format !== "knockout" && set.cold && set.games >= 2 ? "コールドは自動で判定されます" : "", set.format !== "knockout" ? "順位決定戦・抽選の結果は、対戦がすべて終わった後に順位表から入力します" : "", "シングルロス・マッチロスなどの処分は、該当試合を不戦敗として入力してください"]);
-  return `<div class="notice">この大会の形式：<strong>${esc(fmtJa(set))}</strong>（設定は運営が「チーム設定」の「大会の設定」で変えられます）</div><div class="rules">${stage}${ko}${input}${sub}</div>`;
+  return `<div class="notice">この大会の形式：<strong>${esc(fmtJa(set))}</strong>（設定は運営が「チーム設定」の「大会の設定」で変えられます）</div><div class="rules">${stage}${ko}${stg}${input}${sub}</div>`;
 }
 
 /* ---------- members, submitted decks and screenshot reading ---------- */
@@ -2017,6 +2023,14 @@ document.addEventListener("click", async ev => {
 // the rule only needs to know: is it でらクランクストリート, another allowed stage, or a banned one
 const STAGE_CATS = ["でらクランクストリート", "使えるステージ（その他）", "トレーニングステージ", "【ストヘス区】急襲戦闘区域", "【裏】ステージ", "でらクラクラストリート", "グレートホール", "立体交差のない風景"];
 const STAGE_FIRST = 0, isBannedStage = k => k >= 2;
+// the ways a tournament can decide its stages
+const STAGE_RULES = {
+  dera_first: { ja: "1試合目と引き分けの後は「でらクランクストリート」・残りは負けた方が決める", rule: ["1試合目と、引き分けの次の試合は「でらクランクストリート」", "それ以外は、前の試合で負けたチームがステージを決める"] },
+  dera_only: { ja: "全試合「でらクランクストリート」のみ", rule: ["すべての試合を「でらクランクストリート」で行う"] },
+  first_only: { ja: "1試合目だけ「でらクランクストリート」・残りは負けた方が決める", rule: ["1試合目は「でらクランクストリート」", "2試合目からは、前の試合で負けたチームがステージを決める"] },
+  free: { ja: "決めない（ステージを確認しない）", rule: ["ステージの決まりはなし（このサイトではステージを確認しません）"] },
+};
+const STAGE_BANNED_JA = () => STAGE_CATS.filter((_, k) => isBannedStage(k)).join("・");
 function stageEnc(f) { const b = new Uint8Array(f.length); f.forEach((v, i) => b[i] = v < 0 ? 255 : Math.max(0, Math.min(254, v))); let t = ""; b.forEach(x => t += String.fromCharCode(x)); return btoa(t); }
 function stageDec(t) { try { const r = atob(t); return Array.from(r, ch => { const v = ch.charCodeAt(0); return v === 255 ? -1 : v; }); } catch (e) { return null; } }
 // which registered stage this picture is (null: not registered yet)
@@ -2028,11 +2042,13 @@ function stageOf(s, feat) {
 }
 // warnings for game i (games: the reported scores so far, to know whether the game before was a draw)
 function stageWarn(s, k, i, prevDraw) {
-  if (!SETS(s).stageCheck || k == null) return [];
+  const rule = SETS(s).stageRule;
+  if (rule === "free" || k == null) return [];
   const out = [];
   if (isBannedStage(k)) out.push(`禁止ステージ「${STAGE_CATS[k]}」の可能性があります`);
+  else if (rule === "dera_only" && k !== STAGE_FIRST) out.push("この大会は全試合「でらクランクストリート」のはずですが、違うステージの可能性があります");
   else if (i === 0 && k !== STAGE_FIRST) out.push("1試合目は「でらクランクストリート」のはずですが、違うステージの可能性があります");
-  else if (prevDraw && k !== STAGE_FIRST) out.push("前の試合が引き分けなので「でらクランクストリート」のはずですが、違うステージの可能性があります");
+  else if (rule === "dera_first" && prevDraw && k !== STAGE_FIRST) out.push("前の試合が引き分けなので「でらクランクストリート」のはずですが、違うステージの可能性があります");
   return out;
 }
 const isDraw = g => g && g.a != null && g.b != null && +g.a === +g.b;
