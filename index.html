@@ -696,6 +696,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
 /* ---------- state ---------- */
 const real = { config: null, matches: {}, bracket: {}, members: {}, loaded: false };
 let memPrompt = null, scan = null, memTeam = null, renderPending = false;
+let isFramed = false;   // shown inside another site: the page refuses to run (see framed())
 let demo = null, demoMode = false, demoBack = null, demoShots = {};
 // room numbers shared by the room-making team: { "<kind>_<match>_<team>": { kind, mid, a, b, room, by, at } }
 const ROOMS = () => demoMode ? (demo?.rooms || (demo && (demo.rooms = {})) || {}) : (real.rooms || {});
@@ -1167,6 +1168,7 @@ addEventListener("resize", () => { clearTimeout(markScroll.t); markScroll.t = se
 const isLocked = st => !demoMode && !!(st || S())?.config?.final;
 function renderInner() {
   renderPending = false;
+  if (isFramed) return;
   const s = S(), r = route();
   if (isLocked(s) && role === "admin") role = "viewer";          // a finalised tournament can only be looked at
   document.querySelectorAll("#tabs a, #bnav a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + r ? "page" : "false"));
@@ -1207,6 +1209,7 @@ function demoBar(s) {
 }
 document.addEventListener("change", ev => { if (ev.target.matches?.("[data-demoteam]") && demoMode) { FB.team = ev.target.value; repDraft = null; render(); } });
 function renderMode() {
+  if (isFramed) return;
   const labels = { admin: "運営（編集可）", contributor: "編集可", viewer: "観戦者", player: "選手" };
   const m = mode === "local" ? `<span class="roletag">${LOCAL.on ? "この端末だけ" : "この端末に保存"}</span>` : mode === "nodb" ? `<span class="pill bad">オフライン</span>` : "";
   if (FB.on && !(FB.user && FB.tid) && !(LOCAL.on && LOCAL.id) && !demoMode) { $("#mode").innerHTML = fxBtn() + reloadBtn() + (FB.user ? `<button class="btn ghost" data-act="fb-logout" style="padding:2px 10px;font-size:.78rem">ログアウト</button>` : ""); return; }
@@ -3202,6 +3205,7 @@ document.addEventListener("click", async ev => {
     return;
   }
   if (act === "rep-scan" && r && role === "admin") { // open the match with the reported scores and read its screenshots
+    if (!reportMatch(s, r)) { toast("報告の対戦が、この大会の対戦と一致しません（開けません）"); return; }   // the report is a player's data: never let it pick which match gets opened and saved
     const urls = shotCache[r.id] || await loadShots(r);
     const files = await Promise.all(urls.map(async (u, i) => new File([await (await fetch(u)).blob()], `report_${i + 1}.jpg`, { type: "image/jpeg" })));
     if (r.kind === "group") { location.hash = "matches"; openId = null; openEditor(r.mid, { kind: "group", group: r.g, a: r.a, b: r.b }); }
@@ -3862,7 +3866,10 @@ document.addEventListener("click", async ev => {
   const e = installEvt; installEvt = null; e.prompt(); try { await e.userChoice; } catch (er) {} softRender();
 });
 if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.FIREBASE_CONFIG?.useEmulator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+// this page must not be shown inside another site (someone could lay invisible buttons over it)
+function framed() { try { return window.top !== window.self && !/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(location.href) && window.top.location.host !== location.host; } catch (e) { return true; } }
 async function boot() {
+  if (framed()) { isFramed = true; document.body.innerHTML = `<div style="padding:24px;font:16px sans-serif;color:#fff;background:#111">このページは、ほかのサイトの中では開けません。<a style="color:#8cf" href="${SITE_URL}" target="_top" rel="noopener">${SITE_URL}</a> を直接開いてください。</div>`; return; }
   checkSite(); paintNet(); fxApply();
   try { const dl = $("#cardlist"); if (window.CompassReader) dl.innerHTML = CompassReader.cardNames.map(n => `<option value="${esc(n)}"></option>`).join(""); } catch (e) {}
   render();
