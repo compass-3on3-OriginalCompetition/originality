@@ -1782,7 +1782,7 @@ const GUIDE = {
     <li>試合ごとに、<b>その試合のリプレイ画面のスクショを1枚</b>（必須）付けます。スクショを選ぶと、ポータルキーを自動で読み取って入れます。違っていたら直してください。</li>
     <li>メダル情報が必要な大会では、リプレイ画面でⓘを押して<b>メダル情報を表示させてから</b>撮ってください。映っていないと送れません。</li>
     <li>「<b>運営に送る</b>」を押します。運営が承認すると結果になります。</li>
-    <li>送った報告は「送った報告」に出ます。承認される前なら「<b>取り下げる</b>」で消せます。却下されたときは理由が表示されます。</li></ol>`],
+    <li>送った報告は「送った報告」に出ます。承認される前なら「<b>取り下げる</b>」で消せます。却下されたときは理由が表示されます。報告は<b>1つの対戦につき1つ</b>です。もう一度送ると、前の報告と置きかわります（承認されたあとは送れません）。</li></ol>`],
     ["順位表・対戦表を見る", `<ul>
     <li>「順位表」「対戦表・結果入力」「決勝トーナメント」で、大会全体の結果を見られます（選手は見るだけで、結果の入力はできません）。</li>
     <li>「ルール早見表」で、この大会のルール（試合数・コールド・順位の決め方など）を確認できます。</li></ul>`],
@@ -2812,15 +2812,18 @@ document.addEventListener("click", async ev => {
     if (!ch || !ch.canSend || isLocked(s)) { toast("このチャットには送れません"); return; }
     if (!text) return;
     if (text.length > CHAT_MAX) { toast(`${CHAT_MAX}文字までです`); return; }
-    if (Date.now() - chatLastSend < 2000) { toast("少し待ってから送ってください"); return; }
+    if (Date.now() - chatLastSend < 2500) { toast("少し待ってから送ってください"); return; }
     chatLastSend = Date.now();
     const kind = id[0], from = role === "admin" ? "staff" : "team";
     const mk = kind === "m" ? (ch.match?.kind || "") : "", mm = kind === "m" ? (ch.match?.mid || "") : "";
     const msg = { ch: kind === "m" ? "match" : kind === "s" ? "staff" : kind === "t" ? "team" : "all", key: kind === "m" ? id.slice(2) : "", mk, mm, a: ch.match?.a || "", b: ch.match?.b || "", team: from === "team" ? FB.team : kind === "s" ? id.slice(2) : "", from, text };
     if (demoMode) { demo.chat = [...(demo.chat || []), { ...msg, id: "d" + rid_(), by: "demo", at: Date.now() }]; chatMarkSeen(id); render(); setTimeout(() => { const l = $("#chat-log"); if (l) l.scrollTop = l.scrollHeight; }, 0); return; }
     el.disabled = true;
-    try { await FB.fs.collection(`tournaments/${FB.tid}/chat`).add({ ...msg, by: FB.user.uid, at: firebase.firestore.FieldValue.serverTimestamp() }); const t = $("#chat-in"); if (t) t.value = ""; chatMarkSeen(id); }
-    catch (e) { toast(e.code === "permission-denied" ? "送れませんでした。主催者に、Firestoreのルールを最新のものに更新してもらってください" : "送れませんでした: " + (e.message || e.code)); }
+    try {
+      const ts = firebase.firestore.FieldValue.serverTimestamp(), bt = FB.fs.batch();
+      bt.set(FB.fs.doc(`tournaments/${FB.tid}/chatRate/${FB.user.uid}`), { at: ts });   // at most one message every 2 seconds (checked by the rules)
+      bt.set(FB.fs.collection(`tournaments/${FB.tid}/chat`).doc(), { ...msg, by: FB.user.uid, at: ts }); await bt.commit(); const t = $("#chat-in"); if (t) t.value = ""; chatMarkSeen(id); }
+    catch (e) { toast(e.code === "permission-denied" ? "送れませんでした。少し待ってから、もう一度送ってください（続くときは、主催者にFirestoreのルールを最新のものに更新してもらってください）" : "送れませんでした: " + (e.message || e.code)); }
     el.disabled = false; render(); setTimeout(() => { const l = $("#chat-log"); if (l) l.scrollTop = l.scrollHeight; }, 0);
   }
 });
@@ -3007,8 +3010,16 @@ async function sendReport(s) {
     const id = "demo" + rid_(); demo.reports = [...(demo.reports || []), { id, team, by: "demo", kind: m.kind, mid: m.mid, g: m.g, a: m.a, b: m.b, label: m.label, games, shots: shots.length, note: (d.note || "").slice(0, 300), status: "pending", at: Date.now() }];
     demoShots[id] = shots.map(x => x.img); repDraft = null; toast("（デモ）運営に送りました。「運営」の立場に切り替えると、承認する画面を見られます"); render(); return;
   }
+  // one report per team and match: sending again replaces the earlier one (kept small on purpose: see the Firestore rules)
+  const base = `tournaments/${FB.tid}/`, rid = `${team}_${m.kind}_${m.mid}`, old = REP().find(x => x.id === rid);
+  if (old && old.status === "approved") { toast("この対戦の報告は、もう承認されています"); return; }
+  if (old && !confirm("この対戦の前の報告を、新しい報告に置きかえますか？")) return;
   d.busy = "send"; render();
-  const base = `tournaments/${FB.tid}/`, rid = rid_(), batch = FB.fs.batch();
+  if (old) {
+    try { for (let i = 0; i < Math.min(15, Number(old.shots) || 0); i++) await FB.fs.doc(`${base}reportShots/${rid}_${i}`).delete().catch(() => {}); await FB.fs.doc(`${base}reports/${rid}`).delete(); }
+    catch (e) { d.busy = false; render(); toast("前の報告を置きかえられませんでした: " + (e.message || e.code)); return; }
+  }
+  const batch = FB.fs.batch();
   batch.set(FB.fs.doc(base + "reports/" + rid), { team, by: FB.user.uid, kind: m.kind, mid: m.mid, g: m.g, a: m.a, b: m.b, label: m.label, games, shots: shots.length, note: (d.note || "").slice(0, 300), status: "pending", at: Date.now() });
   shots.forEach((x, i) => batch.set(FB.fs.doc(base + `reportShots/${rid}_${i}`), { team, rid, i, w: x.w, h: x.h, img: x.img }));
   try { await batch.commit(); repDraft = null; toast("運営に送りました。承認されると結果に反映されます"); }
@@ -3530,7 +3541,7 @@ document.addEventListener("click", async ev => {
       const base = `tournaments/${FB.tid}/`;
       const shots = await FB.fs.collection(base + "reportShots").get();
       for (let i = 0; i < shots.docs.length; i += 400) { const b = FB.fs.batch(); shots.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); }
-      try { const ch = await FB.fs.collection(base + "chat").get(); for (let i = 0; i < ch.docs.length; i += 400) { const b = FB.fs.batch(); ch.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); } } catch (e) {}   // older rules have no chat
+      for (const c of ["chat", "chatRate"]) try { const ch = await FB.fs.collection(base + c).get(); for (let i = 0; i < ch.docs.length; i += 400) { const b = FB.fs.batch(); ch.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); } } catch (e) {}   // older rules have no chat
       const reps = await FB.fs.collection(base + "reports").get();
       for (let i = 0; i < reps.docs.length; i += 400) { const b = FB.fs.batch();
         reps.docs.slice(i, i + 400).forEach(d => b.update(d.ref, d.data().status === "pending" ? { shotsGone: true, status: "rejected", reason: "大会の結果確定のため", decidedBy: FB.user.uid, decidedAt: Date.now() } : { shotsGone: true })); await b.commit(); }
@@ -3555,10 +3566,10 @@ let delArm = { tid: null, n: 0, at: 0, busy: false };
 const delCount = () => delArm.tid === FB.tid && Date.now() - delArm.at < 30000 ? delArm.n : 0;
 const delLabel = () => delArm.busy ? "削除中…" : ["完全に削除する", "本当に削除しますか？（あと2回押すと削除）", "元に戻せません。最後の確認です（あと1回押すと削除）"][delCount()] || "完全に削除する";
 async function deleteTournament(tid) {
-  const base = `tournaments/${tid}/`, cols = ["chat", "rooms", "reportShots", "reports", "matches", "bracket", "members", "data", "players", "viewers", "admins"];
+  const base = `tournaments/${tid}/`, cols = ["chat", "chatRate", "rooms", "reportShots", "reports", "matches", "bracket", "members", "data", "players", "viewers", "admins"];
   let n = 0;
   for (const c of cols) {
-    let snap; try { snap = await FB.fs.collection(base + c).get(); } catch (e) { if (c === "rooms" || c === "chat") continue; throw e; }   // older rules have no room numbers
+    let snap; try { snap = await FB.fs.collection(base + c).get(); } catch (e) { if (c === "rooms" || c === "chat" || c === "chatRate") continue; throw e; }   // older rules have no room numbers
     for (let i = 0; i < snap.docs.length; i += 400) { const b = FB.fs.batch(); snap.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); n += Math.min(400, snap.docs.length - i); }
   }
   for (const p of ["teamcodes/" + tid, "secrets/" + tid, "users/" + FB.user.uid + "/joined/" + tid]) await FB.fs.doc(p).delete().catch(() => {});
