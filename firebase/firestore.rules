@@ -154,6 +154,38 @@ service cloud.firestore {
         allow delete: if isAdmin(tid) || isStale(tid) || (isPlayer(tid) && resource.data.a == playerTeam(tid));
       }
 
+      // chat (text only, up to 200 characters; nobody can edit a message; deleted when the results are finalised)
+      //  ch "match": the two teams of a match + operators / "staff": one team + operators /
+      //  "team": one team only (the organiser may delete them) / "all": operators -> every team (read-only for players)
+      match /chat/{mid} {
+        allow read: if isStale(tid) || isOwner(tid)
+                    || (isAdmin(tid) && resource.data.ch in ['match', 'staff', 'all'])
+                    || (isPlayer(tid) && ((resource.data.ch == 'match' && (resource.data.a == playerTeam(tid) || resource.data.b == playerTeam(tid)))
+                                          || (resource.data.ch in ['staff', 'team'] && resource.data.team == playerTeam(tid))
+                                          || resource.data.ch == 'all'));
+        allow create: if !isFinal(tid) && signedIn()
+                      && request.resource.data.keys().hasOnly(['ch', 'key', 'a', 'b', 'team', 'from', 'by', 'text', 'at'])
+                      && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time
+                      && request.resource.data.text is string && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 200
+                      && request.resource.data.ch in ['match', 'staff', 'team', 'all']
+                      && request.resource.data.from in ['team', 'staff']
+                      && request.resource.data.key is string && request.resource.data.key.matches('^[A-Za-z0-9_]{0,100}$')
+                      && request.resource.data.a is string && request.resource.data.b is string && request.resource.data.team is string
+                      && (
+                        (request.resource.data.ch == 'match' && isTeamId(request.resource.data.a) && isTeamId(request.resource.data.b) && request.resource.data.key.size() > 0
+                          && ((request.resource.data.from == 'team' && isPlayer(tid) && request.resource.data.team == playerTeam(tid)
+                               && (request.resource.data.a == playerTeam(tid) || request.resource.data.b == playerTeam(tid)))
+                              || (request.resource.data.from == 'staff' && canEdit(tid) && request.resource.data.team == '')))
+                        || (request.resource.data.ch == 'staff' && isTeamId(request.resource.data.team)
+                          && ((request.resource.data.from == 'team' && isPlayer(tid) && request.resource.data.team == playerTeam(tid))
+                              || (request.resource.data.from == 'staff' && canEdit(tid))))
+                        || (request.resource.data.ch == 'team' && request.resource.data.from == 'team' && isPlayer(tid) && request.resource.data.team == playerTeam(tid))
+                        || (request.resource.data.ch == 'all' && request.resource.data.from == 'staff' && canEdit(tid) && request.resource.data.team == '')
+                      );
+        allow update: if false;
+        allow delete: if isOwner(tid) || isStale(tid) || (isAdmin(tid) && resource.data.ch in ['match', 'staff', 'all']);
+      }
+
       // shared with everyone in this tournament: settings, group results, final tournament
       match /data/{doc}    { allow read: if isViewer(tid) || isStale(tid); allow create, update: if canEdit(tid); allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid); }
       match /matches/{doc} { allow read: if isViewer(tid) || isStale(tid); allow create, update: if canEdit(tid); allow delete: if canEdit(tid) || isOwner(tid) || isStale(tid); }

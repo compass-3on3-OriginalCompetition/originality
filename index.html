@@ -335,6 +335,8 @@ button.bx:hover { border-color: #fff; }
     padding: 4px max(4px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)); }
   .bnav a { display: grid; justify-items: center; gap: 2px; padding: 6px 0 4px; color: var(--muted); text-decoration: none; font-size: .68rem; font-weight: 700; border-radius: 10px; }
   .bnav a svg { width: 22px; height: 22px; }
+  .bnav a { white-space: nowrap; letter-spacing: -.02em; position: relative; }
+  .bnav a .badge { position: absolute; top: 0; right: 4px; margin: 0; }
   .bnav a[aria-current="page"] { color: var(--accent); background: var(--surface-2); }
   main { padding-block: 14px calc(84px + env(safe-area-inset-bottom, 0px)); gap: 14px; }
   .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
@@ -581,6 +583,23 @@ details.used summary { cursor: pointer; font-size: .8rem; font-weight: 700; colo
 .guide-roles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .guide-roles .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .next-match { border-color: var(--accent); }
+.chat-body { display: grid; gap: 12px; }
+.chat-chs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.chat-ch { flex: 0 0 auto; display: grid; gap: 2px; text-align: left; max-width: 170px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; font-size: .82rem; cursor: pointer; position: relative; }
+.chat-ch small { color: var(--muted); font-size: .66rem; }
+.chat-ch b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-ch.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.chat-ch .badge { position: absolute; top: -6px; right: -6px; }
+.chat-log { display: grid; gap: 8px; max-height: 55vh; overflow-y: auto; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: rgba(0,0,0,.35); }
+.chat-msg { max-width: 85%; justify-self: start; display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.chat-msg.me { justify-self: end; border-color: var(--accent); }
+.chat-msg.staff:not(.me) { border-color: #5AA9E6; }
+.chat-h { display: flex; gap: 8px; align-items: baseline; font-size: .72rem; color: var(--muted); }
+.chat-h b { color: var(--ink); font-size: .78rem; }
+.chat-h .btn { margin-left: auto; padding: 0 6px; }
+.chat-t { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem; }
+.chat-send { display: flex; gap: 8px; align-items: flex-end; }
+.chat-send textarea { flex: 1 1 auto; min-width: 0; resize: vertical; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .note-row { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-size: .9rem; }
 .note-row.new { border-color: var(--accent); }
 .note-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
@@ -642,6 +661,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
     <nav class="tabs" id="tabs" aria-label="ページ切り替え">
       <a href="#myteam" hidden>マイチーム</a>
       <a href="#notice" hidden>通知</a>
+      <a href="#chat" hidden>チャット</a>
       <a href="#standings">順位表</a>
       <a href="#matches">対戦表・結果入力</a>
       <a href="#bracket">決勝トーナメント</a>
@@ -654,6 +674,7 @@ details.spanel[open] > summary h2::after { content: " ▾"; }
 <nav class="bnav" id="bnav" aria-label="ページ切り替え">
   <a href="#myteam" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>マイチーム</a>
   <a href="#notice" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>通知</a>
+  <a href="#chat" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>チャット</a>
   <a href="#standings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>順位表</a>
   <a href="#matches"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14M14 14l6 6M4 14l-1 4 4-1M20 4l-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>対戦</a>
   <a href="#bracket"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L3 7l5 4 4-6 4 6 5-4-1 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>決勝</a>
@@ -1101,6 +1122,11 @@ function makeDemo() {
   }
   const bm = bracketModel(d), sf = bm && bm.rounds[0][0];
   if (sf && sf.a && sf.b) d.bracket[sf.key] = { a: sf.a, b: sf.b, games: [{ a: 3, b: 2 }, { a: 1, b: 1 }, { a: 4, b: 2 }] };
+  // a few chat messages, so every side can see how it looks
+  const om = teamMatches(d, "d7").find(m => !m.done), t0 = Date.now() - 900000;
+  d.chat = [{ id: "dc1", ch: "all", key: "", a: "", b: "", team: "", from: "staff", text: "【デモ】まもなく決勝トーナメントを始めます。各チーム、準備をお願いします。", at: t0 }];
+  if (om) d.chat.push({ id: "dc2", ch: "match", key: `${om.kind}_${om.mid}`, a: om.a, b: om.b, team: om.a, from: "team", text: "【デモ】ルームを作りました。よろしくお願いします！", at: t0 + 60000 });
+  d.chat.push({ id: "dc3", ch: "staff", key: "", a: "", b: "", team: "d7", from: "team", text: "【デモ】メンバーが1人遅れます。5分ほど待ってもらえますか？", at: t0 + 120000 });
   // one report from a player waiting for the operators (no screenshots in the demo)
   d.reports = [];
   const open = teamMatches(d, "d7").find(m => !m.done);
@@ -1109,7 +1135,7 @@ function makeDemo() {
 }
 
 /* ---------- render ---------- */
-const route = () => { const h = location.hash.slice(1); return ["myteam", "notice", "standings", "matches", "bracket", "teams", "rules", "guide"].includes(h) ? h : "standings"; };
+const route = () => { const h = location.hash.slice(1); return ["myteam", "notice", "chat", "standings", "matches", "bracket", "teams", "rules", "guide"].includes(h) ? h : "standings"; };
 function softRender() {
   const a = document.activeElement;
   if (a && a.closest && a.closest("#app") && a.matches("input:not([type=file]), textarea")) { renderPending = true; return; }
@@ -1149,7 +1175,10 @@ function renderInner() {
     document.querySelectorAll('#bnav a[href="#teams"]').forEach(a => a.hidden = role === "player");   // room for the notices tab on phones
     if (notesOn()) syncNotes(s);
     const un = notesOn() ? notesUnread() : 0;
-    document.querySelectorAll('#tabs a[href="#notice"], #bnav a[href="#notice"]').forEach(a => { let bd = a.querySelector(".badge"); if (un && !bd) { bd = document.createElement("span"); bd.className = "badge"; a.appendChild(bd); } if (bd) { if (un) bd.textContent = un; else bd.remove(); } });
+    const badge = (sel, n) => document.querySelectorAll(sel).forEach(a => { let bd = a.querySelector(".badge"); if (n && !bd) { bd = document.createElement("span"); bd.className = "badge"; a.appendChild(bd); } if (bd) { if (n) bd.textContent = n; else bd.remove(); } });
+    badge('#tabs a[href="#notice"], #bnav a[href="#notice"]', un);
+    document.querySelectorAll('#tabs a[href="#chat"], #bnav a[href="#chat"]').forEach(a => a.hidden = !chatOn());
+    badge('#tabs a[href="#chat"], #bnav a[href="#chat"]', chatOn() ? chatUnreadAll(s) : 0);
     const pend = role === "admin" ? REP().filter(x => x.status === "pending").length : 0, mt = $('#tabs a[href="#matches"]');
     if (mt) mt.innerHTML = `対戦表・結果入力${pend ? ` <span class="badge">${pend}</span>` : ""}`; }
   $("#evname").innerHTML = s.config?.eventName ? esc(s.config.eventName) : `#コンパス <b>${vsJa(SETS(s))}</b> 大会`;
@@ -1159,7 +1188,7 @@ function renderInner() {
   document.body.classList.toggle("gated", gated);
   if (gated) { $("#evname").innerHTML = "戦闘摂理<b>◆</b>大会システム"; app.innerHTML = installView() + (r === "guide" ? viewGuide(true) : viewGate()); if (resumeData) setTimeout(() => applyResume(true), 0); return; }
   if (!s.loaded && !demoMode) { app.innerHTML = `<div class="empty"><strong>読み込み中…</strong><span>${esc(loadNote)}</span></div>`; return; }
-  const html = { myteam: viewMyTeam, notice: viewNotices, standings: viewStandings, matches: s => reportsAdminView(s) + outsPanel(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
+  const html = { myteam: viewMyTeam, notice: viewNotices, chat: viewChat, standings: viewStandings, matches: s => reportsAdminView(s) + outsPanel(s) + viewMatches(s), bracket: viewBracket, teams: viewTeams, rules: viewRules, guide: () => installView() + viewGuide(false) }[r](s);
   app.innerHTML = (isLocked(s) ? `<div class="notice final-note"><strong>この大会は結果が確定しています。</strong>結果・順位・登録内容は、これ以上変更できません。</div>` : "") + (fileMode ? `<div class="notice warn">このページは<strong>保存したファイルから開いています</strong>。この開き方では、Googleログイン・コードでの参加・共有はできません（この端末の中だけで使えます）。みんなで使うときは <a href="${SITE_URL}">${SITE_URL}</a> から開いてください。</div>` : "") + (demoMode ? demoBar(s) : "") + html + hostSupportView(s);
   if (resumeData) setTimeout(() => applyResume(false), 0);
 }
@@ -1696,6 +1725,10 @@ const GUIDE = {
     <li>「<b>通知</b>」タブに、<b>選手から結果報告が届いたとき</b>、<b>両チームの報告が食い違ったとき</b>、<b>ラウンドの対戦がすべて終わったとき</b>（運営がラウンドを進める大会）のお知らせが届きます。</li>
     <li>アプリを開いているときは、画面の下にもお知らせが出ます（振動はしません）。まだ見ていない通知があると、タブに数字が出ます。</li>
     <li>通知はこの端末に保存されます。アプリを閉じているときは届きません（次に開いたときに「通知」タブに入ります）。</li></ul>`],
+    ["チャット", `<ul>
+    <li>「<b>チャット</b>」タブで、<b>全チームへのお知らせ</b>（選手は読むだけ）、<b>対戦チャット</b>（対戦する2チームと運営）、<b>運営チャット</b>（1チームと運営）を使えます。チームとの運営チャットは、「チームを選んで運営チャットを開く」から始められます。</li>
+    <li>メッセージは文字だけ（200文字まで）で、書き換えはできません。まずいメッセージは「消す」（2回押す）で消せます。選手の<b>チーム内チャット</b>は運営の画面には出ません。</li>
+    <li>新しいメッセージは「通知」とタブの数字で分かります。大会の結果を確定すると、チャットはすべて消えます。</li></ul>`],
     ["棄権・失格とステージ", `<ul>
     <li>「対戦表・結果入力」の「<b>棄権・失格</b>」で、そのチームのまだ結果が入っていない試合をまとめて不戦敗にできます。「解除」で、そこで入れた不戦敗だけを消せます。</li>
     <li><b>ステージの決め方</b>は、大会の設定で選べます（1試合目と引き分けの後はでらクランクストリート・残りは負けた方が決める／全試合でらクランクストリートのみ／1試合目だけでらクランクストリート・残りは負けた方が決める／決めない）。ステージは、スクショ横の「このステージを登録…」で一度登録すると、次から見分けられます。決まりと違うステージや禁止ステージのときに警告が出ます（選手の報告画面にも出ます）。</li></ul>`],
@@ -1730,6 +1763,13 @@ const GUIDE = {
     <li>「<b>通知</b>」タブに、<b>次の対戦が決まったとき</b>と、<b>相手チームからルーム番号が届いたとき</b>（変わったときも）のお知らせが届きます。</li>
     <li>アプリを開いているときは、画面の下にもお知らせが出ます（プレー中のじゃまにならないよう、振動はしません）。まだ見ていない通知があると、タブに数字が出ます。</li>
     <li>通知はこの端末に保存されます。アプリを閉じているときは届きません（次に開いたときに「通知」タブに入ります）。</li></ul>`],
+    ["チャット", `<ul>
+    <li>「<b>チャット</b>」タブで使えるのは次の4つです。
+      <ul><li><b>運営からのお知らせ</b>：運営から全チームへのお知らせ（読むだけ）。</li>
+      <li><b>対戦チャット</b>：今の対戦の相手チームと運営。対戦が終わって次の対戦に移ると、前の対戦チャットは「過去の対戦」として見るだけになります。</li>
+      <li><b>運営とのチャット</b>：自分のチームと運営だけ。</li>
+      <li><b>チーム内チャット</b>：自分のチームのメンバーだけ。</li></ul></li>
+    <li>メッセージは文字だけ（200文字まで）です。新しいメッセージは「通知」とタブの数字で分かります。大会の結果が確定すると、チャットはすべて消えます。</li></ul>`],
     ["結果を報告する", `<ol>
     <li>試合が終わったら、マイチームの「<b>結果を運営に報告</b>」で対戦を選びます。</li>
     <li>試合ごとに、<b>その試合のリプレイ画面のスクショを1枚</b>（必須）付けます。スクショを選ぶと、ポータルキーを自動で読み取って入れます。違っていたら直してください。</li>
@@ -2623,12 +2663,15 @@ function syncNotes(s) {
   const N = notesLoad();
   if (!notesSince) { notesSince = Date.now(); setTimeout(() => softRender(), 2600); return; }   // let everything arrive first (results, room numbers), then look again
   if (Date.now() - notesSince < 2500) { setTimeout(() => softRender(), 2600 - (Date.now() - notesSince)); return; }
-  const add = role === "admin" ? adminFacts(s, N) : playerFacts(s, N);
+  const add = (role === "admin" ? adminFacts(s, N) : playerFacts(s, N)).concat(chatFacts(s, N));
   if (!add.length) { if (N.fresh) { N.fresh = false; notesSave(); } return; }
   const now = Date.now();
-  for (const n of add) { N.seen[n.k] = 1; N.list.unshift({ ...n, at: now, read: N.fresh || route() === "notice" }); }
+  // a message in the chat that is open right now is already being read
+  const quiet = n => n.k.startsWith("chat:") && route() === "chat" && CHATS().some(m => "chat:" + m.id === n.k && chatOf(m) === chatSel);
+  for (const n of add) { N.seen[n.k] = 1; N.list.unshift({ ...n, at: now, read: N.fresh || route() === "notice" || quiet(n) }); }
   // the first time on this device: what is already there is listed, but not announced (and never a vibration: it may be mid-game)
-  if (!N.fresh && route() !== "notice") { const last = add[add.length - 1]; toast(`🔔 ${last.t}：${last.b}`); }
+  const loud = add.filter(n => !quiet(n));
+  if (!N.fresh && route() !== "notice" && loud.length) { const last = loud[loud.length - 1]; toast(`🔔 ${last.t}：${last.b}`); }
   N.fresh = false; notesSave();
 }
 function adminFacts(s, N) {
@@ -2687,6 +2730,112 @@ document.addEventListener("click", ev => {
   if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消す"; return; }
   const N = notesLoad(); N.list = []; notesSave(); render();
 });
+/* ---------- chat: match (two teams + operators) / operators ⇄ a team / inside a team / announcements to every team ---------- */
+const CHAT_MAX = 200;
+let chatSel = null, chatLastSend = 0;
+const chatMs = m => m.at?.toMillis ? m.at.toMillis() : typeof m.at === "number" ? m.at : Date.now();
+const CHATS = () => demoMode ? (demo?.chat || []) : (real.chat ? Object.values(real.chat) : []);
+const chatOf = m => m.ch === "match" ? "m:" + m.key : m.ch === "staff" ? "s:" + m.team : m.ch === "team" ? "t:" + m.team : "a";
+const chatOn = () => (role === "player" && !!FB.team) || role === "admin";
+const chatMine = m => role === "admin" ? m.from === "staff" : m.from === "team" && m.team === FB.team;
+const chatWho = (s, m) => m.from === "staff" ? "運営" : teamName(s, m.team);
+// the channels this person can use, with whether they may still write there
+function chatChannels(s) {
+  const out = [];
+  if (role === "player") {
+    const team = FB.team, ms = teamMatches(s, team), next = ms.find(m => !m.done && matchStarted(s, m));
+    out.push({ id: "a", label: "運営からのお知らせ", sub: "全チームへのお知らせ（読むだけ）", canSend: false });
+    if (next) out.push({ id: `m:${next.kind}_${next.mid}`, label: `対戦チャット：vs ${teamName(s, next.a === team ? next.b : next.a)}`, sub: `${next.label}・相手チームと運営`, canSend: true, match: next });
+    out.push({ id: "s:" + team, label: "運営とのチャット", sub: "自分のチームと運営だけ", canSend: true });
+    out.push({ id: "t:" + team, label: "チーム内チャット", sub: "自分のチームのメンバーだけ", canSend: true });
+    const have = new Set(CHATS().map(chatOf));
+    ms.filter(m => m !== next && have.has(`m:${m.kind}_${m.mid}`)).forEach(m => out.push({ id: `m:${m.kind}_${m.mid}`, label: `過去の対戦：vs ${teamName(s, m.a === team ? m.b : m.a)}`, sub: `${m.label}・見るだけ（もう送れません）`, canSend: false, match: m }));
+  } else if (role === "admin") {
+    out.push({ id: "a", label: "全チームへのお知らせ", sub: "選手全員に届きます（選手は返信できません）", canSend: true });
+    // matches that have messages, and each team's current match
+    const seen = new Map(), have = new Set(CHATS().map(chatOf)), now = new Set();
+    for (const t of allTeams(s)) { const ms = teamMatches(s, t.id), nx = ms.find(m => !m.done && matchStarted(s, m)); if (nx) now.add(`m:${nx.kind}_${nx.mid}`);
+      for (const m of ms) { const id = `m:${m.kind}_${m.mid}`; if (!seen.has(id)) seen.set(id, m); } }
+    for (const [id, m] of seen) if (have.has(id) || now.has(id)) out.push({ id, label: `対戦：${teamName(s, m.a)} vs ${teamName(s, m.b)}`, sub: `${m.label}${m.done ? "・終了" : ""}`, canSend: true, match: m });
+    // a team's chat with the operators shows once it has messages, or when picked from the list
+    for (const t of allTeams(s)) if (have.has("s:" + t.id) || chatSel === "s:" + t.id) out.push({ id: "s:" + t.id, label: `運営 ⇄ ${t.name}`, sub: "そのチームと運営だけ", canSend: true });
+  }
+  return out;
+}
+// unread: the time each channel was last opened on this device
+const chatSeenKey = () => `compass3on3_chatseen_${demoMode ? "demo" : FB.tid || LOCAL.id || ""}_${noteWho()}`;
+let chatSeenMem = null, chatSeenFor = "";
+function chatSeen() { const k = chatSeenKey(); if (chatSeenFor !== k) { chatSeenFor = k; chatSeenMem = {}; if (!demoMode) try { chatSeenMem = JSON.parse(localStorage.getItem(k) || "{}") || {}; } catch (e) {} } return chatSeenMem; }
+function chatMarkSeen(id) { const m = chatSeen(); m[id] = Date.now(); if (!demoMode) try { localStorage.setItem(chatSeenKey(), JSON.stringify(m)); } catch (e) {} }
+const chatUnread = (s, id) => CHATS().filter(m => chatOf(m) === id && !chatMine(m) && chatMs(m) > (chatSeen()[id] || 0)).length;
+const chatUnreadAll = s => chatOn() ? chatChannels(s).reduce((n, c) => n + chatUnread(s, c.id), 0) : 0;
+function viewChat(s) {
+  if (!chatOn()) return `<div class="notice">チャットは、選手と運営の人だけが使えます。</div>`;
+  const chs = chatChannels(s);
+  if (!chatSel || !chs.some(c => c.id === chatSel)) chatSel = (chs.find(c => c.canSend && c.id !== "a") || chs[0])?.id || null;
+  const cur = chs.find(c => c.id === chatSel);
+  if (cur && chatUnread(s, cur.id)) { chatMarkSeen(cur.id); setTimeout(() => softRender(), 0); }
+  const when = t => new Date(t).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const msgs = cur ? CHATS().filter(m => chatOf(m) === cur.id).sort((a, b) => chatMs(a) - chatMs(b)) : [];
+  const locked = isLocked(s);
+  return `<section class="panel chat"><div class="panel-head"><h2>チャット</h2><span class="meta">${role === "admin" ? "運営" : esc(teamName(s, FB.team))}</span></div><div class="panel-body chat-body">
+    ${role === "admin" ? `<div class="btns"><select id="chat-team" aria-label="運営チャットを始めるチーム"><option value="">チームを選んで運営チャットを開く</option>${allTeams(s).map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("")}</select></div>` : ""}
+    <div class="chat-chs">${chs.map(c => { const u = chatUnread(s, c.id); return `<button class="chat-ch ${c.id === chatSel ? "on" : ""}" data-act="chat-sel" data-id="${esc(c.id)}"><b>${esc(c.label)}</b>${u ? `<span class="badge">${u}</span>` : ""}<small>${esc(c.sub)}</small></button>`; }).join("")}</div>
+    ${cur ? `<div class="chat-log" id="chat-log">${msgs.length ? msgs.map(m => `<div class="chat-msg ${chatMine(m) ? "me" : ""} ${m.from === "staff" ? "staff" : ""}"><div class="chat-h"><b>${esc(chatWho(s, m))}</b><span>${when(chatMs(m))}</span>${role === "admin" && cur.id[0] !== "t" && !locked ? `<button class="btn ghost sm" data-act="chat-del" data-id="${esc(m.id)}">消す</button>` : ""}</div><div class="chat-t">${esc(m.text)}</div></div>`).join("") : `<div class="muted-s">まだメッセージはありません。</div>`}</div>
+      ${locked ? `<div class="muted-s">大会の結果が確定したので、チャットは終了しました。</div>` : cur.canSend ? `<div class="chat-send"><textarea id="chat-in" maxlength="${CHAT_MAX}" rows="2" placeholder="${cur.id === "a" ? "全チームへのお知らせ" : "メッセージ"}（${CHAT_MAX}文字まで）"></textarea><button class="btn primary" data-act="chat-send" data-id="${esc(cur.id)}">送信</button></div>` : `<div class="muted-s">${cur.id === "a" ? "運営からのお知らせは、読むだけです。" : "この対戦は終わったので、見るだけです（新しいメッセージは送れません）。"}</div>`}` : `<div class="muted-s">使えるチャットがありません。</div>`}
+    <div class="muted-s">チャットは文字だけ（${CHAT_MAX}文字まで）です。${role === "admin" ? "対戦チャットと運営チャットは、その当事者と運営だけが見られます（チーム内チャットは運営には見えません）。" : "対戦チャットは相手チームと運営、運営とのチャットは運営、チーム内チャットは自分のチームだけが見られます。"}大会の結果が確定すると、チャットはすべて消えます。アプリを閉じている間は、届いたことが分かりません。</div>
+  </div></section>`;
+}
+document.addEventListener("change", ev => { if (ev.target.id === "chat-team" && ev.target.value && role === "admin") { chatSel = "s:" + ev.target.value; render(); } });
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act^='chat-']"); if (!el || !chatOn()) return;
+  const act = el.dataset.act, s = S();
+  if (act === "chat-sel") { chatSel = el.dataset.id; chatMarkSeen(chatSel); render(); setTimeout(() => { const l = $("#chat-log"); if (l) l.scrollTop = l.scrollHeight; }, 0); return; }
+  if (act === "chat-del") {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "もう一度押すと消す"; return; }
+    if (demoMode) { demo.chat = demo.chat.filter(m => m.id !== el.dataset.id); render(); return; }
+    try { await FB.fs.doc(`tournaments/${FB.tid}/chat/${el.dataset.id}`).delete(); } catch (e) { toast("消せませんでした: " + (e.message || e.code)); }
+    return;
+  }
+  if (act === "chat-send") {
+    const text = ($("#chat-in")?.value || "").trim(), id = el.dataset.id, ch = chatChannels(s).find(c => c.id === id);
+    if (!ch || !ch.canSend || isLocked(s)) { toast("このチャットには送れません"); return; }
+    if (!text) return;
+    if (text.length > CHAT_MAX) { toast(`${CHAT_MAX}文字までです`); return; }
+    if (Date.now() - chatLastSend < 2000) { toast("少し待ってから送ってください"); return; }
+    chatLastSend = Date.now();
+    const kind = id[0], from = role === "admin" ? "staff" : "team";
+    const msg = { ch: kind === "m" ? "match" : kind === "s" ? "staff" : kind === "t" ? "team" : "all", key: kind === "m" ? id.slice(2) : "", a: ch.match?.a || "", b: ch.match?.b || "", team: from === "team" ? FB.team : kind === "s" ? id.slice(2) : "", from, text };
+    if (demoMode) { demo.chat = [...(demo.chat || []), { ...msg, id: "d" + rid_(), by: "demo", at: Date.now() }]; chatMarkSeen(id); render(); setTimeout(() => { const l = $("#chat-log"); if (l) l.scrollTop = l.scrollHeight; }, 0); return; }
+    el.disabled = true;
+    try { await FB.fs.collection(`tournaments/${FB.tid}/chat`).add({ ...msg, by: FB.user.uid, at: firebase.firestore.FieldValue.serverTimestamp() }); const t = $("#chat-in"); if (t) t.value = ""; chatMarkSeen(id); }
+    catch (e) { toast(e.code === "permission-denied" ? "送れませんでした。主催者に、Firestoreのルールを最新のものに更新してもらってください" : "送れませんでした: " + (e.message || e.code)); }
+    el.disabled = false; render(); setTimeout(() => { const l = $("#chat-log"); if (l) l.scrollTop = l.scrollHeight; }, 0);
+  }
+});
+function subscribeChat() {
+  if (!FB.on || !FB.tid || !chatOn()) return;
+  const col = FB.fs.collection(`tournaments/${FB.tid}/chat`), parts = {};
+  const listen = (k, q) => unsubs.push(q.onSnapshot(snap => { parts[k] = snap.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: "estimate" }) })); real.chat = {}; Object.values(parts).flat().forEach(m => real.chat[m.id] = m); softRender(); }, () => {}));
+  if (role === "admin") listen("adm", col.where("ch", "in", ["match", "staff", "all"]));
+  else {
+    const t = FB.team;
+    listen("ma", col.where("ch", "==", "match").where("a", "==", t)); listen("mb", col.where("ch", "==", "match").where("b", "==", t));
+    listen("st", col.where("ch", "==", "staff").where("team", "==", t)); listen("tm", col.where("ch", "==", "team").where("team", "==", t));
+    listen("all", col.where("ch", "==", "all"));
+  }
+}
+// notices for new messages from others (not for one's own, and not inside the team chat for the operators)
+function chatFacts(s, N) {
+  const ids = new Set(chatChannels(s).map(c => c.id)), add = [];
+  for (const m of CHATS().slice().sort((a, b) => chatMs(a) - chatMs(b))) {
+    if (chatMine(m) || !ids.has(chatOf(m)) || !m.id) continue;
+    const k = "chat:" + m.id; if (N.seen[k]) continue;
+    const where = m.ch === "all" ? "運営からのお知らせ" : m.ch === "match" ? "対戦チャット" : m.ch === "staff" ? (role === "admin" ? `${teamName(s, m.team)}との運営チャット` : "運営とのチャット") : "チーム内チャット";
+    add.push({ k, t: `メッセージ（${where}）`, b: `${chatWho(s, m)}：${m.text.length > 50 ? m.text.slice(0, 50) + "…" : m.text}` });
+  }
+  return add;
+}
 function viewMyTeam(s) {
   if (role !== "player" || !FB.team) return `<div class="notice">このページは選手コードで参加した人だけが使えます。</div>`;
   const team = (s.config?.teams || []).find(t => t.id === FB.team);
@@ -3070,7 +3219,7 @@ function fsWrap(tid) {
     collection: p => { const r = FB.fs.collection(map(p)); return { onSnapshot: (n, e) => r.onSnapshot(x => n({ docs: x.docs.map(d => ({ id: d.id, data: () => fsDec(d.data()) })), metadata: x.metadata }), er => e && e(er)) }; },
   };
 }
-function resetData() { unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = []; Object.assign(real, { config: null, matches: {}, bracket: {}, members: {}, reports: [], rooms: {}, loaded: false }); roomSubs = {}; repDraft = null; openId = null; draft = null; teamDraft = null; scan = null; }
+function resetData() { unsubs.forEach(u => { try { u(); } catch (e) {} }); unsubs = []; Object.assign(real, { config: null, matches: {}, bracket: {}, members: {}, reports: [], rooms: {}, chat: {}, loaded: false }); roomSubs = {}; chatSel = null; repDraft = null; openId = null; draft = null; teamDraft = null; scan = null; }
 async function fbBoot(cfg) {
   mode = "fb"; FB.on = true; role = "viewer"; loadNote = "ログインを確認しています…"; render();
   try {
@@ -3187,7 +3336,7 @@ async function fbOpen(tid, quiet) {
     const k = "compass3on3_seen_" + tid; let last = 0; try { last = +localStorage.getItem(k) || 0; } catch (e) {}
     if (Date.now() - last > 12 * 3600 * 1000) FB.fs.doc("activity/" + tid).set({ seenAt: firebase.firestore.FieldValue.serverTimestamp() }).then(() => { try { localStorage.setItem(k, String(Date.now())); } catch (e) {} }).catch(() => {}); }
   if (role === "player") { subscribeOwnTeam(); if (!location.hash || location.hash === "#standings") location.hash = "myteam"; }
-  subscribeReports(); subscribeRooms();
+  subscribeReports(); subscribeRooms(); subscribeChat();
 }
 async function fbCreate(name, settings) {
   const uid = FB.user.uid, tid = rid(10);
@@ -3369,6 +3518,7 @@ document.addEventListener("click", async ev => {
       const base = `tournaments/${FB.tid}/`;
       const shots = await FB.fs.collection(base + "reportShots").get();
       for (let i = 0; i < shots.docs.length; i += 400) { const b = FB.fs.batch(); shots.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); }
+      try { const ch = await FB.fs.collection(base + "chat").get(); for (let i = 0; i < ch.docs.length; i += 400) { const b = FB.fs.batch(); ch.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); } } catch (e) {}   // older rules have no chat
       const reps = await FB.fs.collection(base + "reports").get();
       for (let i = 0; i < reps.docs.length; i += 400) { const b = FB.fs.batch();
         reps.docs.slice(i, i + 400).forEach(d => b.update(d.ref, d.data().status === "pending" ? { shotsGone: true, status: "rejected", reason: "大会の結果確定のため", decidedBy: FB.user.uid, decidedAt: Date.now() } : { shotsGone: true })); await b.commit(); }
@@ -3393,10 +3543,10 @@ let delArm = { tid: null, n: 0, at: 0, busy: false };
 const delCount = () => delArm.tid === FB.tid && Date.now() - delArm.at < 30000 ? delArm.n : 0;
 const delLabel = () => delArm.busy ? "削除中…" : ["完全に削除する", "本当に削除しますか？（あと2回押すと削除）", "元に戻せません。最後の確認です（あと1回押すと削除）"][delCount()] || "完全に削除する";
 async function deleteTournament(tid) {
-  const base = `tournaments/${tid}/`, cols = ["rooms", "reportShots", "reports", "matches", "bracket", "members", "data", "players", "viewers", "admins"];
+  const base = `tournaments/${tid}/`, cols = ["chat", "rooms", "reportShots", "reports", "matches", "bracket", "members", "data", "players", "viewers", "admins"];
   let n = 0;
   for (const c of cols) {
-    let snap; try { snap = await FB.fs.collection(base + c).get(); } catch (e) { if (c === "rooms") continue; throw e; }   // older rules have no room numbers
+    let snap; try { snap = await FB.fs.collection(base + c).get(); } catch (e) { if (c === "rooms" || c === "chat") continue; throw e; }   // older rules have no room numbers
     for (let i = 0; i < snap.docs.length; i += 400) { const b = FB.fs.batch(); snap.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); n += Math.min(400, snap.docs.length - i); }
   }
   for (const p of ["teamcodes/" + tid, "secrets/" + tid, "users/" + FB.user.uid + "/joined/" + tid]) await FB.fs.doc(p).delete().catch(() => {});
