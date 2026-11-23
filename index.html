@@ -442,6 +442,11 @@ details.glist summary { cursor: pointer; }
 .host-support { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center; font-size: .78rem; color: var(--muted); padding: 6px 0 2px; }
 .hs-code { font-family: var(--mono); font-size: .85rem; font-weight: 700; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); cursor: pointer; }
 .host-support span { font-size: .7rem; }
+.share { display: grid; gap: 8px; }
+.share-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.share-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); font-size: .85rem; }
+.share-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+.share input { flex: 1 1 200px; min-width: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .support { display: grid; gap: 6px; justify-items: start; padding-top: 10px; border-top: 1px dashed var(--line); }
 .support-code { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; letter-spacing: .08em; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--surface-2); color: var(--ink); cursor: pointer; }
 .support-thanks { color: var(--good); font-weight: 700; }
@@ -698,7 +703,7 @@ const canWrite = () => role === "admin" || role === "contributor";
 
 /* ---------- tournament settings (chosen when the tournament is made; defaults = the original 3on3 rules) ---------- */
 const DEF_SET = { format: "group", groups: 2, advance: 2, games: 3, cold: true, rankBy: "keys", rank1: "keys", rank2: "grate", rank3: "", koBest: 3, third: true,
-  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, stageCheck: true, stageRule: "dera_first", cardDupBan: true, submitHeroes: true, submitDecks: true, requireMedalShot: true, heroCount: 2, medalCount: 3, deckCount: 2, roundGate: false, koGate: false };
+  teamSize: 3, swissRounds: "", swissAdvance: 0, swissByeOnce: true, stageCheck: true, stageRule: "dera_first", cardDupBan: true, shareCount: 1, submitHeroes: true, submitDecks: true, requireMedalShot: true, heroCount: 2, medalCount: 3, deckCount: 2, roundGate: false, koGate: false };
 function SETS(st) {
   const x = { ...DEF_SET, ...((st || S())?.config?.settings || {}) };
   x.games = Math.max(1, Math.min(7, +x.games || 3));
@@ -715,7 +720,8 @@ function SETS(st) {
   { const own = (st || S())?.config?.settings || {};
     x.stageRule = STAGE_RULES[own.stageRule] ? own.stageRule : (x.stageCheck === false || x.stageCheck === "false" ? "free" : "dera_first"); }
   x.stageCheck = x.stageRule !== "free";
-  x.cardDupBan = x.cardDupBan !== false && x.cardDupBan !== "false";   // the same card in two teammates' decks
+  x.cardDupBan = x.cardDupBan !== false && x.cardDupBan !== "false";
+  x.shareCount = [0, 1, 2, 3, 4].includes(+x.shareCount) ? +x.shareCount : 1;   // share cards per team (may be in several decks)   // the same card in two teammates' decks
   x.submitHeroes = !!x.submitHeroes; x.submitDecks = !!x.submitDecks; x.requireMedalShot = !!x.requireMedalShot;
   // how many each member may submit: heroes 1-5, medals per hero 1-3, decks 1-5
   const cl = (v, lo, hi, d) => Number.isInteger(+v) && +v >= lo && +v <= hi ? +v : d;
@@ -1479,7 +1485,8 @@ function settingsForm(set, id) {
       ${set.submitHeroes ? row("ヒーローの枠", sel("heroCount", nums(1, 5, x => `1人につき${x}枠まで`), "ヒーローの枠"), "1枠＝ヒーロー1体とそのメダル。同じヒーローでもメダルが違えば別の枠（別のキャラ）として登録できます") : ""}
       ${row("デッキ", chk("submitDecks", "事前に登録して、リプレイで確認する"))}
       ${set.submitDecks ? row("デッキの数", sel("deckCount", nums(1, 5, x => `1人につき${x}つまで`), "デッキの数")) : ""}
-      ${row("カード被り", sel("cardDupBan", [["true", "チーム内のカード被りはNG"], ["false", "被ってもよい"]], "カード被り"), set.cardDupBan ? (set.submitDecks ? "デッキの登録時に、チーム内で同じカードが複数のデッキに入っていないか確認します（シェアカードは除く）" : "結果報告のリプレイのスクショで、同じ試合で同じチームの2人以上が同じカードを使っていないか確認します") : "")}
+      ${row("カード被り", sel("cardDupBan", [["true", "チーム内のカード被りはNG"], ["false", "被ってもよい"]], "カード被り"), set.cardDupBan ? (set.submitDecks ? "デッキの登録時に、チーム内で同じカードが複数のデッキに入っていないか確認します（シェアカードは除く）" : "結果報告のリプレイのスクショで、同じ試合で同じチームの2人以上が同じカードを使っていないか確認します（シェアカードは除く）") : "")}
+      ${set.cardDupBan ? row("シェアカード", sel("shareCount", [0, 1, 2, 3, 4].map(n => [n, n ? `1チーム${n}枚まで` : "なし"]), "シェアカードの枚数"), "チーム内で被ってもよいカードです。運営が「チーム設定」の「メンバー」でチームごとに指定します") : ""}
       ${row("リプレイのスクショ", chk("requireMedalShot", "メダル情報が表示されたものだけ受け付ける"))}
     </div></div>`;
 }
@@ -1553,6 +1560,7 @@ const WIZ = [
   { id: "submitDecks", s: "デッキの事前登録", q: "デッキを事前に登録して、リプレイで確認しますか？", opts: () => YN("登録して確認する", "確認しない") },
   { id: "deckCount", s: "デッキの数", when: x => x.submitDecks, q: "デッキは、1人につき何個まで登録できるようにしますか？", opts: () => upTo(5).map(i => [i + 1, `${i + 1}つまで`]) },
   { id: "cardDupBan", s: "カード被り", q: "チーム内のカード被りはNGにしますか？", note: "デッキを登録する大会では登録時に、登録しない大会では結果報告のリプレイのスクショで確認します。", opts: () => YN("NG（被りは禁止）", "被ってもよい") },
+  { id: "shareCount", s: "シェアカード", when: x => x.cardDupBan, q: "シェアカード（チーム内で被ってもよいカード）は、1チーム何枚までにしますか？", note: "どのカードにするかは、大会を作ったあとに運営がチームごとに指定します。", opts: () => [0, 1, 2, 3, 4].map(n => [n, n ? `${n}枚まで` : "なし"]) },
   { id: "requireMedalShot", s: "スクショのメダル情報", q: "リプレイのスクショは、メダル情報が表示されたものだけ受け付けますか？", opts: () => YN("メダル情報があるものだけ受け付ける", "メダル情報がなくても受け付ける") },
   { id: "stageRule", s: "ステージの決め方", q: "ステージは、どう決めますか？", note: "「決めない」以外では、禁止ステージは使えません。リプレイのスクショからステージを確認して、決まりと違うときは警告を出します。", opts: () => Object.entries(STAGE_RULES).map(([k, v]) => [k, v.ja]) },
 ];
@@ -1602,7 +1610,7 @@ document.addEventListener("click", ev => {
     if (q.id === "mode") c.set = applyMode({ ...c.set }, v, c.set);
     else c.set = { ...c.set, [q.key || q.id]: v };
     // coming from the summary: go straight back to it (a new format or game count can open new questions, so walk on from there)
-    if (c.hist.at(-1) === "done") { if (["mode", "games", "submitHeroes", "submitDecks", "roundGate"].includes(q.id)) { c.hist.pop(); next(); } else { c.step = c.hist.pop(); render(); } return; }
+    if (c.hist.at(-1) === "done") { if (["mode", "games", "submitHeroes", "submitDecks", "roundGate", "cardDupBan"].includes(q.id)) { c.hist.pop(); next(); } else { c.step = c.hist.pop(); render(); } return; }
     next(); return;
   }
 });
@@ -1667,7 +1675,8 @@ const GUIDE = {
       <ul><li><b>ヒーロー</b>：ヒーロー画面のスクショを読み込むと、キャラクター名とメダルが1つの枠に入ります。同じヒーローでもメダルが違えば、別のキャラとして別の枠に登録できます。</li>
       <li><b>デッキ</b>：「カード強化 / デッキ編集」画面のスクショを読み込みます。画面全体のスクショなら、左上のユーザーネームも登録されます。</li></ul></li>
     <li>同じヒーローに同じメダルの組み合わせが重なっていると警告が出ます。</li>
-    <li><b>カード被り</b>をNGにした大会では、デッキを登録するときは<b>登録時</b>に、登録しないときは<b>結果報告のリプレイのスクショ</b>で、チーム内で同じカードを使っていないか確認して警告します（シェアカードは、登録時の警告から指定できます）。</li></ol>`],
+    <li><b>カード被り</b>をNGにした大会では、デッキを登録するときは<b>登録時</b>に、登録しないときは<b>結果報告のリプレイのスクショ</b>で、チーム内で同じカードを使っていないか確認して警告します。</li>
+    <li><b>シェアカード</b>（チーム内で被ってもよいカード）は、大会の設定で1チーム何枚まで（なし〜4枚）かを決めて、「メンバー」の下でチームごとにカード名を選んで指定します。デッキを登録する大会では、カード被りの警告の「シェアカードにする」でも指定できます。</li></ol>`],
     ["結果の入力", `<ol>
     <li>「<b>対戦表・結果入力</b>」で対戦を押します。対戦表の左側のチームがルームを作る側です。</li>
     <li>試合ごとに両チームのポータルキー（0〜5）を選ぶと、その場で自動保存されます。不戦敗は「左/右が不戦敗」を選びます。</li>
@@ -1798,7 +1807,7 @@ function viewRules() {
     set.submitHeroes ? `1人につきヒーロー（メダル付き）を${set.heroCount}枠まで事前に提出。同じヒーローでもメダルが違えば別のキャラとして扱う。チーム内で、同じヒーローに同じメダルの組み合わせは1つまで` : "ヒーローとメダルの事前提出はなし",
     set.submitDecks ? `1人につきデッキ${set.deckCount}つまでを事前に提出。試合ごとにどのヒーロー・デッキを組み合わせてもよい` : "デッキの事前提出はなし",
     set.submitHeroes || set.submitDecks ? "提出外のヒーロー・デッキ・メダルの使用は違反行為" : "",
-    set.cardDupBan ? `チーム内のカード被りはNG（${set.submitDecks ? "デッキの登録時に確認。シェアカードは除く" : "同じ試合で、同じチームの2人以上が同じカードを使うのは禁止。結果報告のスクショで確認"}）` : "チーム内のカード被りはOK",
+    set.cardDupBan ? `チーム内のカード被りはNG（${set.submitDecks ? "デッキの登録時に確認" : "同じ試合で、同じチームの2人以上が同じカードを使うのは禁止。結果報告のスクショで確認"}）。${set.shareCount ? `シェアカードは1チーム${set.shareCount}枚まで（被ってもよい）` : "シェアカードはなし"}` : "チーム内のカード被りはOK",
     set.requireMedalShot ? "結果報告のリプレイは、メダル情報を表示させた状態のスクショのみ受理" : ""]);
   const stg = sec("ステージ", STAGE_RULES[set.stageRule].rule.concat(set.stageRule === "free" ? [] : [`禁止ステージ：${STAGE_BANNED_JA()}`]));
   const input = sec("このサイトでの入力", ["各試合の両チームのポータルキー（0〜5）を入力。不戦敗は「左/右が不戦敗」を選ぶと0-5で記録",
@@ -1864,7 +1873,7 @@ function identify(s, ref) {
   const m = s.members[per[0].id]; return { ...emptyMember(m.team, m.slot), ...m, id: per[0].id };
 }
 function teamIssues(s, team) {
-  const R = RD(), share = shareOf(s, team).shareF || "", set = SETS(s);
+  const R = RD(), shares = sharesOf(s, team), set = SETS(s);
   const ms = membersOf(s, team), out = [], all = [];
   const heroes = {};
   ms.forEach(m => {
@@ -1877,7 +1886,7 @@ function teamIssues(s, team) {
   const used = new Set();
   all.forEach((x, i) => {
     if (used.has(i)) return;
-    if (share && x.c.f && R.cardDiff(x.c.f, share) < 0.35) return;
+    if (isShareCard(shares, x.c)) return;
     const grp = [x]; all.forEach((y, j) => { if (j > i && !used.has(j) && same(x.c, y.c)) { grp.push(y); used.add(j); } });
     if (grp.length > 1 && set.cardDupBan) out.push({ t: `カード被り（NG）：同じカード「${cardName(x.c)}」が複数のデッキに入っています（${grp.map(g => g.where).join("、")}）`, img: x.c.img, ref: x.c.f ? x.ref : "" });
   });
@@ -2089,15 +2098,15 @@ function usedOf(u, ev2, A, B) {
     cards: (p.cards || []).map(c => ({ img: c.url || "", n: R ? R.cardName(c.top || [], c.ratio || 0) : "" })) }));
 }
 // decks not registered: the same card used by two players of one side in a game (from the replay screenshot)
-function cardClash(s, u, onlySide) {
+function cardClash(s, u, onlySide, teamOf) {
   const set = SETS(s), R = RD();
   if (!set.cardDupBan || set.submitDecks || !R || !R.cardDiff) return [];
   const out = [];
   for (const side of ["blue", "red"]) {
     if (onlySide && onlySide !== side) continue;
-    const all = [];
+    const all = [], tm = teamOf ? teamOf(side) : null, shares = tm ? sharesOf(s, tm) : [];
     u.players.filter(p => p.side === side).forEach((p, pi) => { const m = identify(s, p.name), who = m ? whoOf(m) : `${side === "blue" ? "青" : "赤"}の${pi + 1}人目`;
-      (p.cards || []).forEach(c => { if (c && c.f) all.push({ c, who, pi }); }); });
+      (p.cards || []).forEach(c => { if (c && c.f && !isShareCard(shares, c)) all.push({ c, who, pi }); }); });
     // replay card icons are small: the picture must be close AND the card read as the same one (when both could be named)
     const same = (a, b) => { const d = R.cardDiff(a.f, b.f), na = a.top?.[0], nb = b.top?.[0]; return na && nb ? na === nb && d < 0.3 : d < 0.1; };
     const used = new Set();
@@ -2124,12 +2133,23 @@ function evalUnit(s, u, A, B) {
   const mw = modeWarn_(u.mode); if (mw) issues.unshift(mw);
   { const k = stageOf(s, u.stage); if (SETS(s).stageCheck && k != null && isBannedStage(k)) issues.unshift(`禁止ステージ「${STAGE_CATS[k]}」の可能性があります`); }
   teamCheck(s, u, A, B).warn.filter(t => t.includes("見つかりません")).forEach(t => issues.push(t));
-  cardClash(s, u).forEach(x => { const t = sideTeam(x.side); issues.push(t ? x.t.replace(/^カード被り（NG）：(青|赤)チーム/, `カード被り（NG）：${teamName(s, t)}`) : x.t); });
+  cardClash(s, u, null, sideTeam).forEach(x => { const t = sideTeam(x.side); issues.push(t ? x.t.replace(/^カード被り（NG）：(青|赤)チーム/, `カード被り（NG）：${teamName(s, t)}`) : x.t); });
   if (noMedals) issues.unshift("メダル情報が表示されていないスクショです。ルールにより受理できません（ⓘを押してメダル情報を表示したスクショを提出してもらってください）");
   return { blueIs, ka, kb, checks, issues, notes: checks.flatMap(c => c.notes).filter(t => !t.includes("ⓘを押して詳細")), sideTeam, noMedals };
 }
 // a team's share card lives with the operator-only member data (members/share_<team>), never in the shared settings
 function shareOf(s, team) { const d = s.members?.["share_" + team]; if (d) return d; const t = (s.config?.teams || []).find(x => x.id === team); return t?.shareF ? { shareF: t.shareF, shareImg: t.shareImg || "", shareN: t.shareN || "" } : {}; }
+// a team's share cards (up to the tournament's number); older data held one card in shareF/shareImg/shareN
+function sharesOf(s, team) {
+  const d = shareOf(s, team) || {}, list = Array.isArray(d.cards) ? d.cards : (d.shareF || d.shareN ? [{ f: d.shareF || "", img: d.shareImg || "", n: d.shareN || "" }] : []);
+  return list.filter(c => c && (c.f || c.n)).slice(0, SETS(s).shareCount);
+}
+function saveShares(team, cards) { saveShare(team, { cards: cards.map(c => ({ f: c.f || "", img: c.img || "", n: c.n || "" })), shareF: "", shareImg: "", shareN: "" }); }
+// is this card (from a registered deck: n/f, or from a replay: top/f) one of the share cards?
+function isShareCard(shares, c) {
+  const R = RD(), nm = c?.n || c?.top?.[0] || "";
+  return shares.some(x => (x.n && nm) ? x.n === nm : !!(x.f && c?.f && R && R.cardDiff(x.f, c.f) < 0.3));
+}
 function saveShare(team, v) { const body = { kind: "share", ...v }, st = S(); st.members = st.members || {}; st.members["share_" + team] = body; autosave("members/share_" + team, body); }
 function memberById(s, id) { return membersOf(s, id.slice(0, id.lastIndexOf("_m")))[+id.slice(id.lastIndexOf("_m") + 2)]; }
 async function readDeckFor(ref, file) {
@@ -2279,8 +2299,10 @@ function membersPanel(s) {
       <div class="chips">${teams.map(t => `<button class="chip ${t.id === memTeam ? "on" : ""}" data-act="mteam" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
       <div class="notice"><strong>ヒーロー</strong>：ヒーロー画面（上にキャラクター名、下に強化メダル）のスクショを読み込むと、キャラクター名とメダル（種類・枠の色・強化値）を、その枠に登録します。名前が違うときは選び直してください。<b>1枠＝ヒーロー1体とそのメダル</b>で、同じヒーローでもメダルが違えば別のキャラとして、別の枠に登録できます。この大会は1人につき<b>ヒーロー${SETS(s).heroCount}枠・デッキ${SETS(s).deckCount}つ</b>までです。<br><strong>デッキ</strong>：提出された「カード強化 / デッキ編集」画面のスクショを、デッキごとに読み込んでください。<strong>画面全体のスクショ</strong>なら、左上のユーザーネームとデッキの4枚を登録します。<strong>4枚のカードだけを切り抜いた画像</strong>なら、デッキだけを登録します。</div>
       <div class="mgrid">${mcards}</div>
-      <div class="share">シェアカード：${shareOf(s, memTeam).shareImg ? `<img src="${img_(shareOf(s, memTeam).shareImg)}" alt=""> <button class="btn ghost sm" data-act="share-clear">解除</button>` : `<span class="muted-s">未指定（重複の警告に出たカードから指定できます）</span>`}</div>
-      ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong>${issues.map(x => `<div class="issue-row">${x.img ? `<img src="${img_(x.img)}" alt="">` : ""}<span>${esc(x.t)}</span>${x.ref ? `<button class="btn ghost sm" data-act="set-share" data-ref="${x.ref}">シェアカードにする</button>` : ""}</div>`).join("")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で絵が違うカードは見分けられないので、目で確認してください）</div>`}
+      ${SETS(s).cardDupBan && SETS(s).shareCount ? (() => { const sh = sharesOf(s, memTeam), N = SETS(s).shareCount; return `<div class="share"><div><b>シェアカード</b>（${sh.length}/${N}枚）：チーム内で被ってもよいカードです。${SETS(s).submitDecks ? "カード被りの警告から「シェアカードにする」でも指定できます。" : ""}</div>
+        <div class="share-list">${sh.length ? sh.map((c, i) => `<span class="share-chip">${c.img ? `<img src="${img_(c.img)}" alt="">` : ""}<span>${esc(c.n || "名前不明のカード")}</span><button class="btn ghost sm" data-act="share-del" data-i="${i}">解除</button></span>`).join("") : `<span class="muted-s">未指定</span>`}</div>
+        ${sh.length < N ? `<div class="btns"><input id="share-name" list="cardlist" placeholder="カード名を入れて選ぶ" autocomplete="off"><button class="btn sm" data-act="share-add">シェアカードに追加</button></div>` : ""}</div>`; })() : ""}
+      ${issues.length ? `<div class="gcheck bad"><strong>提出内容の問題</strong>${issues.map(x => `<div class="issue-row">${x.img ? `<img src="${img_(x.img)}" alt="">` : ""}<span>${esc(x.t)}</span>${x.ref && SETS(s).shareCount ? `<button class="btn ghost sm" data-act="set-share" data-ref="${x.ref}">シェアカードにする</button>` : ""}</div>`).join("")}</div>` : `<div class="gcheck ok">ヒーロー・カードの重複は見つかりませんでした（同じ効果で絵が違うカードは見分けられないので、目で確認してください）</div>`}
     </div></section>`;
 }
 document.addEventListener("click", ev => {
@@ -2306,9 +2328,19 @@ document.addEventListener("click", ev => {
   if (act === "set-share") {
     const [mid_, di, k] = el.dataset.ref.split(":"), c = deckOf(memberById(s, mid_), +di)[+k];
     if (!c) return;
-    saveShare(memTeam, { shareF: c.f || "", shareImg: c.img || "", shareN: c.n || "" }); render(); toast("シェアカードに指定しました"); return;
+    const sh = sharesOf(s, memTeam), N = SETS(s).shareCount;
+    if (!N) { toast("この大会はシェアカードなしの設定です"); return; }
+    if (sh.length >= N) { toast(`シェアカードは${N}枚までです。先にどれかを解除してください`); return; }
+    saveShares(memTeam, [...sh, { f: c.f || "", img: c.img || "", n: c.n || "" }]); render(); toast("シェアカードに指定しました"); return;
   }
-  if (act === "share-clear") { saveShare(memTeam, { shareF: "", shareImg: "", shareN: "" }); render(); return; }
+  if (act === "share-del") { const sh = sharesOf(s, memTeam); sh.splice(+el.dataset.i, 1); saveShares(memTeam, sh); render(); return; }
+  if (act === "share-add") {
+    const R = RD(), v = ($("#share-name")?.value || "").trim(), sh = sharesOf(s, memTeam), N = SETS(s).shareCount;
+    if (!R || !R.cardNames.includes(v)) { toast("カード名を、候補の中から選んでください"); return; }
+    if (sh.some(x => x.n === v)) { toast("そのカードはもうシェアカードです"); return; }
+    if (sh.length >= N) { toast(`シェアカードは${N}枚までです`); return; }
+    saveShares(memTeam, [...sh, { n: v }]); render(); toast("シェアカードに追加しました"); return;
+  }
 });
 document.addEventListener("change", ev => {
   const el = ev.target, s = S();
@@ -2835,7 +2867,7 @@ async function readShotGames(s, file, team, A, B) {
     if (team && !A) ownMissing = mine == null && membersOf(s, team).some(m => (m.nameRefs || []).length);
     return { b: u.score.b, r: u.score.r, sure: !!u.score.sure, mine, med: u.players.filter(p => p.medals).length, n: u.players.length, ka: ev?.ka ?? null, kb: ev?.kb ?? null,
       issues: ev ? ev.issues.filter(t => !t.startsWith("カスタムバトル")) : [], mode: u.mode ? { kind: u.mode.kind, n: u.mode.n, sure: !!u.mode.sure } : null, teamWarn: tc ? tc.warn : [], ownMissing,
-      stage: u.stage || null, stageURL: u.stageURL || "", clash: cardClash(s, u, mine === "b" ? "blue" : mine === "r" ? "red" : null).map(x => x.t), _u: u };
+      stage: u.stage || null, stageURL: u.stageURL || "", clash: cardClash(s, u, mine === "b" ? "blue" : mine === "r" ? "red" : null, side => team && mine && (side === "blue") === (mine === "b") ? team : null).map(x => x.t), _u: u };
   });
 }
 function autoFillReport() { // fill each row from its own screenshot (rows the player typed by hand are left alone)
