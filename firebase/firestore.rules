@@ -156,10 +156,10 @@ service cloud.firestore {
 
       // chat (text only, up to 200 characters; nobody can edit a message; deleted when the results are finalised)
       //  ch "match": the two teams of a match + operators / "staff": one team + operators /
-      //  "team": one team only (the organiser may delete them) / "all": operators -> every team (read-only for players)
+      //  "team": one team (operators can read it) / "all": operators -> every team (read-only for players)
       match /chat/{mid} {
         allow read: if isStale(tid) || isOwner(tid)
-                    || (isAdmin(tid) && resource.data.ch in ['match', 'staff', 'all'])
+                    || isAdmin(tid)
                     || (isPlayer(tid) && ((resource.data.ch == 'match' && (resource.data.a == playerTeam(tid) || resource.data.b == playerTeam(tid)))
                                           || (resource.data.ch in ['staff', 'team'] && resource.data.team == playerTeam(tid))
                                           || resource.data.ch == 'all'));
@@ -183,7 +183,7 @@ service cloud.firestore {
                         || (request.resource.data.ch == 'all' && request.resource.data.from == 'staff' && canEdit(tid) && request.resource.data.team == '')
                       );
         allow update: if false;
-        allow delete: if isOwner(tid) || isStale(tid) || (isAdmin(tid) && resource.data.ch in ['match', 'staff', 'all']);
+        allow delete: if isAdmin(tid) || isStale(tid);
       }
 
       // shared with everyone in this tournament: settings, group results, final tournament

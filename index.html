@@ -1727,7 +1727,8 @@ const GUIDE = {
     <li>通知はこの端末に保存されます。アプリを閉じているときは届きません（次に開いたときに「通知」タブに入ります）。</li></ul>`],
     ["チャット", `<ul>
     <li>「<b>チャット</b>」タブで、<b>全チームへのお知らせ</b>（選手は読むだけ）、<b>対戦チャット</b>（対戦する2チームと運営）、<b>運営チャット</b>（1チームと運営）を使えます。チームとの運営チャットは、「チームを選んで運営チャットを開く」から始められます。</li>
-    <li>メッセージは文字だけ（200文字まで）で、書き換えはできません。まずいメッセージは「消す」（2回押す）で消せます。選手の<b>チーム内チャット</b>は運営の画面には出ません。</li>
+    <li>選手の<b>チーム内チャット</b>は、「チーム内チャットを見る」から読めます（運営は書き込めません。新しいメッセージの通知も出ません）。</li>
+    <li>メッセージは文字だけ（200文字まで）で、書き換えはできません。まずいメッセージは「消す」（2回押す）で消せます。</li>
     <li>新しいメッセージは「通知」とタブの数字で分かります。大会の結果を確定すると、チャットはすべて消えます。</li></ul>`],
     ["棄権・失格とステージ", `<ul>
     <li>「対戦表・結果入力」の「<b>棄権・失格</b>」で、そのチームのまだ結果が入っていない試合をまとめて不戦敗にできます。「解除」で、そこで入れた不戦敗だけを消せます。</li>
@@ -1768,7 +1769,7 @@ const GUIDE = {
       <ul><li><b>運営からのお知らせ</b>：運営から全チームへのお知らせ（読むだけ）。</li>
       <li><b>対戦チャット</b>：今の対戦の相手チームと運営。対戦が終わって次の対戦に移ると、前の対戦チャットは「過去の対戦」として見るだけになります。</li>
       <li><b>運営とのチャット</b>：自分のチームと運営だけ。</li>
-      <li><b>チーム内チャット</b>：自分のチームのメンバーだけ。</li></ul></li>
+      <li><b>チーム内チャット</b>：自分のチームのメンバー同士。<b>運営も読めます</b>（運営は書き込めません）。</li></ul></li>
     <li>メッセージは文字だけ（200文字まで）です。新しいメッセージは「通知」とタブの数字で分かります。大会の結果が確定すると、チャットはすべて消えます。</li></ul>`],
     ["結果を報告する", `<ol>
     <li>試合が終わったら、マイチームの「<b>結果を運営に報告</b>」で対戦を選びます。</li>
@@ -2747,7 +2748,7 @@ function chatChannels(s) {
     out.push({ id: "a", label: "運営からのお知らせ", sub: "全チームへのお知らせ（読むだけ）", canSend: false });
     if (next) out.push({ id: `m:${next.kind}_${next.mid}`, label: `対戦チャット：vs ${teamName(s, next.a === team ? next.b : next.a)}`, sub: `${next.label}・相手チームと運営`, canSend: true, match: next });
     out.push({ id: "s:" + team, label: "運営とのチャット", sub: "自分のチームと運営だけ", canSend: true });
-    out.push({ id: "t:" + team, label: "チーム内チャット", sub: "自分のチームのメンバーだけ", canSend: true });
+    out.push({ id: "t:" + team, label: "チーム内チャット", sub: "自分のチーム（運営も読めます）", canSend: true });
     const have = new Set(CHATS().map(chatOf));
     ms.filter(m => m !== next && have.has(`m:${m.kind}_${m.mid}`)).forEach(m => out.push({ id: `m:${m.kind}_${m.mid}`, label: `過去の対戦：vs ${teamName(s, m.a === team ? m.b : m.a)}`, sub: `${m.label}・見るだけ（もう送れません）`, canSend: false, match: m }));
   } else if (role === "admin") {
@@ -2759,6 +2760,8 @@ function chatChannels(s) {
     for (const [id, m] of seen) if (have.has(id) || now.has(id)) out.push({ id, label: `対戦：${teamName(s, m.a)} vs ${teamName(s, m.b)}`, sub: `${m.label}${m.done ? "・終了" : ""}`, canSend: true, match: m });
     // a team's chat with the operators shows once it has messages, or when picked from the list
     for (const t of allTeams(s)) if (have.has("s:" + t.id) || chatSel === "s:" + t.id) out.push({ id: "s:" + t.id, label: `運営 ⇄ ${t.name}`, sub: "そのチームと運営だけ", canSend: true });
+    // a team's own chat: operators can read it (not write)
+    for (const t of allTeams(s)) if (have.has("t:" + t.id) || chatSel === "t:" + t.id) out.push({ id: "t:" + t.id, label: `チーム内：${t.name}`, sub: "そのチームのチャット（運営は読むだけ）", canSend: false, quiet: true });
   }
   return out;
 }
@@ -2768,7 +2771,7 @@ let chatSeenMem = null, chatSeenFor = "";
 function chatSeen() { const k = chatSeenKey(); if (chatSeenFor !== k) { chatSeenFor = k; chatSeenMem = {}; if (!demoMode) try { chatSeenMem = JSON.parse(localStorage.getItem(k) || "{}") || {}; } catch (e) {} } return chatSeenMem; }
 function chatMarkSeen(id) { const m = chatSeen(); m[id] = Date.now(); if (!demoMode) try { localStorage.setItem(chatSeenKey(), JSON.stringify(m)); } catch (e) {} }
 const chatUnread = (s, id) => CHATS().filter(m => chatOf(m) === id && !chatMine(m) && chatMs(m) > (chatSeen()[id] || 0)).length;
-const chatUnreadAll = s => chatOn() ? chatChannels(s).reduce((n, c) => n + chatUnread(s, c.id), 0) : 0;
+const chatUnreadAll = s => chatOn() ? chatChannels(s).filter(c => !c.quiet).reduce((n, c) => n + chatUnread(s, c.id), 0) : 0;
 function viewChat(s) {
   if (!chatOn()) return `<div class="notice">チャットは、選手と運営の人だけが使えます。</div>`;
   const chs = chatChannels(s);
@@ -2779,14 +2782,15 @@ function viewChat(s) {
   const msgs = cur ? CHATS().filter(m => chatOf(m) === cur.id).sort((a, b) => chatMs(a) - chatMs(b)) : [];
   const locked = isLocked(s);
   return `<section class="panel chat"><div class="panel-head"><h2>チャット</h2><span class="meta">${role === "admin" ? "運営" : esc(teamName(s, FB.team))}</span></div><div class="panel-body chat-body">
-    ${role === "admin" ? `<div class="btns"><select id="chat-team" aria-label="運営チャットを始めるチーム"><option value="">チームを選んで運営チャットを開く</option>${allTeams(s).map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("")}</select></div>` : ""}
+    ${role === "admin" ? `<div class="btns"><select id="chat-team" aria-label="運営チャットを始めるチーム"><option value="">チームを選んで運営チャットを開く</option>${allTeams(s).map(t => `<option value="s:${esc(t.id)}">${esc(t.name)}</option>`).join("")}</select>
+      <select id="chat-team2" aria-label="チーム内チャットを見るチーム"><option value="">チーム内チャットを見る</option>${allTeams(s).map(t => `<option value="t:${esc(t.id)}">${esc(t.name)}</option>`).join("")}</select></div>` : ""}
     <div class="chat-chs">${chs.map(c => { const u = chatUnread(s, c.id); return `<button class="chat-ch ${c.id === chatSel ? "on" : ""}" data-act="chat-sel" data-id="${esc(c.id)}"><b>${esc(c.label)}</b>${u ? `<span class="badge">${u}</span>` : ""}<small>${esc(c.sub)}</small></button>`; }).join("")}</div>
-    ${cur ? `<div class="chat-log" id="chat-log">${msgs.length ? msgs.map(m => `<div class="chat-msg ${chatMine(m) ? "me" : ""} ${m.from === "staff" ? "staff" : ""}"><div class="chat-h"><b>${esc(chatWho(s, m))}</b><span>${when(chatMs(m))}</span>${role === "admin" && cur.id[0] !== "t" && !locked ? `<button class="btn ghost sm" data-act="chat-del" data-id="${esc(m.id)}">消す</button>` : ""}</div><div class="chat-t">${esc(m.text)}</div></div>`).join("") : `<div class="muted-s">まだメッセージはありません。</div>`}</div>
-      ${locked ? `<div class="muted-s">大会の結果が確定したので、チャットは終了しました。</div>` : cur.canSend ? `<div class="chat-send"><textarea id="chat-in" maxlength="${CHAT_MAX}" rows="2" placeholder="${cur.id === "a" ? "全チームへのお知らせ" : "メッセージ"}（${CHAT_MAX}文字まで）"></textarea><button class="btn primary" data-act="chat-send" data-id="${esc(cur.id)}">送信</button></div>` : `<div class="muted-s">${cur.id === "a" ? "運営からのお知らせは、読むだけです。" : "この対戦は終わったので、見るだけです（新しいメッセージは送れません）。"}</div>`}` : `<div class="muted-s">使えるチャットがありません。</div>`}
-    <div class="muted-s">チャットは文字だけ（${CHAT_MAX}文字まで）です。${role === "admin" ? "対戦チャットと運営チャットは、その当事者と運営だけが見られます（チーム内チャットは運営には見えません）。" : "対戦チャットは相手チームと運営、運営とのチャットは運営、チーム内チャットは自分のチームだけが見られます。"}大会の結果が確定すると、チャットはすべて消えます。アプリを閉じている間は、届いたことが分かりません。</div>
+    ${cur ? `<div class="chat-log" id="chat-log">${msgs.length ? msgs.map(m => `<div class="chat-msg ${chatMine(m) ? "me" : ""} ${m.from === "staff" ? "staff" : ""}"><div class="chat-h"><b>${esc(chatWho(s, m))}</b><span>${when(chatMs(m))}</span>${role === "admin" && !locked ? `<button class="btn ghost sm" data-act="chat-del" data-id="${esc(m.id)}">消す</button>` : ""}</div><div class="chat-t">${esc(m.text)}</div></div>`).join("") : `<div class="muted-s">まだメッセージはありません。</div>`}</div>
+      ${locked ? `<div class="muted-s">大会の結果が確定したので、チャットは終了しました。</div>` : cur.id[0] === "t" && role === "admin" ? `<div class="muted-s">チーム内チャットは、運営は読むだけです（書き込めません）。</div>` : cur.canSend ? `<div class="chat-send"><textarea id="chat-in" maxlength="${CHAT_MAX}" rows="2" placeholder="${cur.id === "a" ? "全チームへのお知らせ" : "メッセージ"}（${CHAT_MAX}文字まで）"></textarea><button class="btn primary" data-act="chat-send" data-id="${esc(cur.id)}">送信</button></div>` : `<div class="muted-s">${cur.id === "a" ? "運営からのお知らせは、読むだけです。" : "この対戦は終わったので、見るだけです（新しいメッセージは送れません）。"}</div>`}` : `<div class="muted-s">使えるチャットがありません。</div>`}
+    <div class="muted-s">チャットは文字だけ（${CHAT_MAX}文字まで）です。${role === "admin" ? "対戦チャットと運営チャットは、その当事者と運営だけが見られます。チーム内チャットは、運営は読むだけです。" : "対戦チャットは相手チームと運営、運営とのチャットは運営、チーム内チャットは自分のチームと運営（読むだけ）が見られます。"}大会の結果が確定すると、チャットはすべて消えます。アプリを閉じている間は、届いたことが分かりません。</div>
   </div></section>`;
 }
-document.addEventListener("change", ev => { if (ev.target.id === "chat-team" && ev.target.value && role === "admin") { chatSel = "s:" + ev.target.value; render(); } });
+document.addEventListener("change", ev => { if ((ev.target.id === "chat-team" || ev.target.id === "chat-team2") && ev.target.value && role === "admin") { chatSel = ev.target.value; render(); } });
 document.addEventListener("click", async ev => {
   const el = ev.target.closest("[data-act^='chat-']"); if (!el || !chatOn()) return;
   const act = el.dataset.act, s = S();
@@ -2817,7 +2821,7 @@ function subscribeChat() {
   if (!FB.on || !FB.tid || !chatOn()) return;
   const col = FB.fs.collection(`tournaments/${FB.tid}/chat`), parts = {};
   const listen = (k, q) => unsubs.push(q.onSnapshot(snap => { parts[k] = snap.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: "estimate" }) })); real.chat = {}; Object.values(parts).flat().forEach(m => real.chat[m.id] = m); softRender(); }, () => {}));
-  if (role === "admin") listen("adm", col.where("ch", "in", ["match", "staff", "all"]));
+  if (role === "admin") listen("adm", col.where("ch", "in", ["match", "staff", "all", "team"]));
   else {
     const t = FB.team;
     listen("ma", col.where("ch", "==", "match").where("a", "==", t)); listen("mb", col.where("ch", "==", "match").where("b", "==", t));
@@ -2827,7 +2831,7 @@ function subscribeChat() {
 }
 // notices for new messages from others (not for one's own, and not inside the team chat for the operators)
 function chatFacts(s, N) {
-  const ids = new Set(chatChannels(s).map(c => c.id)), add = [];
+  const ids = new Set(chatChannels(s).filter(c => !c.quiet).map(c => c.id)), add = [];
   for (const m of CHATS().slice().sort((a, b) => chatMs(a) - chatMs(b))) {
     if (chatMine(m) || !ids.has(chatOf(m)) || !m.id) continue;
     const k = "chat:" + m.id; if (N.seen[k]) continue;
