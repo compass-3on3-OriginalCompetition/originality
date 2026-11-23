@@ -34,6 +34,11 @@ service cloud.firestore {
     function isViewer(tid) { return isAdmin(tid) || joinedWith(tid, 'viewers', 'viewCode') || isPlayer(tid); }
     function isTeamId(v) { return v is string && v.matches('^[a-z0-9]{2,20}$'); }
     // a support code: letters, digits and "-" only, up to 20 (empty = none)
+    // a match whose result is not complete yet (no result document, or done is not true)
+    function matchOpen(tid, kind, m) {
+      let p = kind == 'group' ? /databases/$(database)/documents/tournaments/$(tid)/matches/$(m) : /databases/$(database)/documents/tournaments/$(tid)/bracket/$(m);
+      return !exists(p) || get(p).data.get('done', false) != true;
+    }
     function isSupportCode(v) { return v is string && v.matches('^[A-Za-z0-9-]{0,20}$'); }
     function isCode(v) { return v is string && v.size() >= 10 && v.size() <= 40; }
     function tData(tid) { return get(tPath(tid)).data; }
@@ -164,7 +169,7 @@ service cloud.firestore {
                                           || (resource.data.ch in ['staff', 'team'] && resource.data.team == playerTeam(tid))
                                           || resource.data.ch == 'all'));
         allow create: if !isFinal(tid) && signedIn()
-                      && request.resource.data.keys().hasOnly(['ch', 'key', 'a', 'b', 'team', 'from', 'by', 'text', 'at'])
+                      && request.resource.data.keys().hasOnly(['ch', 'key', 'mk', 'mm', 'a', 'b', 'team', 'from', 'by', 'text', 'at'])
                       && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time
                       && request.resource.data.text is string && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 200
                       && request.resource.data.ch in ['match', 'staff', 'team', 'all']
@@ -174,7 +179,12 @@ service cloud.firestore {
                       && (
                         (request.resource.data.ch == 'match' && isTeamId(request.resource.data.a) && isTeamId(request.resource.data.b) && request.resource.data.key.size() > 0
                           && ((request.resource.data.from == 'team' && isPlayer(tid) && request.resource.data.team == playerTeam(tid)
-                               && (request.resource.data.a == playerTeam(tid) || request.resource.data.b == playerTeam(tid)))
+                               && (request.resource.data.a == playerTeam(tid) || request.resource.data.b == playerTeam(tid))
+                               // players may write only while that match is not over (the result says done: true once it is)
+                               && request.resource.data.mk in ['group', 'bracket'] && request.resource.data.mm is string
+                               && request.resource.data.mm.matches('^[A-Za-z0-9_]{1,80}$')
+                               && request.resource.data.key == request.resource.data.mk + '_' + request.resource.data.mm
+                               && matchOpen(tid, request.resource.data.mk, request.resource.data.mm))
                               || (request.resource.data.from == 'staff' && canEdit(tid) && request.resource.data.team == '')))
                         || (request.resource.data.ch == 'staff' && isTeamId(request.resource.data.team)
                           && ((request.resource.data.from == 'team' && isPlayer(tid) && request.resource.data.team == playerTeam(tid))

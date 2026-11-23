@@ -1092,6 +1092,9 @@ function applyLocal(st, path, data) {
 }
 function persistLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ config: real.config, matches: real.matches, bracket: real.bracket, members: real.members })); } catch (e) {} }
 async function write(path, data) {
+  // a result also says whether the match is over: the Firestore rules use it to close that match's chat for the players
+  if (data && /^matches\//.test(path)) data = { ...data, done: !!evalGroup(data, SETS()).done };
+  else if (data && /^bracket\//.test(path)) data = { ...data, done: !!evalBo3(data, SETS()).winner };
   if (demoMode) { applyLocal(demo, path, data); render(); return true; }
   if (isLocked()) { toast("この大会は結果が確定しているため、変更できません"); return false; }
   if (mode === "local") { applyLocal(real, path, data); persistLocal(); render(); return true; }
@@ -2809,7 +2812,8 @@ document.addEventListener("click", async ev => {
     if (Date.now() - chatLastSend < 2000) { toast("少し待ってから送ってください"); return; }
     chatLastSend = Date.now();
     const kind = id[0], from = role === "admin" ? "staff" : "team";
-    const msg = { ch: kind === "m" ? "match" : kind === "s" ? "staff" : kind === "t" ? "team" : "all", key: kind === "m" ? id.slice(2) : "", a: ch.match?.a || "", b: ch.match?.b || "", team: from === "team" ? FB.team : kind === "s" ? id.slice(2) : "", from, text };
+    const mk = kind === "m" ? (ch.match?.kind || "") : "", mm = kind === "m" ? (ch.match?.mid || "") : "";
+    const msg = { ch: kind === "m" ? "match" : kind === "s" ? "staff" : kind === "t" ? "team" : "all", key: kind === "m" ? id.slice(2) : "", mk, mm, a: ch.match?.a || "", b: ch.match?.b || "", team: from === "team" ? FB.team : kind === "s" ? id.slice(2) : "", from, text };
     if (demoMode) { demo.chat = [...(demo.chat || []), { ...msg, id: "d" + rid_(), by: "demo", at: Date.now() }]; chatMarkSeen(id); render(); setTimeout(() => { const l = $("#chat-log"); if (l) l.scrollTop = l.scrollHeight; }, 0); return; }
     el.disabled = true;
     try { await FB.fs.collection(`tournaments/${FB.tid}/chat`).add({ ...msg, by: FB.user.uid, at: firebase.firestore.FieldValue.serverTimestamp() }); const t = $("#chat-in"); if (t) t.value = ""; chatMarkSeen(id); }
